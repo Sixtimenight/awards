@@ -1,0 +1,25 @@
+id: jsp-001018
+batch: null
+problem:
+  source: jsp
+  number: JSP-001018
+  title_en: Must every sufficiently long integer sequence with bounded gaps have two distinct consecutive blocks with equal sums?
+  posed:
+    year: 1986
+    basis: earliest-reference
+    citation: Hegyvari, N. On consecutive sums in sequences. Acta Math. Hungar. 48, 193-200 (1986).
+  resolved:
+    year: 1986
+decision: null
+recipients:
+  - id: RECIPIENT-JSP-001018-A
+    affiliation: ""
+    contribution_en: Mathematical solution and Lean 4 formalization evidence.
+    confirmation: null
+verification:
+  peer_review: null
+  formal: null
+  independent_review: null
+conflicts: []
+status: draft
+revocation: null

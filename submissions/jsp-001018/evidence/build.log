@@ -1,0 +1,5 @@
+Compiling Erdos1213 (submissions/jsp-001018/Erdos1213.lean)
+info: Erdos1213.lean:508:0: 'Erdos1213.equal_interval_sums_of_last_gt_explicitBound' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Erdos1213.lean:509:0: 'Erdos1213.erdos_1213' depends on axioms: [propext, Classical.choice, Quot.sound]
+Build completed successfully.
+Exit Code: 0

@@ -1141,7 +1141,7 @@ The **No.** column runs consecutively from **JSP-000001** to **JSP-001022** in d
 | JSP-001015 | [For pairwise coprime integers in an interval, how large can the reciprocal sum of their distances to the endpoint be?](catalog-1001-1022.md#JSP-001015) | Open | No | No | Unavailable |
 | JSP-001016 | [In every partition of the natural numbers into two parts, must one part's finite subset sums have a uniform positive lower logarithmic density?](catalog-1001-1022.md#JSP-001016) | Solved | No | No | Unavailable |
 | JSP-001017 | [In the lattice graph of coprime coordinate pairs, is there an infinite path avoiding every point with both coordinates prime?](catalog-1001-1022.md#JSP-001017) | Progress | No | No | Unavailable |
-| JSP-001018 | [Must every sufficiently long integer sequence with bounded gaps have two distinct consecutive blocks with equal sums?](catalog-1001-1022.md#JSP-001018) | Solved | No | No | Unavailable |
+| JSP-001018 | [Must every sufficiently long integer sequence with bounded gaps have two distinct consecutive blocks with equal sums?](catalog-1001-1022.md#JSP-001018) | Solved | Yes | Yes | Unclaimed |
 | JSP-001019 | [If corresponding powers of two bases minus one always have identical prime-factor sets, must the bases be equal?](catalog-1001-1022.md#JSP-001019) | Solved | No | No | Unavailable |
 | JSP-001020 | [For a polynomial whose zeros all lie on the unit circle, is there a uniformly bounded-length path in the specified modulus region?](catalog-1001-1022.md#JSP-001020) | Solved | No | No | Unavailable |
 | JSP-001021 | [How large a transitive subtournament must every tournament of prescribed order contain?](catalog-1001-1022.md#JSP-001021) | Solved | No | No | Unavailable |
