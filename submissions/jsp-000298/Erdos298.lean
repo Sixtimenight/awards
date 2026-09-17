@@ -840,7 +840,652 @@ theorem erdos_rem_bound_of_mem_divisors (n s d : ℕ)
   exact erdos_rem_bound n s d hd_pos
 
 /-!
-### Section 4: Non-Trivial Lower Bound
+### Section 4: Finite Selberg Sieve Bound
+
+We optimize the quadratic diagonal form of the Selberg sieve on the Erdős remainder set
+$R = \{x \in [1, \lfloor(n-1)/(s+1)\rfloor] \mid \text{Coprime } D \; x\}$, where $D = \prod_{p \in P} p$.
+By choosing the canonical normalized Selberg weights $w(d)$ supported on $d \le z$,
+we unconditionally prove:
+1. $G = \sum_{d \in D.\text{divisors}, d \le z} \text{selbergTerms}(d) \ge 1 > 0$.
+2. $\text{mainSum}(\lambda^2 w) = 1 / G$.
+3. $|w(d)| \le d$ and $\sum_{d \in D.\text{divisors}} |w(d)| \le z^2$.
+4. $\text{errSum}(\lambda^2 w) \le z^4$.
+5. The finite Selberg sieve bound:
+   $|R| \le \lfloor(n-1)/(s+1)\rfloor / G + z^4$.
+-/
+
+def sieveLevelDivisors (n s z : ℕ) : Finset ℕ :=
+  ((∏ p ∈ sievePrimes n s, p).divisors).filter (fun d => d ≤ z)
+
+lemma one_mem_sieveLevelDivisors (n s z : ℕ) (hz : 1 ≤ z) :
+    1 ∈ sieveLevelDivisors n s z := by
+  simp only [sieveLevelDivisors, Finset.mem_filter, Nat.mem_divisors]
+  refine ⟨⟨one_dvd _, ?_⟩, hz⟩
+  have h_sq := (erdosBoundingSieve n s).prodPrimes_squarefree
+  exact Squarefree.ne_zero h_sq
+
+noncomputable def sieveG (n s z : ℕ) : ℝ :=
+  ∑ d ∈ sieveLevelDivisors n s z, (erdosBoundingSieve n s).selbergTerms d
+
+lemma sieveG_ge_one (n s z : ℕ) (hz : 1 ≤ z) :
+    1 ≤ sieveG n s z := by
+  dsimp [sieveG]
+  have h1 : 1 ∈ sieveLevelDivisors n s z := one_mem_sieveLevelDivisors n s z hz
+  have h_pos : ∀ d ∈ sieveLevelDivisors n s z, 0 ≤ (erdosBoundingSieve n s).selbergTerms d := by
+    intro d hd
+    simp only [sieveLevelDivisors, Finset.mem_filter, Nat.mem_divisors] at hd
+    exact le_of_lt (BoundingSieve.selbergTerms_pos hd.1.1)
+  have h_le := Finset.single_le_sum h_pos h1
+  have h_one : (erdosBoundingSieve n s).selbergTerms 1 = 1 :=
+    BoundingSieve.selbergTerms_isMultiplicative.map_one
+  rw [h_one] at h_le
+  exact h_le
+
+lemma sieveG_pos (n s z : ℕ) (hz : 1 ≤ z) :
+    0 < sieveG n s z := by
+  have := sieveG_ge_one n s z hz
+  linarith
+
+lemma lambdaSquared_abs_le (w : ℕ → ℝ) (d : ℕ) :
+    |BoundingSieve.lambdaSquared w d| ≤
+      ∑ d1 ∈ d.divisors, ∑ d2 ∈ d.divisors,
+        if d = Nat.lcm d1 d2 then |w d1| * |w d2| else 0 := by
+  dsimp [BoundingSieve.lambdaSquared]
+  refine (Finset.abs_sum_le_sum_abs _ _).trans ?_
+  gcongr with d1 hd1
+  refine (Finset.abs_sum_le_sum_abs _ _).trans ?_
+  gcongr with d2 hd2
+  split_ifs
+  · rw [abs_mul]
+  · simp
+
+lemma sum_divisors_lambda_sq_larger_sum (f : ℕ → ℕ → ℝ) (n : ℕ) :
+    (∑ d ∈ n.divisors, ∑ d1 ∈ d.divisors, ∑ d2 ∈ d.divisors,
+      if d = Nat.lcm d1 d2 then f d1 d2 else 0) =
+    (∑ d ∈ n.divisors, ∑ d1 ∈ n.divisors, ∑ d2 ∈ n.divisors,
+     if d = Nat.lcm d1 d2 then f d1 d2 else 0) := by
+  congr! 1 with d hd
+  rw [Nat.mem_divisors] at hd
+  have h_filter : ∀ d1 d2 : ℕ,
+      (d1 ∣ d ∧ d2 ∣ d ∧ d = d1.lcm d2) ↔ (d = d1.lcm d2) := by
+    intro d1 d2
+    constructor
+    · intro h; exact h.2.2
+    · rintro rfl; exact ⟨Nat.dvd_lcm_left d1 d2, Nat.dvd_lcm_right d1 d2, rfl⟩
+  simp_rw [← Nat.divisors_filter_dvd_of_dvd hd.2 hd.1, sum_filter, ite_sum_zero, ← ite_and]
+  congr! 2 with d1 hd1 d2 hd2
+  simp only [h_filter d1 d2]
+
+lemma sum_ite_lcm_le (S : Finset ℕ) (d1 d2 : ℕ) (a : ℝ) (ha : 0 ≤ a) :
+    (∑ d ∈ S, if d = Nat.lcm d1 d2 then a else 0) ≤ a := by
+  by_cases h : Nat.lcm d1 d2 ∈ S
+  · rw [sum_ite_eq' S (Nat.lcm d1 d2) (fun _ => a)]
+    simp only [h, ↓reduceIte, le_refl]
+  · rw [sum_ite_eq' S (Nat.lcm d1 d2) (fun _ => a)]
+    simp only [h, ↓reduceIte, ha]
+
+theorem errSum_lambdaSquared_le (n s : ℕ) (w : ℕ → ℝ) :
+    @BoundingSieve.errSum (erdosBoundingSieve n s) (BoundingSieve.lambdaSquared w) ≤
+      (∑ d ∈ (erdosBoundingSieve n s).prodPrimes.divisors, |w d|) ^ 2 := by
+  let D := (erdosBoundingSieve n s).prodPrimes
+  calc @BoundingSieve.errSum (erdosBoundingSieve n s) (BoundingSieve.lambdaSquared w)
+    _ = ∑ d ∈ D.divisors, |BoundingSieve.lambdaSquared w d| * |(erdosBoundingSieve n s).rem d| := rfl
+    _ ≤ ∑ d ∈ D.divisors, |BoundingSieve.lambdaSquared w d| * 1 := by
+      gcongr with d hd
+      exact erdos_rem_bound_of_mem_divisors n s d hd
+    _ = ∑ d ∈ D.divisors, |BoundingSieve.lambdaSquared w d| := by
+      congr with d; ring
+    _ ≤ ∑ d ∈ D.divisors, ∑ d1 ∈ d.divisors, ∑ d2 ∈ d.divisors,
+          if d = Nat.lcm d1 d2 then |w d1| * |w d2| else 0 := by
+      gcongr with d hd
+      exact lambdaSquared_abs_le w d
+    _ = ∑ d ∈ D.divisors, ∑ d1 ∈ D.divisors, ∑ d2 ∈ D.divisors,
+          if d = Nat.lcm d1 d2 then |w d1| * |w d2| else 0 := by
+      rw [sum_divisors_lambda_sq_larger_sum (fun d1 d2 => |w d1| * |w d2|) D]
+    _ = ∑ d1 ∈ D.divisors, ∑ d2 ∈ D.divisors, ∑ d ∈ D.divisors,
+          if d = Nat.lcm d1 d2 then |w d1| * |w d2| else 0 := by
+      rw [sum_comm]
+      congr 1 with d1
+      rw [sum_comm]
+    _ ≤ ∑ d1 ∈ D.divisors, ∑ d2 ∈ D.divisors, |w d1| * |w d2| := by
+      gcongr with d1 hd1 d2 hd2
+      apply sum_ite_lcm_le
+      positivity
+    _ = (∑ d ∈ D.divisors, |w d|) ^ 2 := by
+      simp_rw [← mul_sum, ← sum_mul, sq]
+
+noncomputable def selbergWeight (n s z d : ℕ) : ℝ :=
+  if d ∣ (erdosBoundingSieve n s).prodPrimes then
+    ((ArithmeticFunction.moebius d : ℝ) * (d : ℝ) / sieveG n s z) *
+      ∑ l ∈ (sieveLevelDivisors n s z).filter (fun l => d ∣ l),
+        (erdosBoundingSieve n s).selbergTerms l
+  else
+    0
+
+lemma selbergWeight_one (n s z : ℕ) (hz : 1 ≤ z) :
+    selbergWeight n s z 1 = 1 := by
+  dsimp [selbergWeight]
+  have h1_dvd : 1 ∣ (erdosBoundingSieve n s).prodPrimes := one_dvd _
+  rw [if_pos h1_dvd]
+  have h_mu1 : (ArithmeticFunction.moebius 1 : ℝ) = 1 := by simp
+  rw [h_mu1]
+  push_cast
+  have h_filter : (sieveLevelDivisors n s z).filter (fun l => 1 ∣ l) = sieveLevelDivisors n s z := by
+    ext l
+    simp only [Finset.mem_filter, one_dvd, and_true]
+  rw [h_filter]
+  have hG_ne : sieveG n s z ≠ 0 := (sieveG_pos n s z hz).ne'
+  dsimp [sieveG]
+  ring_nf
+  exact div_self hG_ne
+
+lemma selbergWeight_eq_zero_of_gt (n s z d : ℕ) (hd : z < d) :
+    selbergWeight n s z d = 0 := by
+  dsimp [selbergWeight]
+  split_ifs with hdP
+  · have h_empty : (sieveLevelDivisors n s z).filter (fun l => d ∣ l) = ∅ := by
+      rw [Finset.filter_eq_empty_iff]
+      intro l hl
+      simp only [sieveLevelDivisors, Finset.mem_filter, Nat.mem_divisors] at hl
+      intro h_dvd
+      have hl_ne : l ≠ 0 := by
+        rintro rfl
+        exact hl.1.2 (Nat.eq_zero_of_zero_dvd hl.1.1)
+      have h_le : d ≤ l := Nat.le_of_dvd (Nat.pos_of_ne_zero hl_ne) h_dvd
+      omega
+    rw [h_empty, sum_empty, mul_zero]
+  · rfl
+
+lemma selbergWeight_isUpperMoebius (n s z : ℕ) (hz : 1 ≤ z) :
+    BoundingSieve.IsUpperMoebius (BoundingSieve.lambdaSquared (selbergWeight n s z)) :=
+  BoundingSieve.upperMoebius_lambdaSquared (selbergWeight n s z) (selbergWeight_one n s z hz)
+
+lemma sum_divisors_moebius_real (k : ℕ) :
+    (∑ j ∈ k.divisors, (ArithmeticFunction.moebius j : ℝ)) = if k = 1 then 1 else 0 := by
+  have h := ArithmeticFunction.ext_iff.mp (ArithmeticFunction.coe_moebius_mul_coe_zeta (R := ℝ)) k
+  simp only [ArithmeticFunction.coe_mul_zeta_apply, ArithmeticFunction.one_apply] at h
+  exact h
+
+lemma squarefree_coprime_of_mul_dvd {l j m : ℕ} (hm : Squarefree m) (h : l * j ∣ m) :
+    l.Coprime j := by
+  have h_sq : Squarefree (l * j) := Squarefree.squarefree_of_dvd h hm
+  exact Nat.coprime_of_squarefree_mul h_sq
+
+lemma filter_divisors_dvd_eq_image {l m : ℕ} (hl : l ≠ 0) (hm : m ≠ 0) (hlm : l ∣ m) :
+    (m.divisors.filter (fun d => l ∣ d)) = (m / l).divisors.image (fun j => l * j) := by
+  ext d
+  simp only [Finset.mem_filter, Nat.mem_divisors, Finset.mem_image]
+  constructor
+  · rintro ⟨⟨hd_dvd, _⟩, hl_dvd⟩
+    refine ⟨d / l, ?_, ?_⟩
+    · refine ⟨?_, ?_⟩
+      · rw [Nat.dvd_div_iff_mul_dvd hlm, Nat.mul_comm, Nat.div_mul_cancel hl_dvd]
+        exact hd_dvd
+      · have h_pos : 0 < m / l :=
+          Nat.div_pos (Nat.le_of_dvd (Nat.pos_of_ne_zero hm) hlm) (Nat.pos_of_ne_zero hl)
+        exact h_pos.ne'
+    · rw [Nat.mul_comm, Nat.div_mul_cancel hl_dvd]
+  · rintro ⟨j, ⟨hj_dvd, _⟩, rfl⟩
+    refine ⟨⟨?_, hm⟩, dvd_mul_right l j⟩
+    have := Nat.mul_dvd_mul_left l hj_dvd
+    rwa [Nat.mul_div_cancel' hlm] at this
+
+lemma nat_div_eq_one_iff_eq {l m : ℕ} (hl : l ≠ 0) (hlm : l ∣ m) : m / l = 1 ↔ m = l := by
+  constructor
+  · intro h
+    have : l * (m / l) = l * 1 := congr_arg (fun x => l * x) h
+    rw [Nat.mul_div_cancel' hlm, mul_one] at this
+    exact this
+  · rintro rfl
+    exact Nat.div_self (Nat.pos_of_ne_zero hl)
+
+lemma sum_moebius_dvd_eq {l m : ℕ} (hl : l ≠ 0) (hlm : l ∣ m) (hm : Squarefree m) :
+    (∑ d ∈ m.divisors.filter (fun d => l ∣ d), (ArithmeticFunction.moebius d : ℝ)) =
+      if m = l then (ArithmeticFunction.moebius l : ℝ) else 0 := by
+  have hm_ne : m ≠ 0 := Squarefree.ne_zero hm
+  rw [filter_divisors_dvd_eq_image hl hm_ne hlm]
+  have h_inj : Set.InjOn (fun j => l * j) (m / l).divisors := by
+    intro x _ y _ hxy
+    exact Nat.eq_of_mul_eq_mul_left (Nat.pos_of_ne_zero hl) hxy
+  rw [Finset.sum_image h_inj]
+  have h_term : ∀ j ∈ (m / l).divisors,
+      (ArithmeticFunction.moebius (l * j) : ℝ) =
+        (ArithmeticFunction.moebius l : ℝ) * (ArithmeticFunction.moebius j : ℝ) := by
+    intro j hj
+    have hj_dvd : j ∣ m / l := Nat.dvd_of_mem_divisors hj
+    have h_mul_dvd : l * j ∣ m := by
+      have := Nat.mul_dvd_mul_left l hj_dvd
+      rwa [Nat.mul_div_cancel' hlm] at this
+    have h_cop := squarefree_coprime_of_mul_dvd hm h_mul_dvd
+    have h_mult := ArithmeticFunction.isMultiplicative_moebius.map_mul_of_coprime h_cop
+    exact_mod_cast h_mult
+  rw [Finset.sum_congr rfl h_term]
+  rw [← Finset.mul_sum]
+  rw [sum_divisors_moebius_real (m / l)]
+  have h_iff := nat_div_eq_one_iff_eq hl hlm
+  by_cases h : m = l
+  · have h1 : m / l = 1 := h_iff.mpr h
+    rw [if_pos h1, if_pos h, mul_one]
+  · have h1 : m / l ≠ 1 := mt h_iff.mp h
+    rw [if_neg h1, if_neg h, mul_zero]
+
+lemma dvd_mem_sieveLevelDivisors {n s z : ℕ} {m d : ℕ}
+    (hm : m ∈ sieveLevelDivisors n s z) (hd : d ∣ m) :
+    d ∈ sieveLevelDivisors n s z := by
+  simp only [sieveLevelDivisors, Finset.mem_filter, Nat.mem_divisors] at hm ⊢
+  have hm0 : m ≠ 0 := ne_zero_of_dvd_ne_zero hm.1.2 hm.1.1
+  have hd_le : d ≤ m := Nat.le_of_dvd (Nat.pos_of_ne_zero hm0) hd
+  refine ⟨⟨hd.trans hm.1.1, hm.1.2⟩, by omega⟩
+
+lemma nu_mul_selbergWeight_of_mem {n s z d : ℕ} (hd : d ∈ sieveLevelDivisors n s z) :
+    (erdosBoundingSieve n s).nu d * selbergWeight n s z d =
+      (ArithmeticFunction.moebius d : ℝ) / sieveG n s z *
+        ∑ m ∈ (sieveLevelDivisors n s z).filter (fun m => d ∣ m), (erdosBoundingSieve n s).selbergTerms m := by
+  have hd_div : d ∈ (erdosBoundingSieve n s).prodPrimes.divisors := by
+    simp only [sieveLevelDivisors, Finset.mem_filter] at hd
+    exact hd.1
+  have hd_dvd : d ∣ (erdosBoundingSieve n s).prodPrimes := Nat.dvd_of_mem_divisors hd_div
+  dsimp [selbergWeight]
+  rw [if_pos hd_dvd]
+  dsimp [erdosBoundingSieve, unitDensity]
+  have hd0 : d ≠ 0 := by
+    have hD0 := (erdosBoundingSieve n s).prodPrimes_ne_zero
+    exact ne_zero_of_dvd_ne_zero hD0 hd_dvd
+  rw [if_neg hd0]
+  have hd_cast : (d : ℝ) ≠ 0 := Nat.cast_ne_zero.mpr hd0
+  calc (1 / (d : ℝ)) * ((ArithmeticFunction.moebius d : ℝ) * (d : ℝ) / sieveG n s z *
+        ∑ m ∈ (sieveLevelDivisors n s z).filter (fun m => d ∣ m), (erdosBoundingSieve n s).selbergTerms m)
+    _ = (1 / (d : ℝ) * (d : ℝ)) * ((ArithmeticFunction.moebius d : ℝ) / sieveG n s z *
+        ∑ m ∈ (sieveLevelDivisors n s z).filter (fun m => d ∣ m), (erdosBoundingSieve n s).selbergTerms m) := by ring
+    _ = 1 * ((ArithmeticFunction.moebius d : ℝ) / sieveG n s z *
+        ∑ m ∈ (sieveLevelDivisors n s z).filter (fun m => d ∣ m), (erdosBoundingSieve n s).selbergTerms m) := by
+      rw [one_div_mul_cancel hd_cast]
+    _ = (ArithmeticFunction.moebius d : ℝ) / sieveG n s z *
+        ∑ m ∈ (sieveLevelDivisors n s z).filter (fun m => d ∣ m), (erdosBoundingSieve n s).selbergTerms m := by ring
+
+lemma nu_mul_selbergWeight_of_not_mem {n s z d : ℕ}
+    (hd_div : d ∈ (erdosBoundingSieve n s).prodPrimes.divisors)
+    (hnd : d ∉ sieveLevelDivisors n s z) :
+    (erdosBoundingSieve n s).nu d * selbergWeight n s z d = 0 := by
+  have hz : z < d := by
+    simp only [sieveLevelDivisors, Finset.mem_filter, not_and] at hnd
+    have := hnd hd_div
+    omega
+  rw [selbergWeight_eq_zero_of_gt n s z d hz, mul_zero]
+
+lemma sum_divisors_nu_mul_selbergWeight_eq (n s z l : ℕ) :
+    (∑ d ∈ (erdosBoundingSieve n s).prodPrimes.divisors,
+      if l ∣ d then (erdosBoundingSieve n s).nu d * selbergWeight n s z d else 0) =
+    (∑ d ∈ sieveLevelDivisors n s z,
+      if l ∣ d then (erdosBoundingSieve n s).nu d * selbergWeight n s z d else 0) := by
+  let D := (erdosBoundingSieve n s).prodPrimes
+  have h_sub : sieveLevelDivisors n s z ⊆ D.divisors := Finset.filter_subset _ _
+  rw [← Finset.sum_subset h_sub]
+  intro d hd_div hd_not_mem
+  have := nu_mul_selbergWeight_of_not_mem hd_div hd_not_mem
+  split_ifs
+  · exact this
+  · rfl
+
+lemma sum_moebius_sieveLevel_eq {n s z l m : ℕ}
+    (hl0 : l ≠ 0) (hm : m ∈ sieveLevelDivisors n s z) :
+    (∑ d ∈ sieveLevelDivisors n s z, if l ∣ d ∧ d ∣ m then (ArithmeticFunction.moebius d : ℝ) else 0) =
+      if m = l then (ArithmeticFunction.moebius l : ℝ) else 0 := by
+  have hm_div : m ∈ (erdosBoundingSieve n s).prodPrimes.divisors := by
+    simp only [sieveLevelDivisors, Finset.mem_filter] at hm
+    exact hm.1
+  have hm_dvd : m ∣ (erdosBoundingSieve n s).prodPrimes := Nat.dvd_of_mem_divisors hm_div
+  have hm_sq : Squarefree m :=
+    Squarefree.squarefree_of_dvd hm_dvd (erdosBoundingSieve n s).prodPrimes_squarefree
+  have hm0 : m ≠ 0 := Squarefree.ne_zero hm_sq
+  by_cases hlm : l ∣ m
+  · have h_sub : m.divisors.filter (fun d => l ∣ d) ⊆ sieveLevelDivisors n s z := by
+      intro d hd
+      simp only [Finset.mem_filter, Nat.mem_divisors] at hd
+      exact dvd_mem_sieveLevelDivisors hm hd.1.1
+    rw [← Finset.sum_subset h_sub]
+    · rw [← sum_moebius_dvd_eq hl0 hlm hm_sq]
+      apply Finset.sum_congr rfl
+      intro d hd
+      simp only [Finset.mem_filter, Nat.mem_divisors] at hd
+      rw [if_pos ⟨hd.2, hd.1.1⟩]
+    · intro d hd_L hd_not_mem
+      have : ¬(l ∣ d ∧ d ∣ m) := by
+        intro ⟨hld, hdm⟩
+        apply hd_not_mem
+        simp only [Finset.mem_filter, Nat.mem_divisors]
+        exact ⟨⟨hdm, hm0⟩, hld⟩
+      rw [if_neg this]
+  · have h_eq_zero : (∑ d ∈ sieveLevelDivisors n s z, if l ∣ d ∧ d ∣ m then (ArithmeticFunction.moebius d : ℝ) else 0) = 0 := by
+      apply Finset.sum_eq_zero
+      intro d _
+      have : ¬(l ∣ d ∧ d ∣ m) := by
+        intro ⟨hld, hdm⟩
+        exact hlm (hld.trans hdm)
+      rw [if_neg this]
+    rw [h_eq_zero]
+    have h_ne : m ≠ l := by
+      rintro rfl
+      exact hlm dvd_rfl
+    rw [if_neg h_ne]
+
+lemma selberg_weight_term_eq {n s z d : ℕ} (l : ℕ) :
+    (if l ∣ d then (ArithmeticFunction.moebius d : ℝ) / sieveG n s z *
+        ∑ m ∈ (sieveLevelDivisors n s z).filter (fun m => d ∣ m), (erdosBoundingSieve n s).selbergTerms m
+      else 0) =
+      ∑ m ∈ sieveLevelDivisors n s z,
+        if l ∣ d ∧ d ∣ m then
+          (ArithmeticFunction.moebius d : ℝ) / sieveG n s z * (erdosBoundingSieve n s).selbergTerms m
+        else 0 := by
+  split_ifs with hld
+  · rw [Finset.mul_sum]
+    rw [← Finset.sum_filter]
+    have h_filter : (sieveLevelDivisors n s z).filter (fun a => l ∣ d ∧ d ∣ a) =
+        (sieveLevelDivisors n s z).filter (fun i => d ∣ i) := by
+      ext a; simp [hld]
+    rw [h_filter]
+  · rw [Finset.sum_eq_zero]
+    intro m _
+    have : ¬(l ∣ d ∧ d ∣ m) := fun h => hld h.1
+    rw [if_neg this]
+
+lemma zero_not_mem_sieveLevelDivisors (n s z : ℕ) :
+    0 ∉ sieveLevelDivisors n s z := by
+  intro h0
+  simp only [sieveLevelDivisors, Finset.mem_filter, Nat.mem_divisors] at h0
+  exact h0.1.2 (Nat.eq_zero_of_zero_dvd h0.1.1)
+
+lemma selberg_inner_sum_eq (n s z l : ℕ) :
+    (∑ d ∈ (erdosBoundingSieve n s).prodPrimes.divisors,
+      if l ∣ d then (erdosBoundingSieve n s).nu d * selbergWeight n s z d else 0) =
+    if l ∈ sieveLevelDivisors n s z then
+      (ArithmeticFunction.moebius l : ℝ) / sieveG n s z * (erdosBoundingSieve n s).selbergTerms l
+    else 0 := by
+  rw [sum_divisors_nu_mul_selbergWeight_eq]
+  have h_congr : (∑ d ∈ sieveLevelDivisors n s z,
+      if l ∣ d then (erdosBoundingSieve n s).nu d * selbergWeight n s z d else 0) =
+    ∑ d ∈ sieveLevelDivisors n s z,
+      if l ∣ d then (ArithmeticFunction.moebius d : ℝ) / sieveG n s z *
+        ∑ m ∈ (sieveLevelDivisors n s z).filter (fun m => d ∣ m), (erdosBoundingSieve n s).selbergTerms m
+      else 0 := by
+    apply Finset.sum_congr rfl
+    intro d hd
+    rw [nu_mul_selbergWeight_of_mem hd]
+  rw [h_congr]
+  simp_rw [selberg_weight_term_eq]
+  rw [Finset.sum_comm]
+  by_cases hl0 : l = 0
+  · subst hl0
+    have hl_not : 0 ∉ sieveLevelDivisors n s z := zero_not_mem_sieveLevelDivisors n s z
+    rw [if_neg hl_not]
+    apply Finset.sum_eq_zero
+    intro m hm
+    apply Finset.sum_eq_zero
+    intro d hd
+    have hd0 : d ≠ 0 := by
+      rintro rfl
+      exact (zero_not_mem_sieveLevelDivisors n s z) hd
+    have : ¬(0 ∣ d ∧ d ∣ m) := fun h => hd0 (Nat.eq_zero_of_zero_dvd h.1)
+    rw [if_neg this]
+  · have h_inner : ∀ m ∈ sieveLevelDivisors n s z,
+        (∑ d ∈ sieveLevelDivisors n s z,
+          if l ∣ d ∧ d ∣ m then
+            (ArithmeticFunction.moebius d : ℝ) / sieveG n s z * (erdosBoundingSieve n s).selbergTerms m
+          else 0) =
+        if m = l then
+          (ArithmeticFunction.moebius l : ℝ) / sieveG n s z * (erdosBoundingSieve n s).selbergTerms l
+        else 0 := by
+      intro m hm
+      have h_term : ∀ d ∈ sieveLevelDivisors n s z,
+          (if l ∣ d ∧ d ∣ m then
+            (ArithmeticFunction.moebius d : ℝ) / sieveG n s z * (erdosBoundingSieve n s).selbergTerms m
+          else 0) =
+          ((erdosBoundingSieve n s).selbergTerms m / sieveG n s z) *
+            if l ∣ d ∧ d ∣ m then (ArithmeticFunction.moebius d : ℝ) else 0 := by
+        intro d _
+        split_ifs <;> ring
+      rw [Finset.sum_congr rfl h_term, ← Finset.mul_sum]
+      rw [sum_moebius_sieveLevel_eq hl0 hm]
+      split_ifs with hml
+      · subst hml; ring
+      · ring
+    rw [Finset.sum_congr rfl h_inner]
+    by_cases hl_mem : l ∈ sieveLevelDivisors n s z
+    · rw [if_pos hl_mem]
+      rw [Finset.sum_ite_eq' (sieveLevelDivisors n s z) l]
+      simp only [hl_mem, ↓reduceIte]
+    · rw [if_neg hl_mem]
+      rw [Finset.sum_ite_eq' (sieveLevelDivisors n s z) l]
+      simp only [hl_mem, ↓reduceIte]
+
+lemma selberg_quad_term_eq (n s z : ℕ) {l : ℕ} (hl : l ∈ sieveLevelDivisors n s z) :
+    ((erdosBoundingSieve n s).selbergTerms l)⁻¹ *
+      ((if l ∈ sieveLevelDivisors n s z then
+        (ArithmeticFunction.moebius l : ℝ) / sieveG n s z * (erdosBoundingSieve n s).selbergTerms l
+      else 0) ^ 2) =
+    (1 / (sieveG n s z) ^ 2) * (erdosBoundingSieve n s).selbergTerms l := by
+  rw [if_pos hl]
+  have hl_div : l ∈ (erdosBoundingSieve n s).prodPrimes.divisors := by
+    simp only [sieveLevelDivisors, Finset.mem_filter] at hl
+    exact hl.1
+  have hl_dvd : l ∣ (erdosBoundingSieve n s).prodPrimes := Nat.dvd_of_mem_divisors hl_div
+  have hl_sq : Squarefree l :=
+    Squarefree.squarefree_of_dvd hl_dvd (erdosBoundingSieve n s).prodPrimes_squarefree
+  have h_mu_sq : (ArithmeticFunction.moebius l : ℝ) ^ 2 = 1 := by
+    have := ArithmeticFunction.moebius_sq_eq_one_of_squarefree hl_sq
+    exact_mod_cast this
+  have h_pos := BoundingSieve.selbergTerms_pos hl_dvd
+  have h_ne : (erdosBoundingSieve n s).selbergTerms l ≠ 0 := h_pos.ne'
+  set T := (erdosBoundingSieve n s).selbergTerms l
+  set G := sieveG n s z
+  calc T⁻¹ * ((ArithmeticFunction.moebius l : ℝ) / G * T) ^ 2
+    _ = T⁻¹ * ((ArithmeticFunction.moebius l : ℝ) ^ 2 / G ^ 2 * T ^ 2) := by ring
+    _ = T⁻¹ * (1 / G ^ 2 * T ^ 2) := by rw [h_mu_sq]
+    _ = (1 / G ^ 2) * (T⁻¹ * T ^ 2) := by ring
+    _ = (1 / G ^ 2) * (T⁻¹ * (T * T)) := by ring
+    _ = (1 / G ^ 2) * ((T⁻¹ * T) * T) := by ring
+    _ = (1 / G ^ 2) * (1 * T) := by rw [inv_mul_cancel₀ h_ne]
+    _ = (1 / G ^ 2) * T := by ring
+
+lemma selberg_quad_term_of_not_mem (n s z : ℕ) {l : ℕ} (hl : l ∉ sieveLevelDivisors n s z) :
+    ((erdosBoundingSieve n s).selbergTerms l)⁻¹ *
+      ((if l ∈ sieveLevelDivisors n s z then
+        (ArithmeticFunction.moebius l : ℝ) / sieveG n s z * (erdosBoundingSieve n s).selbergTerms l
+      else 0) ^ 2) = 0 := by
+  rw [if_neg hl, zero_pow (by norm_num), mul_zero]
+
+theorem mainSum_selbergWeight_eq (n s z : ℕ) (hz : 1 ≤ z) :
+    @BoundingSieve.mainSum (erdosBoundingSieve n s)
+      (BoundingSieve.lambdaSquared (selbergWeight n s z)) = 1 / sieveG n s z := by
+  let s_bs := erdosBoundingSieve n s
+  have h_diag := BoundingSieve.mainSum_lambdaSquared_eq_sum_mul_sum_sq (selbergWeight n s z) (s := s_bs)
+  rw [h_diag]
+  have h_inner_congr : ∀ l ∈ s_bs.prodPrimes.divisors,
+      (∑ d ∈ s_bs.prodPrimes.divisors, if l ∣ d then s_bs.nu d * selbergWeight n s z d else 0) =
+      if l ∈ sieveLevelDivisors n s z then
+        (ArithmeticFunction.moebius l : ℝ) / sieveG n s z * s_bs.selbergTerms l
+      else 0 := fun l _ => selberg_inner_sum_eq n s z l
+  have h_step1 : (∑ l ∈ s_bs.prodPrimes.divisors, (s_bs.selbergTerms l)⁻¹ *
+      (∑ d ∈ s_bs.prodPrimes.divisors, if l ∣ d then s_bs.nu d * selbergWeight n s z d else 0) ^ 2) =
+    ∑ l ∈ s_bs.prodPrimes.divisors, (s_bs.selbergTerms l)⁻¹ *
+      ((if l ∈ sieveLevelDivisors n s z then
+        (ArithmeticFunction.moebius l : ℝ) / sieveG n s z * s_bs.selbergTerms l
+      else 0) ^ 2) := by
+    apply Finset.sum_congr rfl
+    intro l hl
+    rw [h_inner_congr l hl]
+  rw [h_step1]
+  have h_sub : sieveLevelDivisors n s z ⊆ s_bs.prodPrimes.divisors := Finset.filter_subset _ _
+  rw [← Finset.sum_subset h_sub]
+  · have h_quad_congr : (∑ l ∈ sieveLevelDivisors n s z, (s_bs.selbergTerms l)⁻¹ *
+        ((if l ∈ sieveLevelDivisors n s z then
+          (ArithmeticFunction.moebius l : ℝ) / sieveG n s z * s_bs.selbergTerms l
+        else 0) ^ 2)) =
+      ∑ l ∈ sieveLevelDivisors n s z, (1 / (sieveG n s z) ^ 2) * s_bs.selbergTerms l := by
+      apply Finset.sum_congr rfl
+      intro l hl
+      exact selberg_quad_term_eq n s z hl
+    rw [h_quad_congr, ← Finset.mul_sum]
+    have h_sum_G : (∑ l ∈ sieveLevelDivisors n s z, s_bs.selbergTerms l) = sieveG n s z := rfl
+    rw [h_sum_G]
+    have hG_ne : sieveG n s z ≠ 0 := (sieveG_pos n s z hz).ne'
+    calc (1 / (sieveG n s z) ^ 2) * sieveG n s z
+      _ = (1 / (sieveG n s z * sieveG n s z)) * sieveG n s z := by ring
+      _ = (1 / sieveG n s z * (1 / sieveG n s z)) * sieveG n s z := by rw [one_div_mul_one_div]
+      _ = (1 / sieveG n s z) * ((1 / sieveG n s z) * sieveG n s z) := by ring
+      _ = (1 / sieveG n s z) * 1 := by rw [one_div_mul_cancel hG_ne]
+      _ = 1 / sieveG n s z := mul_one _
+  · intro l _ hl_not
+    exact selberg_quad_term_of_not_mem n s z hl_not
+
+lemma selbergTerms_nonneg_of_mem_sieveLevelDivisors (n s z l : ℕ)
+    (hl : l ∈ sieveLevelDivisors n s z) :
+    0 ≤ (erdosBoundingSieve n s).selbergTerms l := by
+  have hl_div : l ∈ (erdosBoundingSieve n s).prodPrimes.divisors := by
+    simp only [sieveLevelDivisors, Finset.mem_filter] at hl
+    exact hl.1
+  have hl_dvd : l ∣ (erdosBoundingSieve n s).prodPrimes := Nat.dvd_of_mem_divisors hl_div
+  exact le_of_lt (BoundingSieve.selbergTerms_pos hl_dvd)
+
+lemma sum_selbergTerms_filter_le_sieveG (n s z d : ℕ) :
+    (∑ l ∈ (sieveLevelDivisors n s z).filter (fun l => d ∣ l), (erdosBoundingSieve n s).selbergTerms l) ≤
+      sieveG n s z := by
+  dsimp [sieveG]
+  apply Finset.sum_le_sum_of_subset_of_nonneg (Finset.filter_subset _ _)
+  intro l hl _
+  exact selbergTerms_nonneg_of_mem_sieveLevelDivisors n s z l hl
+
+lemma abs_selbergWeight_le (n s z d : ℕ) (hz : 1 ≤ z)
+    (hd_div : d ∈ (erdosBoundingSieve n s).prodPrimes.divisors) :
+    |selbergWeight n s z d| ≤ (d : ℝ) := by
+  by_cases hd_level : d ∈ sieveLevelDivisors n s z
+  · dsimp [selbergWeight]
+    have hd_dvd : d ∣ (erdosBoundingSieve n s).prodPrimes := Nat.dvd_of_mem_divisors hd_div
+    rw [if_pos hd_dvd]
+    rw [abs_mul]
+    have hG_pos := sieveG_pos n s z hz
+    have h_sum_nonneg : 0 ≤ ∑ l ∈ (sieveLevelDivisors n s z).filter (fun l => d ∣ l), (erdosBoundingSieve n s).selbergTerms l := by
+      apply Finset.sum_nonneg
+      intro l hl
+      simp only [Finset.mem_filter] at hl
+      exact selbergTerms_nonneg_of_mem_sieveLevelDivisors n s z l hl.1
+    have h_sum_le := sum_selbergTerms_filter_le_sieveG n s z d
+    have h_abs_sum : |∑ l ∈ (sieveLevelDivisors n s z).filter (fun l => d ∣ l), (erdosBoundingSieve n s).selbergTerms l| =
+        ∑ l ∈ (sieveLevelDivisors n s z).filter (fun l => d ∣ l), (erdosBoundingSieve n s).selbergTerms l :=
+      abs_of_nonneg h_sum_nonneg
+    rw [h_abs_sum]
+    have hd_sq : Squarefree d :=
+      Squarefree.squarefree_of_dvd hd_dvd (erdosBoundingSieve n s).prodPrimes_squarefree
+    have h_abs_mu : |(ArithmeticFunction.moebius d : ℝ)| = 1 := by
+      have := ArithmeticFunction.abs_moebius_eq_one_of_squarefree hd_sq
+      exact_mod_cast this
+    have h_abs_frac : |(ArithmeticFunction.moebius d : ℝ) * (d : ℝ) / sieveG n s z| =
+        (d : ℝ) / sieveG n s z := by
+      rw [abs_div, abs_mul, h_abs_mu, one_mul, abs_of_pos hG_pos, abs_of_nonneg (Nat.cast_nonneg d)]
+    rw [h_abs_frac]
+    calc (d : ℝ) / sieveG n s z * (∑ l ∈ (sieveLevelDivisors n s z).filter (fun l => d ∣ l), (erdosBoundingSieve n s).selbergTerms l)
+      _ ≤ (d : ℝ) / sieveG n s z * sieveG n s z := by
+        apply mul_le_mul_of_nonneg_left h_sum_le
+        exact div_nonneg (Nat.cast_nonneg d) (le_of_lt hG_pos)
+      _ = (d : ℝ) * ((sieveG n s z)⁻¹ * sieveG n s z) := by ring
+      _ = (d : ℝ) * 1 := by rw [inv_mul_cancel₀ hG_pos.ne']
+      _ = (d : ℝ) := mul_one _
+  · have hz_lt : z < d := by
+      simp only [sieveLevelDivisors, Finset.mem_filter, not_and] at hd_level
+      have := hd_level hd_div
+      omega
+    rw [selbergWeight_eq_zero_of_gt n s z d hz_lt, abs_zero]
+    exact Nat.cast_nonneg d
+
+lemma sieveLevelDivisors_subset_Icc (n s z : ℕ) :
+    sieveLevelDivisors n s z ⊆ Finset.Icc 1 z := by
+  intro d hd
+  simp only [sieveLevelDivisors, Finset.mem_filter, Nat.mem_divisors, Finset.mem_Icc] at hd ⊢
+  have hd0 : d ≠ 0 := ne_zero_of_dvd_ne_zero hd.1.2 hd.1.1
+  exact ⟨Nat.pos_of_ne_zero hd0, hd.2⟩
+
+lemma sieveLevelDivisors_card_le (n s z : ℕ) :
+    (sieveLevelDivisors n s z).card ≤ z := by
+  have h_sub := sieveLevelDivisors_subset_Icc n s z
+  have h_card := Finset.card_le_card h_sub
+  rw [Nat.card_Icc] at h_card
+  omega
+
+lemma sum_sieveLevelDivisors_le (n s z : ℕ) :
+    (∑ d ∈ sieveLevelDivisors n s z, (d : ℝ)) ≤ (z : ℝ) ^ 2 := by
+  calc (∑ d ∈ sieveLevelDivisors n s z, (d : ℝ))
+    _ ≤ ∑ d ∈ sieveLevelDivisors n s z, (z : ℝ) := by
+      gcongr with d hd
+      simp only [sieveLevelDivisors, Finset.mem_filter] at hd
+      exact Nat.cast_le.mpr hd.2
+    _ = (sieveLevelDivisors n s z).card * (z : ℝ) := by
+      rw [Finset.sum_const, nsmul_eq_mul]
+    _ ≤ (z : ℝ) * (z : ℝ) := by
+      gcongr
+      exact Nat.cast_le.mpr (sieveLevelDivisors_card_le n s z)
+    _ = (z : ℝ) ^ 2 := by ring
+
+lemma sum_divisors_abs_selbergWeight_le (n s z : ℕ) (hz : 1 ≤ z) :
+    (∑ d ∈ (erdosBoundingSieve n s).prodPrimes.divisors, |selbergWeight n s z d|) ≤ (z : ℝ) ^ 2 := by
+  let D := (erdosBoundingSieve n s).prodPrimes
+  have h_sub : sieveLevelDivisors n s z ⊆ D.divisors := Finset.filter_subset _ _
+  rw [← Finset.sum_subset h_sub]
+  · calc (∑ d ∈ sieveLevelDivisors n s z, |selbergWeight n s z d|)
+      _ ≤ ∑ d ∈ sieveLevelDivisors n s z, (d : ℝ) := by
+        gcongr with d hd
+        have hd_div : d ∈ D.divisors := h_sub hd
+        exact abs_selbergWeight_le n s z d hz hd_div
+      _ ≤ (z : ℝ) ^ 2 := sum_sieveLevelDivisors_le n s z
+  · intro d hd_div hd_not_mem
+    have hz_lt : z < d := by
+      simp only [sieveLevelDivisors, Finset.mem_filter, not_and] at hd_not_mem
+      have := hd_not_mem hd_div
+      omega
+    rw [selbergWeight_eq_zero_of_gt n s z d hz_lt, abs_zero]
+
+lemma errSum_selbergWeight_le (n s z : ℕ) (hz : 1 ≤ z) :
+    @BoundingSieve.errSum (erdosBoundingSieve n s)
+      (BoundingSieve.lambdaSquared (selbergWeight n s z)) ≤ (z : ℝ) ^ 4 := by
+  have h1 := errSum_lambdaSquared_le n s (selbergWeight n s z)
+  have h2 := sum_divisors_abs_selbergWeight_le n s z hz
+  have h_sum_nonneg : 0 ≤ ∑ d ∈ (erdosBoundingSieve n s).prodPrimes.divisors, |selbergWeight n s z d| := by
+    apply Finset.sum_nonneg
+    intro d _
+    exact abs_nonneg _
+  calc @BoundingSieve.errSum (erdosBoundingSieve n s) (BoundingSieve.lambdaSquared (selbergWeight n s z))
+    _ ≤ (∑ d ∈ (erdosBoundingSieve n s).prodPrimes.divisors, |selbergWeight n s z d|) ^ 2 := h1
+    _ ≤ ((z : ℝ) ^ 2) ^ 2 := by
+      gcongr
+    _ = (z : ℝ) ^ 4 := by ring
+
+/-- Finite Selberg Sieve Remainder Bound:
+    For any n ≥ 2, s ≥ 1, and level parameter z ≥ 1, the sifted remainder set R
+    satisfies:
+      |R| ≤ ⌊(n - 1) / (s + 1)⌋ / G + z^4,
+    where G = ∑_{d ∈ D.divisors, d ≤ z} selbergTerms(d) ≥ 1. -/
+theorem selberg_remainder_bound (n s z : ℕ) (hn : 2 ≤ n) (hs : 1 ≤ s) (hz : 1 ≤ z) :
+    ((sieveRemainder n s (sievePrimes n s)).card : ℝ) ≤
+      ((((n - 1) / (s + 1) : ℕ) : ℝ)) / sieveG n s z + (z : ℝ) ^ 4 := by
+  let muPlus := BoundingSieve.lambdaSquared (selbergWeight n s z)
+  have h_w1 : selbergWeight n s z 1 = 1 := selbergWeight_one n s z hz
+  have h_upper : BoundingSieve.IsUpperMoebius muPlus :=
+    BoundingSieve.upperMoebius_lambdaSquared (selbergWeight n s z) h_w1
+  have h_card_le := card_remainder_le_mainSum_errSum n s hn hs muPlus h_upper
+  have h_main := mainSum_selbergWeight_eq n s z hz
+  have h_err := errSum_selbergWeight_le n s z hz
+  dsimp [erdosBoundingSieve] at h_card_le
+  calc ((sieveRemainder n s (sievePrimes n s)).card : ℝ)
+    _ ≤ ((((n - 1) / (s + 1) : ℕ) : ℝ)) *
+          @BoundingSieve.mainSum (erdosBoundingSieve n s) muPlus +
+        @BoundingSieve.errSum (erdosBoundingSieve n s) muPlus := h_card_le
+    _ = ((((n - 1) / (s + 1) : ℕ) : ℝ)) * (1 / sieveG n s z) +
+        @BoundingSieve.errSum (erdosBoundingSieve n s) muPlus := by rw [h_main]
+    _ ≤ ((((n - 1) / (s + 1) : ℕ) : ℝ)) * (1 / sieveG n s z) + (z : ℝ) ^ 4 := by
+      gcongr
+    _ = ((((n - 1) / (s + 1) : ℕ) : ℝ)) / sieveG n s z + (z : ℝ) ^ 4 := by ring
+
+/-!
+### Section 5: Non-Trivial Lower Bound
 -/
 
 /-- Non-trivial lower bound: for all n ≥ 3, f(n) ≥ 2. -/
@@ -872,4 +1517,10 @@ end Erdos298
 #print axioms Erdos298.siftedSum_eq_card_remainder
 #print axioms Erdos298.card_remainder_le_mainSum_errSum
 #print axioms Erdos298.erdos_rem_bound_of_mem_divisors
+#print axioms Erdos298.sieveG_ge_one
+#print axioms Erdos298.selbergWeight_one
+#print axioms Erdos298.selbergWeight_isUpperMoebius
+#print axioms Erdos298.mainSum_selbergWeight_eq
+#print axioms Erdos298.errSum_selbergWeight_le
+#print axioms Erdos298.selberg_remainder_bound
 #print axioms Erdos298.minColors_ge_two
