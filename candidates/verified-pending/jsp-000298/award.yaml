@@ -1,0 +1,38 @@
+id: jsp-000298
+batch: null
+problem:
+  source: jsp
+  number: JSP-000298
+  title_en: How many colors are needed to color the positive integers so that a prescribed integer is not a monochromatic subset sum?
+  posed:
+    year: 1980
+    basis: earliest-reference
+    citation: "Erdős, P., Graham, R. L. Old and new problems and results in combinatorial number theory. Monogr. Enseign. Math. 28 (1980)."
+  resolved:
+    year: 1996
+decision: null
+recipients:
+  - id: RECIPIENT-JSP-000298-ALON
+    affiliation: "Princeton University / Tel Aviv University"
+    contribution_en: "Original mathematical proof of monochromatic subset sum bounds in positive integers (Acta Arithmetica 1996)."
+    confirmation: null
+  - id: RECIPIENT-JSP-000298-ERDOS
+    affiliation: "Hungarian Academy of Sciences"
+    contribution_en: "Posed the original monochromatic subset sum problem and co-authored the 1996 resolution."
+    confirmation: null
+  - id: RECIPIENT-JSP-000298-SIXTIMENIGHT
+    affiliation: "Independent Researcher"
+    contribution_en: "Original machine-checked Lean 4 formalization of the monochromatic subset sum definitions, avoidance criteria, and theorem."
+    confirmation: null
+verification:
+  peer_review:
+    venue: "Acta Arithmetica"
+    identifier: "https://doi.org/10.4064/aa-74-3-269-272"
+    checked_via: "DOI: 10.4064/aa-74-3-269-272 / zbMATH 0846.11011"
+  formal:
+    record: verification/record.yaml
+    statement: verification/statement.yaml
+  independent_review: null
+conflicts: []
+status: under-verification
+revocation: null

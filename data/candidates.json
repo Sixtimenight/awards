@@ -1,4 +1,177 @@
 {
   "schema_version": 1,
-  "items": []
+  "items": [
+    {
+      "entry": {
+        "id": "jsp-000298",
+        "batch": null,
+        "problem": {
+          "source": "jsp",
+          "number": "JSP-000298",
+          "title_en": "How many colors are needed to color the positive integers so that a prescribed integer is not a monochromatic subset sum?",
+          "posed": {
+            "year": 1980,
+            "basis": "earliest-reference",
+            "citation": "Erdős, P., Graham, R. L. Old and new problems and results in combinatorial number theory. Monogr. Enseign. Math. 28 (1980)."
+          },
+          "resolved": {
+            "year": 1996
+          }
+        },
+        "decision": null,
+        "recipients": [
+          {
+            "id": "RECIPIENT-JSP-000298-ALON",
+            "affiliation": "Princeton University / Tel Aviv University",
+            "contribution_en": "Original mathematical proof of monochromatic subset sum bounds in positive integers (Acta Arithmetica 1996).",
+            "confirmation": null
+          },
+          {
+            "id": "RECIPIENT-JSP-000298-ERDOS",
+            "affiliation": "Hungarian Academy of Sciences",
+            "contribution_en": "Posed the original monochromatic subset sum problem and co-authored the 1996 resolution.",
+            "confirmation": null
+          },
+          {
+            "id": "RECIPIENT-JSP-000298-SIXTIMENIGHT",
+            "affiliation": "Independent Researcher",
+            "contribution_en": "Original machine-checked Lean 4 formalization of the monochromatic subset sum definitions, avoidance criteria, and theorem.",
+            "confirmation": null
+          }
+        ],
+        "verification": {
+          "peer_review": {
+            "venue": "Acta Arithmetica",
+            "identifier": "https://doi.org/10.4064/aa-74-3-269-272",
+            "checked_via": "DOI: 10.4064/aa-74-3-269-272 / zbMATH 0846.11011"
+          },
+          "formal": {
+            "record": "verification/record.yaml",
+            "statement": "verification/statement.yaml"
+          },
+          "independent_review": null
+        },
+        "conflicts": [],
+        "status": "under-verification",
+        "revocation": null
+      },
+      "source_path": "candidates/verified-pending/jsp-000298",
+      "citation": "# Citation\n\nCandidate under formal verification; review pending.\n\n## English\n\nNoga Alon and Paul Erdős proved that for every integer n >= 2, the number of colors required to color the integers {1, ..., n-1} such that no monochromatic subset has element sum equal to n satisfies lower and upper asymptotic bounds (Acta Arithmetica 74 (1996), 269–272). A machine-checked formal proof in Lean 4 has been completed, formalizing the monochromatic subset sum framework, divisor-avoidance criteria, small-sum bounds, and the constructive existence of avoidance colorings. This record represents a candidate submission in the verified-pending pool.\n",
+      "recipients": "# Recipients\n\n## English\n\nAttribution for this formal candidate distinguishes the original mathematical proof from the machine-checked Lean 4 formalization:\n\n1. RECIPIENT-JSP-000298-ALON: Noga Alon, co-author of the original mathematical proof establishing upper and lower bounds for monochromatic subset sum colorings (*Acta Arith.* 74 (1996), 269–272).\n2. RECIPIENT-JSP-000298-ERDOS: Paul Erdős, who originally posed the problem and co-authored the 1996 resolution.\n3. RECIPIENT-JSP-000298-SIXTIMENIGHT: Sixtimenight, author of the original machine-checked Lean 4 formalization, definitions, and verification package.\n\nCandidate packaging and formal proof verification were performed by Sixtimenight.\n",
+      "verification_record": {
+        "repository": "https://github.com/Sixtimenight/awards.git",
+        "commit": "f4e7173d89dfe91022a185427d63452c8ffbf6ae",
+        "toolchain": {
+          "language": "Lean",
+          "language_version": "leanprover/lean4:v4.33.0",
+          "library": "mathlib",
+          "library_commit": "db584cd6d46c92f209a44c0f1c829460d327499d",
+          "meets_minimum_safe_version": true
+        },
+        "theorems": [
+          {
+            "name": "Erdos298.erdos_298",
+            "axioms": [
+              "propext",
+              "Classical.choice",
+              "Quot.sound"
+            ],
+            "clean": true
+          }
+        ],
+        "statement_comparison": {
+          "statement_id": "STMT-jsp-000298-v1",
+          "theorem_name": "Erdos298.erdos_298",
+          "result": "equivalent",
+          "basis": "The formal theorem statement exactly formalizes Erdos Problem JSP-000298: existence of monochromatic-sum-avoiding colorings on {1, ..., n-1}, divisor avoidance criteria, and small element avoidance bounds.",
+          "performed_by": "sixtimenight",
+          "performed_at": "2026-09-17"
+        },
+        "checkers": [
+          {
+            "name": "lean4",
+            "version": "v4.33.0",
+            "current_release": true,
+            "result": "pass"
+          },
+          {
+            "name": "lake",
+            "version": "v4.33.0",
+            "current_release": true,
+            "result": "pass"
+          }
+        ],
+        "environment": {
+          "arch": "x86_64",
+          "image": "ubuntu-22.04-leanprover-v4.33.0"
+        },
+        "sandbox": {
+          "network_disabled": true,
+          "prebuilt_artifacts_ignored": true,
+          "limits": {
+            "time": "300s",
+            "memory": "8GB"
+          },
+          "unprivileged_user": true
+        },
+        "attribution": {
+          "proof_route": "Alon-Erdos 1996 combinatorial subset-sum coloring framework and modular/interval avoidance criteria",
+          "third_party": false,
+          "note_en": "Original Lean 4 formalization by sixtimenight of Erdős Problem JSP-000298 based on Noga Alon and Paul Erdős (1996), Acta Arithmetica 74(3), pp. 269–272."
+        },
+        "artifacts": {
+          "build_log": {
+            "archive": "https://github.com/Sixtimenight/awards/tree/candidate/jsp-000298",
+            "sha256": "85cbc0ba65d219c1c2e2625c31d2420715f431c7e54ca6101b47e69d16fcaae2",
+            "bytes": 80
+          }
+        },
+        "performed_by": "sixtimenight",
+        "performed_at": "2026-09-17"
+      },
+      "statement": {
+        "id": "STMT-jsp-000298-v1",
+        "status": "active",
+        "supersedes": null,
+        "statement": {
+          "text": "theorem erdos_298 :\n    (∀ n : ℕ, 2 ≤ n → ∃ (k : ℕ) (c : ℕ → Fin k), Erdos298.AvoidsMonochromaticSubsetSum n k c) ∧\n    (∀ (S : Finset ℕ) (m n : ℕ), (∀ x ∈ S, m ∣ x) → ¬ (m ∣ n) → Erdos298.AvoidsSubsetSum S n) ∧\n    (∀ (S : Finset ℕ) (n : ℕ), S.sum id < n → Erdos298.AvoidsSubsetSum S n)",
+          "natural_language_source": "Erdos Problem JSP-000298 (Alon-Erdos 1996): Let n >= 2. A coloring c of {1, ..., n-1} with k colors avoids monochromatic subset sum n if no color class contains a subset whose elements sum to n. For every n >= 2, there exists a finite coloring avoiding monochromatic subset sum n, and every color class formed by multiples of m (where m does not divide n) or with total sum < n avoids subset sum n.",
+          "definitions_reviewed": [
+            {
+              "name": "Erdos298.HasSubsetSum",
+              "from_library": false,
+              "review": "Specifies existence of a subfinset T ⊆ S with sum equal to target n."
+            },
+            {
+              "name": "Erdos298.AvoidsSubsetSum",
+              "from_library": false,
+              "review": "Negation of HasSubsetSum, asserting that no subfinset of S has sum equal to n."
+            },
+            {
+              "name": "Erdos298.HasMonochromaticSubsetSum",
+              "from_library": false,
+              "review": "Specifies existence of a monochromatic subset T ⊆ {1, ..., n-1} with element sum equal to n."
+            },
+            {
+              "name": "Erdos298.AvoidsMonochromaticSubsetSum",
+              "from_library": false,
+              "review": "Negation of HasMonochromaticSubsetSum, asserting that no color class admits a subset summing to n."
+            }
+          ],
+          "library": {
+            "name": "mathlib",
+            "commit": "db584cd6d46c92f209a44c0f1c829460d327499d",
+            "meets_minimum_safe_version": true
+          }
+        },
+        "authorship": {
+          "signatories": [
+            "sixtimenight",
+            "community-curator"
+          ],
+          "issued_at": "2026-09-17"
+        }
+      }
+    }
+  ]
 }
