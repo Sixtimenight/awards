@@ -3627,6 +3627,228 @@ lemma sanity_mod_coverage_6 : ∀ r : ZMod 6, r ∈ subsetSumsMod 6 {2, 3, 4, 8,
   have : e ≤ 6 := Nat.le_of_dvd (by decide) he
   interval_cases e <;> revert he <;> decide
 
+/-!
+### Subsection 8.5: Conlon–Fox–Pham Lemma 5.11 Modular Subset Sum Fibers and Multiplicative Bound
+
+This subsection formalizes Section 5.1, Lemma 5.11 of Conlon–Fox–Pham (2021):
+Given a finite set A ⊆ ℕ, moduli N, d > 0 with d ∣ N, and a residue r ∈ ZMod d:
+Let D = A.filter (d ∣ ·) be the multiples of d in A, and F_r = {s ∈ Σ_N(A) | π(s) = r}
+be the residue fiber in ZMod N over r.
+If F_r is non-empty, then:
+  |Σ_N(D)| ≤ |F_r|
+
+Summing over all residue classes in the image π(Σ_N(A)) = Σ_d(A) yields the multiplicative bound:
+  |Σ_d(A)| · |Σ_N(D)| ≤ |Σ_N(A)|
+
+When A is t-diverse and d - 1 ≤ t, Σ_d(A) covers all of ZMod d by Lemma 5.8, yielding:
+  d · |Σ_N(D)| ≤ |Σ_N(A)|
+-/
+
+/-- The natural projection homomorphism from ZMod N to ZMod d when d ∣ N. -/
+def zmodProj {N d : ℕ} (h : d ∣ N) (x : ZMod N) : ZMod d :=
+  ZMod.castHom h (ZMod d) x
+
+lemma zmodProj_natCast {N d : ℕ} (h : d ∣ N) (a : ℕ) :
+    zmodProj h (a : ZMod N) = (a : ZMod d) := by
+  simp [zmodProj]
+
+lemma zmodProj_zero {N d : ℕ} (h : d ∣ N) :
+    zmodProj h (0 : ZMod N) = 0 := by
+  simp [zmodProj]
+
+lemma zmodProj_add {N d : ℕ} (h : d ∣ N) (x y : ZMod N) :
+    zmodProj h (x + y) = zmodProj h x + zmodProj h y := by
+  exact map_add (ZMod.castHom h (ZMod d)) x y
+
+lemma zmodProj_sum {N d : ℕ} (h : d ∣ N) {α : Type*} (s : Finset α) (f : α → ZMod N) :
+    zmodProj h (s.sum f) = s.sum (fun x => zmodProj h (f x)) := by
+  exact map_sum (ZMod.castHom h (ZMod d)) f s
+
+lemma zmodProj_eq_zero_of_mem_subsetSumsMod_dvd {N d : ℕ} (h : d ∣ N) (A : Finset ℕ)
+    (y : ZMod N) (hy : y ∈ subsetSumsMod N (A.filter (fun x => d ∣ x))) :
+    zmodProj h y = 0 := by
+  rw [mem_subsetSumsMod_iff] at hy
+  obtain ⟨T, hT, rfl⟩ := hy
+  rw [zmodProj_sum]
+  have : ∀ x ∈ T, zmodProj h (x : ZMod N) = 0 := by
+    intro x hx
+    have hx_dvd : d ∣ x := (Finset.mem_filter.mp (hT hx)).2
+    rw [zmodProj_natCast]
+    exact CharP.cast_eq_zero_iff (ZMod d) d x |>.mpr hx_dvd
+  rw [Finset.sum_congr rfl this, Finset.sum_const_zero]
+
+/-- The fiber of subset sums in ZMod N over a residue r in ZMod d. -/
+def residueFiber (N d : ℕ) (h : d ∣ N) (A : Finset ℕ) (r : ZMod d) : Finset (ZMod N) :=
+  (subsetSumsMod N A).filter (fun s => zmodProj h s = r)
+
+/-- Conlon–Fox–Pham (2021) Lemma 5.11 (Fiber Cardinality Lower Bound):
+    If the residue fiber F_r is non-empty, then |subsetSumsMod N D| ≤ |F_r|,
+    where D = A.filter (d ∣ ·). -/
+theorem card_subsetSumsMod_dvd_le_fiber (N d : ℕ) (_hd : 0 < d) (_hN : 0 < N) (hdN : d ∣ N)
+    (A : Finset ℕ) (r : ZMod d) (h_nonempty : (residueFiber N d hdN A r).Nonempty) :
+    (subsetSumsMod N (A.filter (fun x => d ∣ x))).card ≤ (residueFiber N d hdN A r).card := by
+  obtain ⟨s, hs⟩ := h_nonempty
+  simp only [residueFiber, Finset.mem_filter] at hs
+  obtain ⟨hs_in, hs_proj⟩ := hs
+  rw [mem_subsetSumsMod_iff] at hs_in
+  obtain ⟨B, hB_sub, rfl⟩ := hs_in
+  let U := B.filter (fun x => ¬ d ∣ x)
+  let V := B.filter (fun x => d ∣ x)
+  have h_disj_UV : Disjoint U V := by
+    rw [Finset.disjoint_filter]
+    intro x _ h1 h2
+    exact h1 h2
+  have h_union_UV : U ∪ V = B := by
+    ext x
+    simp only [U, V, Finset.mem_union, Finset.mem_filter]
+    tauto
+  have hB_sum : B.sum (fun x => (x : ZMod N)) =
+      U.sum (fun x => (x : ZMod N)) + V.sum (fun x => (x : ZMod N)) := by
+    rw [← h_union_UV, Finset.sum_union h_disj_UV]
+  let x : ZMod N := U.sum (fun x => (x : ZMod N))
+  let y_V : ZMod N := V.sum (fun x => (x : ZMod N))
+  have hy_V_in : y_V ∈ subsetSumsMod N (A.filter (fun x => d ∣ x)) := by
+    rw [mem_subsetSumsMod_iff]
+    refine ⟨V, ?_, rfl⟩
+    intro z hz
+    simp only [V, Finset.mem_filter] at hz
+    simp only [Finset.mem_filter]
+    exact ⟨hB_sub hz.1, hz.2⟩
+  have hy_V_proj : zmodProj hdN y_V = 0 :=
+    zmodProj_eq_zero_of_mem_subsetSumsMod_dvd hdN A y_V hy_V_in
+  have hx_proj : zmodProj hdN x = r := by
+    rwa [hB_sum, zmodProj_add, hy_V_proj, add_zero] at hs_proj
+  let D := A.filter (fun x => d ∣ x)
+  have h_img_sub : (subsetSumsMod N D).image (fun y => x + y) ⊆ residueFiber N d hdN A r := by
+    intro z hz
+    simp only [Finset.mem_image] at hz
+    obtain ⟨y, hy, rfl⟩ := hz
+    rw [mem_subsetSumsMod_iff] at hy
+    obtain ⟨T, hT, rfl⟩ := hy
+    have h_disj_UT : Disjoint U T := by
+      rw [Finset.disjoint_left]
+      intro z hzU hzT
+      simp only [U, Finset.mem_filter] at hzU
+      have hT_dvd : d ∣ z := (Finset.mem_filter.mp (hT hzT)).2
+      exact hzU.2 hT_dvd
+    have h_UT_sub : U ∪ T ⊆ A := by
+      rw [Finset.union_subset_iff]
+      refine ⟨?_, ?_⟩
+      · intro z hz
+        exact hB_sub (Finset.mem_filter.mp hz).1
+      · intro z hz
+        exact (Finset.mem_filter.mp (hT hz)).1
+    have h_sum_UT : (U ∪ T).sum (fun z => (z : ZMod N)) = x + T.sum (fun z => (z : ZMod N)) := by
+      rw [Finset.sum_union h_disj_UT]
+    have hz_in : x + T.sum (fun z => (z : ZMod N)) ∈ subsetSumsMod N A := by
+      rw [mem_subsetSumsMod_iff]
+      exact ⟨U ∪ T, h_UT_sub, h_sum_UT⟩
+    have hy_proj : zmodProj hdN (T.sum (fun z => (z : ZMod N))) = 0 :=
+      zmodProj_eq_zero_of_mem_subsetSumsMod_dvd hdN A (T.sum (fun z => (z : ZMod N))) (by
+        rw [mem_subsetSumsMod_iff]
+        exact ⟨T, hT, rfl⟩)
+    have hz_proj : zmodProj hdN (x + T.sum (fun z => (z : ZMod N))) = r := by
+      rw [zmodProj_add, hx_proj, hy_proj, add_zero]
+    simp only [residueFiber, Finset.mem_filter]
+    exact ⟨hz_in, hz_proj⟩
+  have h_inj : Function.Injective (fun (y : ZMod N) => x + y) := by
+    intro a b hab
+    exact add_left_cancel hab
+  have h_card_img : ((subsetSumsMod N D).image (fun y => x + y)).card = (subsetSumsMod N D).card :=
+    Finset.card_image_of_injective _ h_inj
+  rw [← h_card_img]
+  exact Finset.card_le_card h_img_sub
+
+/-- The image of subsetSumsMod N A under the natural projection to ZMod d
+    is exactly subsetSumsMod d A. -/
+lemma subsetSumsMod_image_zmodProj (N d : ℕ) (hdN : d ∣ N) (A : Finset ℕ) :
+    (subsetSumsMod N A).image (zmodProj hdN) = subsetSumsMod d A := by
+  ext r
+  simp only [Finset.mem_image, mem_subsetSumsMod_iff]
+  constructor
+  · rintro ⟨s, ⟨B, hB, rfl⟩, rfl⟩
+    use B, hB
+    rw [zmodProj_sum]
+    simp_rw [zmodProj_natCast hdN]
+  · rintro ⟨B, hB, rfl⟩
+    refine ⟨B.sum (fun x => (x : ZMod N)), ⟨B, hB, rfl⟩, ?_⟩
+    rw [zmodProj_sum]
+    simp_rw [zmodProj_natCast hdN]
+
+/-- Product lower bound:
+    |subsetSumsMod d A| * |subsetSumsMod N D| ≤ |subsetSumsMod N A|. -/
+theorem card_subsetSumsMod_dvd_mul_card_le (N d : ℕ) (hd : 0 < d) (hN : 0 < N) (hdN : d ∣ N)
+    (A : Finset ℕ) :
+    (subsetSumsMod d A).card * (subsetSumsMod N (A.filter (fun x => d ∣ x))).card ≤
+      (subsetSumsMod N A).card := by
+  let f := zmodProj hdN
+  have h_decomp := Finset.card_eq_sum_card_image f (subsetSumsMod N A)
+  rw [subsetSumsMod_image_zmodProj N d hdN A] at h_decomp
+  rw [h_decomp]
+  let D := A.filter (fun x => d ∣ x)
+  have h_lhs : (subsetSumsMod d A).card * (subsetSumsMod N D).card =
+      ∑ _ ∈ subsetSumsMod d A, (subsetSumsMod N D).card := by simp
+  rw [h_lhs]
+  apply Finset.sum_le_sum
+  intro r hr
+  have h_fib_eq : {a ∈ subsetSumsMod N A | f a = r} = residueFiber N d hdN A r := rfl
+  rw [h_fib_eq]
+  have hr_in : r ∈ (subsetSumsMod N A).image f := by
+    rwa [subsetSumsMod_image_zmodProj N d hdN A]
+  obtain ⟨s, hs_in, hs_f⟩ := Finset.mem_image.mp hr_in
+  have h_nonempty : (residueFiber N d hdN A r).Nonempty := by
+    use s
+    simp only [residueFiber, Finset.mem_filter]
+    exact ⟨hs_in, hs_f⟩
+  exact card_subsetSumsMod_dvd_le_fiber N d hd hN hdN A r h_nonempty
+
+/-- Connection with IsDiverse:
+    If A is t-diverse and d - 1 ≤ t with d ∣ N, then
+    d * |subsetSumsMod N D| ≤ |subsetSumsMod N A|. -/
+theorem card_mul_card_subsetSumsMod_dvd_le_of_isDiverse (N d t : ℕ)
+    (hd : 0 < d) (hN : 0 < N) (hdN : d ∣ N) (hdt : d - 1 ≤ t)
+    (A : Finset ℕ) (h_div : IsDiverse A t) :
+    d * (subsetSumsMod N (A.filter (fun x => d ∣ x))).card ≤ (subsetSumsMod N A).card := by
+  have inst_ne : NeZero d := ⟨by omega⟩
+  have h_univ : subsetSumsMod d A = Finset.univ := by
+    ext r
+    simp only [Finset.mem_univ, iff_true]
+    exact subsetSumsMod_eq_univ_of_isDiverse d t hd hdt A h_div r
+  have h_card_d : (subsetSumsMod d A).card = d := by
+    rw [h_univ, Finset.card_univ, ZMod.card d]
+  have h_prod := card_subsetSumsMod_dvd_mul_card_le N d hd hN hdN A
+  rwa [h_card_d] at h_prod
+
+-- Sanity Check 1: N = 12, d = 3, A = {1, 3, 6}
+example : (subsetSumsMod 12 (({1, 3, 6} : Finset ℕ).filter (fun x => 3 ∣ x))).card = 4 := by
+  have : DecidablePred (fun x : ℕ => 3 ∣ x) := fun x => Nat.decidable_dvd 3 x
+  decide
+
+example : (residueFiber 12 3 (by decide) {1, 3, 6} (0 : ZMod 3)).card = 4 := by
+  decide
+
+example : (residueFiber 12 3 (by decide) {1, 3, 6} (1 : ZMod 3)).card = 4 := by
+  decide
+
+example : (residueFiber 12 3 (by decide) {1, 3, 6} (2 : ZMod 3)).card = 0 := by
+  decide
+
+-- Sanity Check 2: N = 6, d = 2, A = {1, 7, 2}
+example : (subsetSumsMod 6 (({1, 7, 2} : Finset ℕ).filter (fun x => 2 ∣ x))).card = 2 := by
+  have : DecidablePred (fun x : ℕ => 2 ∣ x) := fun x => Nat.decidable_dvd 2 x
+  decide
+
+example : (residueFiber 6 2 (by decide) {1, 7, 2} (0 : ZMod 2)).card = 3 := by
+  decide
+
+example : (residueFiber 6 2 (by decide) {1, 7, 2} (1 : ZMod 2)).card = 2 := by
+  decide
+
+example : (subsetSumsMod 2 {1, 7, 2}).card * (subsetSumsMod 6 (({1, 7, 2} : Finset ℕ).filter (fun x => 2 ∣ x))).card ≤
+    (subsetSumsMod 6 {1, 7, 2}).card := by
+  have : DecidablePred (fun x : ℕ => 2 ∣ x) := fun x => Nat.decidable_dvd 2 x
+  decide
+
 
 
 /-!
@@ -3837,3 +4059,8 @@ end Erdos298
 #print axioms Erdos298.sanity_mod_coverage_empty
 #print axioms Erdos298.sanity_mod_coverage_4
 #print axioms Erdos298.sanity_mod_coverage_6
+
+#print axioms Erdos298.card_subsetSumsMod_dvd_le_fiber
+#print axioms Erdos298.subsetSumsMod_image_zmodProj
+#print axioms Erdos298.card_subsetSumsMod_dvd_mul_card_le
+#print axioms Erdos298.card_mul_card_subsetSumsMod_dvd_le_of_isDiverse

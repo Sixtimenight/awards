@@ -150,8 +150,23 @@ lake build
 - `Erdos298.sanity_mod_coverage_4`: Sanity check for $d = 4, A = \{1, 5, 9\}$.
 - `Erdos298.sanity_mod_coverage_6`: Sanity check for $d = 6, A = \{2, 3, 4, 8, 9\}$.
 
+### 11. Residue Fiber Decomposition and Product Bound (Conlon–Fox–Pham 2021, Lemma 5.11)
+- `Erdos298.zmodProj`: Natural projection ring homomorphism $\pi : \mathbb{Z}/N\mathbb{Z} \to \mathbb{Z}/d\mathbb{Z}$ for $d \mid N$.
+- `Erdos298.residueFiber`: Residue fiber $F_r = \{s \in \Sigma_N(A) \mid \pi(s) = r\}$.
+- `Erdos298.card_subsetSumsMod_dvd_le_fiber`: Machine-checked fiber lower bound:
+  $$|\Sigma_N(A \cap d\mathbb{N})| \le |F_r| \quad \text{for any non-empty fiber } F_r \ne \emptyset$$
+  proved by decomposing any subset $B \subseteq A$ into $U \subseteq A \setminus d\mathbb{N}$ and $V \subseteq A \cap d\mathbb{N}$, obtaining a base representative $x = \sum U \pmod N$ with $\pi(x) = r$, and constructing an injective translation $y \mapsto x + y$ from $\Sigma_N(A \cap d\mathbb{N})$ into $F_r$.
+- `Erdos298.subsetSumsMod_image_zmodProj`: Projection image identity: $\pi(\Sigma_N(A)) = \Sigma_d(A)$.
+- `Erdos298.card_subsetSumsMod_dvd_mul_card_le` (CFP Lemma 5.11):
+  $$|\Sigma_d(A)| \cdot |\Sigma_N(A \cap d\mathbb{N})| \le |\Sigma_N(A)|$$
+  proved by partitioning $\Sigma_N(A)$ into residue fibers over $\Sigma_d(A)$ and applying the fiber lower bound to each non-empty fiber.
+- `Erdos298.card_mul_card_subsetSumsMod_dvd_le_of_isDiverse`:
+  $$d \cdot |\Sigma_N(A \cap d\mathbb{N})| \le |\Sigma_N(A)|$$
+  for any $t$-diverse set $A$ and modulus $d$ with $d - 1 \le t$ and $d > 0$, combining Lemma 5.8 ($|\Sigma_d(A)| = d$) with Lemma 5.11.
+- `Erdos298.sanity_fiber_example_12`: Sanity check on $N=12, d=3, A=\{1, 3, 6\}$ verifying fiber sizes ($|\Sigma_{12}(D)| = 4, |F_0|=4, |F_1|=4, |F_2|=0$), illustrating the necessity of $F_r \ne \emptyset$.
+- `Erdos298.sanity_fiber_example_6`: Sanity check on $N=6, d=2, A=\{1, 7, 2\}$ verifying unequal fiber sizes ($|F_0|=3, |F_1|=2$) and product bound $2 \cdot 2 \le 5$.
 
-### 11. Final Master Theorems (Unified Synthesis)
+### 12. Final Master Theorems (Unified Synthesis)
 - `Erdos298.erdos_problem_360_finite_master`:
   For any integer $n \ge 3$, any lower bound witness $w : \mathrm{CFPLowerBoundWitness}(n, k)$, and any valid Conlon–Fox–Pham 4-layer upper configuration $(s_1, P, d, s_{rem})$ with $s_{rem} \le s_1$ and $\forall p \in P, p \nmid n$:
   $$k + 1 \le f(n) \le s_1 + |P| + 2|\mathrm{reducedResidues}(d)| + \left\lceil \frac{|R_{cfp}|}{s_{rem}} \right\rceil.$$

@@ -3,7 +3,7 @@
 - **Problem**: Erdős Problem #360 / JSP-000298 (*Monochromatic subset sums to a prescribed integer*).
 - **PR**: [TheJustinSunPrize/awards #353](https://github.com/TheJustinSunPrize/awards/pull/353)
 - **Branch**: `candidate/jsp-000298`
-- **Current Baseline Commit**: `38294f4add8980d5ec3854028dd9b0d08b3d542b`
+- **Current Baseline Commit**: `ff1bcf801659eff147b479506e63384c9be66380`
 - **Locked Toolchain**: Lean 4.33.0, Mathlib `db584cd6d46c92f209a44c0f1c829460d327499d`.
 
 ---
@@ -92,6 +92,12 @@
 | **Phase 3: CFP §5.1 Test Example 1** | `Erdos298.sanity_mod_coverage_empty` | Modulo 1 coverage: $\forall r \in \mathbb{Z}/1\mathbb{Z}, r \in \Sigma_1(\emptyset)$ | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
 | **Phase 3: CFP §5.1 Test Example 2** | `Erdos298.sanity_mod_coverage_4` | Modulo 4 coverage: $\forall r \in \mathbb{Z}/4\mathbb{Z}, r \in \Sigma_4(\{1, 5, 9\})$ | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
 | **Phase 3: CFP §5.1 Test Example 3** | `Erdos298.sanity_mod_coverage_6` | Modulo 6 coverage: $\forall r \in \mathbb{Z}/6\mathbb{Z}, r \in \Sigma_6(\{2, 3, 4, 8, 9\})$ | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
+| **Phase 3: CFP §5.1 Residue Fiber Bound** | `Erdos298.card_subsetSumsMod_dvd_le_fiber` | CFP Lemma 5.11 Fiber Bound: $F_r \ne \emptyset \implies |\Sigma_N(A \cap d\mathbb{N})| \le |F_r|$ | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
+| **Phase 3: CFP §5.1 Modulo Projection** | `Erdos298.subsetSumsMod_image_zmodProj` | Projection image identity: $\pi(\Sigma_N(A)) = \Sigma_d(A)$ | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
+| **Phase 3: CFP §5.1 Fiber Product Bound** | `Erdos298.card_subsetSumsMod_dvd_mul_card_le` | CFP Lemma 5.11: $|\Sigma_d(A)| \cdot |\Sigma_N(A \cap d\mathbb{N})| \le |\Sigma_N(A)|$ | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
+| **Phase 3: CFP §5.1 Diverse Product Bound** | `Erdos298.card_mul_card_subsetSumsMod_dvd_le_of_isDiverse` | Diverse product lower bound: $d \cdot |\Sigma_N(A \cap d\mathbb{N})| \le |\Sigma_N(A)|$ | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
+| **Phase 3: CFP §5.1 Fiber Test Example 1** | `Erdos298.sanity_fiber_example_12` | Fiber test ($N=12, d=3, A=\{1,3,6\}$): $|\Sigma_{12}(D)|=4, |F_0|=4, |F_1|=4, |F_2|=0$ | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
+| **Phase 3: CFP §5.1 Fiber Test Example 2** | `Erdos298.sanity_fiber_example_6` | Fiber test ($N=6, d=2, A=\{1,7,2\}$): unequal fibers $|F_0|=3, |F_1|=2$, product $2 \cdot 2 \le 5$ | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
 | **Final Master Theorem** | `Erdos298.erdos_problem_360_finite_master` | Exact two-sided sandwich: $k + 1 \le f(n) \le \text{CFP 4-layer bound}$ | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
 | **Final Master Theorem** | `Erdos298.erdos_problem_360_unconditional_master` | Unconditional two-sided bound: $2 \le f(n) \le \text{CFP 4-layer bound}$ for all $n \ge 3$ | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
 | **Final Master Theorem** | `Erdos298.erdos_problem_360_asymptotic_master` | Sharp asymptotic two-sided equivalence $c F(n) \le f(n) \le C F(n)$ | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
@@ -130,3 +136,14 @@ A rigorous audit of the mathematical dependencies required for the 2021 lower bo
        - Step bounds preservation: `Erdos298.div_step_bounds`.
        - Algorithmic divisor-extraction iteration: `Erdos298.exists_diverse_scaled_subset` (mathematical induction on $L$ extracting $v > 0$ and $t$-diverse $Q \subseteq \mathbb{N}$ with $v \cdot Q \subseteq A$, $1 \le x \wedge v \cdot x \le B$, and $|A| \le |Q| + (t - 1) L$).
        - Extracted factor upper bound: `Erdos298.scale_factor_le_of_mem_bounds` ($v \le B$).
+     - CFP §5.1 Modular Subset Sum Coverage (Lemma 5.8):
+       - Divisor-count condition: `Erdos298.subsetSumsMod_eq_univ_of_divisor_counts` ($(\forall e \mid d, e - 1 \le |A \setminus e\mathbb{N}|) \implies \Sigma_d(A) = \mathbb{Z}/d\mathbb{Z}$).
+       - Diverse modular coverage: `Erdos298.subsetSumsMod_eq_univ_of_isDiverse` ($\mathrm{IsDiverse}(A, t) \wedge d - 1 \le t \implies \Sigma_d(A) = \mathbb{Z}/d\mathbb{Z}$).
+       - Extracted diverse coverage: `Erdos298.exists_diverse_scaled_subset_mod_coverage`.
+     - CFP §5.1 Fiber Lower Bound and Product Bound (Lemma 5.11):
+       - Natural projection ring hom: `Erdos298.zmodProj` ($\pi : \mathbb{Z}/N\mathbb{Z} \to \mathbb{Z}/d\mathbb{Z}$ for $d \mid N$).
+       - Residue fiber: `Erdos298.residueFiber` ($F_r = \{s \in \Sigma_N(A) \mid \pi(s) = r\}$).
+       - Fiber lower bound (Lemma 5.11): `Erdos298.card_subsetSumsMod_dvd_le_fiber` ($F_r \ne \emptyset \implies |\Sigma_N(A \cap d\mathbb{N})| \le |F_r|$ via decomposition $B = U \uplus V$, base representative $x = \sum U$ with $\pi(x) = r$, and injective translation $y \mapsto x + y$).
+       - Projection image: `Erdos298.subsetSumsMod_image_zmodProj` ($\pi(\Sigma_N(A)) = \Sigma_d(A)$).
+       - Fiber product lower bound (Lemma 5.11): `Erdos298.card_subsetSumsMod_dvd_mul_card_le` ($|\Sigma_d(A)| \cdot |\Sigma_N(A \cap d\mathbb{N})| \le |\Sigma_N(A)|$ via fiber partition $\sum_{r \in \Sigma_d(A)} |F_r| = |\Sigma_N(A)|$).
+       - Diverse product lower bound: `Erdos298.card_mul_card_subsetSumsMod_dvd_le_of_isDiverse` ($d \cdot |\Sigma_N(A \cap d\mathbb{N})| \le |\Sigma_N(A)|$ when $\mathrm{IsDiverse}(A, t)$ and $d - 1 \le t$).
