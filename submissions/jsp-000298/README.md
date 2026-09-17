@@ -18,6 +18,23 @@ lake exe cache get
 lake build
 ```
 
+## Status of Results: Unconditional Theorems vs. Conditional Reductions
+
+| Component | Formal Status | Scope & Dependencies |
+| :--- | :--- | :--- |
+| **Cubic-Root Upper Bound** ($f(n) \le 2\lceil n^{1/3}\rceil$) | **Unconditionally Proven** | Complete constructive Lean 4 proof (`Erdos298.exists_coloring_of_le_cube`). |
+| **Sieve-Remainder Bound** ($f(n) \le s + \|P\| + \lceil \|R\|/s \rceil$) | **Unconditionally Proven** | Complete combinatorial proof (`Erdos298.exists_coloring_sieve`). |
+| **Finite Selberg Sieve** ($\|R\| \le m/G + z^4$) | **Unconditionally Proven** | Complete quadratic form diagonal sum & error bound (`Erdos298.selberg_remainder_bound`). |
+| **Prime Reciprocal Sum Bound** | **Unconditionally Proven** | Complete explicit prime sum bound (`Erdos298.minColors_le_of_sum_primes`). |
+| **CFP 4-Layer Upper Bound** | **Unconditionally Proven** | Complete constructive 4-layer coloring (`Erdos298.exists_coloring_conlon_fox_pham`). |
+| **Elementary Lower Bound** ($f(n) \ge 2$) | **Unconditionally Proven** | Machine-checked for all $n \ge 3$ (`Erdos298.minColors_ge_two`, `Erdos298.minColors_ge_two_via_cfp`). |
+| **CFP Lower Bound Reduction Engine** | **Unconditionally Proven** | Monotone lifting, fiber pigeonhole, AP hitting bridge (`Erdos298.minColors_ge_of_cfp_witness`). |
+| **Asymptotic Growth Equivalence** ($f(n) \asymp F(n)$) | **Conditional Reduction** | Requires external lower/upper witnesses (`Erdos298.conlon_fox_pham_bounds`, `Erdos298.erdos_problem_360_asymptotic_master`). |
+| **Asymptotic Lower Bound Witness** | **Open Formalization Frontier** | Constructing the explicit witness family for $f(n) \ge c F_{cfp}(n)$ requires deep external theorems (Szemerédi–Vu, Brun–Titchmarsh prime concentration, quantitative Mertens) not currently in Mathlib. |
+
+> [!NOTE]
+> **Honest Scope Boundary**: The formalization achieves a fully verified, unconditional upper bound theory through the 2021 Conlon–Fox–Pham 4-layer construction and an unconditional lower bound of $f(n) \ge 2$. The asymptotic two-sided equivalence $f(n) \asymp F(n)$ is formalized as a conditional reduction framework; the concrete instantiation of the asymptotic lower bound witness remains open due to prerequisites beyond current Mathlib.
+
 ## Formalized Theorems
 
 ### 1. Sieve-Remainder Bound (Alon–Erdős 1996, Section 2)
@@ -105,14 +122,14 @@ lake build
 - `Erdos298.erdos_problem_360_unconditional_master`:
   Unconditional two-sided bound for all $n \ge 3$:
   $$2 \le f(n) \le s_1 + |P| + 2|\mathrm{reducedResidues}(d)| + \left\lceil \frac{|R_{cfp}|}{s_{rem}} \right\rceil.$$
-- `Erdos298.erdos_problem_360_asymptotic_master`:
+- `Erdos298.erdos_problem_360_asymptotic_master` *(Conditional Reduction)*:
   Conlon–Fox–Pham (2021) two-sided asymptotic growth equivalence:
   $$c \cdot F(n) \le f(n) \le C \cdot F(n)$$
-  for all sufficiently large $n$, given matching lower and upper bound witnesses with respect to $F$.
-- `Erdos298.erdos_problem_360_unified_solution`:
-  The grand synthesis theorem unifying all three historical generations of Erdős Problem 360:
-  1. (Alon–Erdős 1996 Elementary): Cubic-root bound $f(n) \le 2s$ for $n \le s^3$.
-  2. (Alon–Erdős 1996 Sieve): Quantitative Selberg prime-sieve bound on $f(n)$.
-  3. (Conlon–Fox–Pham 2021 Upper): 4-layer chromatic upper bound.
-  4. (Conlon–Fox–Pham 2021 Lower): Inverse additive lower bound witness theorem $f(n) \ge k + 1$.
-  5. (Conlon–Fox–Pham 2021 Asymptotic): Two-sided asymptotic growth equivalence $f(n) \asymp F(n)$.
+  for all sufficiently large $n$, assuming matching asymptotic lower and upper bound witnesses with respect to $F$.
+- `Erdos298.erdos_problem_360_unified_solution` *(Grand Synthesis Conjunction)*:
+  The master theorem unifying all three historical generations of Erdős Problem 360:
+  1. (Alon–Erdős 1996 Elementary, Unconditional): Cubic-root bound $f(n) \le 2s$ for $n \le s^3$.
+  2. (Alon–Erdős 1996 Sieve, Unconditional): Quantitative Selberg prime-sieve bound on $f(n)$.
+  3. (Conlon–Fox–Pham 2021 Upper, Unconditional): 4-layer chromatic upper bound.
+  4. (Conlon–Fox–Pham 2021 Lower, Unconditional): Inverse additive lower bound witness theorem $f(n) \ge k + 1$.
+  5. (Conlon–Fox–Pham 2021 Asymptotic, Conditional): Two-sided asymptotic growth equivalence $f(n) \asymp F(n)$ under hypothesis of matching witnesses.
