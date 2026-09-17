@@ -2943,6 +2943,183 @@ theorem minColors_ge_of_cfp_diverse_witness (n k : ℕ) (hn : 2 ≤ n)
   minColors_ge_of_cfp_witness n k hn (CFPLowerBoundWitness.ofDiverse n k w)
 
 /-!
+### Section 8.3: Divisor-Extraction Iteration for Diverse Subsets (CFP §5.1)
+
+This section formalizes the algorithmic divisor-extraction iteration from Conlon–Fox–Pham (2021) Section 5.1:
+Starting from any finite subset A ⊆ [1, B] with |A| > (t - 1) * L and B < 2^L,
+if A is not t-diverse, there exists d ≥ 2 dividing all but < t elements of A.
+Dividing the multiples by d yields a new set Q₁ ⊆ [1, B/d] with |A| ≤ |Q₁| + (t - 1).
+Iterating this at most L times produces a non-empty scaling factor v > 0 and a t-diverse subset Q
+such that v * Q ⊆ A, 1 ≤ x and v * x ≤ B for all x ∈ Q, and |A| ≤ |Q| + (t - 1) * L.
+-/
+
+/-- Characterization of non-diversity: ¬ IsDiverse A t means some d ≥ 2 has < t non-multiples in A. -/
+lemma not_isDiverse_iff (A : Finset ℕ) (t : ℕ) :
+    ¬ IsDiverse A t ↔ ∃ d : ℕ, 2 ≤ d ∧ (A.filter (fun x => ¬ d ∣ x)).card < t := by
+  simp only [IsDiverse, not_forall, not_le]
+  constructor
+  · rintro ⟨d, hd, hcard⟩
+    exact ⟨d, hd, hcard⟩
+  · rintro ⟨d, hd, hcard⟩
+    exact ⟨d, hd, hcard⟩
+
+/-- Partition bound: if < t elements of A are not divisible by d,
+    then |A| is bounded by the number of multiples plus (t - 1). -/
+lemma card_le_card_filter_dvd_add (A : Finset ℕ) (d t : ℕ)
+    (h_not : (A.filter (fun x => ¬ d ∣ x)).card < t) :
+    A.card ≤ (A.filter (fun x => d ∣ x)).card + (t - 1) := by
+  have h_disj : Disjoint (A.filter (fun x => d ∣ x)) (A.filter (fun x => ¬ d ∣ x)) := by
+    rw [Finset.disjoint_filter]
+    intro x _ hd1 hd2
+    exact hd2 hd1
+  have h_u : (A.filter (fun x => d ∣ x)) ∪ (A.filter (fun x => ¬ d ∣ x)) = A := by
+    ext x
+    simp only [Finset.mem_union, Finset.mem_filter]
+    tauto
+  have h_part : (A.filter (fun x => d ∣ x)).card + (A.filter (fun x => ¬ d ∣ x)).card = A.card := by
+    rw [← Finset.card_union_of_disjoint h_disj, h_u]
+  omega
+
+/-- Dividing multiples of d by d is strictly injective, preserving set cardinality. -/
+lemma card_image_div_eq_card_filter_dvd (A : Finset ℕ) (d : ℕ) (_hd : 0 < d) :
+    ((A.filter (fun x => d ∣ x)).image (fun x => x / d)).card = (A.filter (fun x => d ∣ x)).card := by
+  apply Finset.card_image_of_injOn
+  intro x hx y hy hxy
+  have hx_dvd : d ∣ x := (Finset.mem_filter.mp hx).2
+  have hy_dvd : d ∣ y := (Finset.mem_filter.mp hy).2
+  have hx_eq : x = d * (x / d) := (Nat.mul_div_cancel' hx_dvd).symm
+  have hy_eq : y = d * (y / d) := (Nat.mul_div_cancel' hy_dvd).symm
+  have h_div : x / d = y / d := hxy
+  rw [hx_eq, hy_eq, h_div]
+
+/-- Bound preservation for the division step: elements of Q₁ remain in [1, B / d]. -/
+lemma div_step_bounds (A : Finset ℕ) (B d : ℕ) (hd : 2 ≤ d)
+    (hA_ge : ∀ x ∈ A, 1 ≤ x) (hA_le : ∀ x ∈ A, x ≤ B) :
+    let Q1 := (A.filter (fun x => d ∣ x)).image (fun x => x / d)
+    (∀ x ∈ Q1, 1 ≤ x) ∧ (∀ x ∈ Q1, x ≤ B / d) := by
+  intro Q1
+  constructor
+  · intro y hy
+    simp only [Q1, Finset.mem_image, Finset.mem_filter] at hy
+    obtain ⟨x, ⟨hxA, hxd⟩, rfl⟩ := hy
+    have hd_pos : 0 < d := by omega
+    have hx_pos : 0 < x := by
+      have := hA_ge x hxA
+      omega
+    exact Nat.div_pos (Nat.le_of_dvd hx_pos hxd) hd_pos
+  · intro y hy
+    simp only [Q1, Finset.mem_image, Finset.mem_filter] at hy
+    obtain ⟨x, ⟨hxA, _⟩, rfl⟩ := hy
+    exact Nat.div_le_div_right (hA_le x hxA)
+
+/-- Conlon–Fox–Pham (2021, Section 5.1) Divisor-Extraction Iteration Theorem:
+    For any finite subset A ⊆ [1, B] with |A| > (t - 1) * L and B < 2^L,
+    there exists a scaling factor v > 0 and a non-empty t-diverse subset Q such that:
+    1. Elements of Q satisfy 1 ≤ x and v * x ≤ B;
+    2. The scaled set v * Q is a subset of A;
+    3. Q is t-diverse (for every divisor d ≥ 2, at least t elements of Q are not divisible by d);
+    4. |A| ≤ |Q| + (t - 1) * L. -/
+theorem exists_diverse_scaled_subset (L : ℕ) :
+    ∀ (A : Finset ℕ) (B t : ℕ),
+    (∀ x ∈ A, 1 ≤ x) →
+    (∀ x ∈ A, x ≤ B) →
+    1 ≤ t →
+    B < 2 ^ L →
+    (t - 1) * L < A.card →
+    ∃ (v : ℕ) (Q : Finset ℕ),
+      0 < v ∧
+      Q.Nonempty ∧
+      (∀ x ∈ Q, 1 ≤ x ∧ v * x ≤ B) ∧
+      Q.image (fun x => v * x) ⊆ A ∧
+      IsDiverse Q t ∧
+      A.card ≤ Q.card + (t - 1) * L := by
+  induction L with
+  | zero =>
+    intro A B _t hA_ge hA_le _ht _hB hcard
+    have : B = 0 := by omega
+    have hA_pos : 0 < A.card := by omega
+    obtain ⟨x, hx⟩ := Finset.card_pos.mp hA_pos
+    have hx_ge := hA_ge x hx
+    have hx_le := hA_le x hx
+    omega
+  | succ L ih =>
+    intro A B t hA_ge hA_le ht hB hcard
+    by_cases hdiv : IsDiverse A t
+    · use 1, A
+      refine ⟨by omega, ?_, ?_, ?_, hdiv, ?_⟩
+      · rw [Finset.nonempty_iff_ne_empty]
+        rintro rfl
+        simp only [Finset.card_empty] at hcard
+        omega
+      · intro x hx
+        simp only [one_mul]
+        exact ⟨hA_ge x hx, hA_le x hx⟩
+      · intro x hx
+        simp only [Finset.mem_image] at hx
+        obtain ⟨y, hy, rfl⟩ := hx
+        rw [one_mul]
+        exact hy
+      · omega
+    · rw [not_isDiverse_iff] at hdiv
+      obtain ⟨d, hd, h_not⟩ := hdiv
+      let R := A.filter (fun x => d ∣ x)
+      let Q1 := R.image (fun x => x / d)
+      have hd_pos : 0 < d := by omega
+      have hQ1_card : Q1.card = R.card := card_image_div_eq_card_filter_dvd A d hd_pos
+      have hA_le_R : A.card ≤ R.card + (t - 1) := card_le_card_filter_dvd_add A d t h_not
+      have hA_le_Q1 : A.card ≤ Q1.card + (t - 1) := by omega
+      have hQ1_ge_le := div_step_bounds A B d hd hA_ge hA_le
+      have hQ1_ge : ∀ x ∈ Q1, 1 ≤ x := hQ1_ge_le.1
+      have hQ1_le : ∀ x ∈ Q1, x ≤ B / d := hQ1_ge_le.2
+      have hB_div : B / d < 2 ^ L := by
+        have hd2 : 2 ≤ d := hd
+        have h1 : B < d * 2 ^ L := by
+          calc B < 2 ^ (L + 1) := hB
+          _ = 2 * 2 ^ L := by ring
+          _ ≤ d * 2 ^ L := Nat.mul_le_mul_right (2 ^ L) hd2
+        exact Nat.div_lt_of_lt_mul h1
+      have hcard_Q1 : (t - 1) * L < Q1.card := by
+        have : (t - 1) * (L + 1) = (t - 1) * L + (t - 1) := by ring
+        omega
+      obtain ⟨w, Q, hw_pos, hQ_nonempty, hQ_bounds, hQ_sub, hQ_div, hQ1_card_le⟩ :=
+        ih Q1 (B / d) t hQ1_ge hQ1_le ht hB_div hcard_Q1
+      use d * w, Q
+      refine ⟨by positivity, hQ_nonempty, ?_, ?_, hQ_div, ?_⟩
+      · intro x hx
+        have hx_b := hQ_bounds x hx
+        refine ⟨hx_b.1, ?_⟩
+        have h_assoc : (d * w) * x = d * (w * x) := by ring
+        rw [h_assoc]
+        have h_mul : d * (w * x) ≤ d * (B / d) := Nat.mul_le_mul_left d hx_b.2
+        have h_div_le : d * (B / d) ≤ B := Nat.mul_div_le B d
+        exact h_mul.trans h_div_le
+      · intro y hy
+        simp only [Finset.mem_image] at hy
+        obtain ⟨x, hx, rfl⟩ := hy
+        have h_wx_in_Q1 : w * x ∈ Q1 := by
+          have : w * x ∈ Q.image (fun z => w * z) := Finset.mem_image_of_mem (fun z => w * z) hx
+          exact hQ_sub this
+        have h_scale : d * (w * x) ∈ Q1.image (fun z => d * z) :=
+          Finset.mem_image_of_mem (fun z => d * z) h_wx_in_Q1
+        have h_sub_A : Q1.image (fun z => d * z) ⊆ A := quotient_scale_subset A d
+        have : (d * w) * x = d * (w * x) := by ring
+        rw [this]
+        exact h_sub_A h_scale
+      · have : (t - 1) * (L + 1) = (t - 1) * L + (t - 1) := by ring
+        omega
+
+/-- Upper bound on the extracted scaling factor: v ≤ B whenever Q is non-empty and v * x ≤ B for x ∈ Q. -/
+lemma scale_factor_le_of_mem_bounds {Q : Finset ℕ} (hQ : Q.Nonempty) {v B : ℕ}
+    (h_bounds : ∀ x ∈ Q, 1 ≤ x ∧ v * x ≤ B) :
+    v ≤ B := by
+  obtain ⟨x, hx⟩ := hQ
+  have hxb := h_bounds x hx
+  have : v * 1 ≤ v * x := Nat.mul_le_mul_left v hxb.1
+  omega
+
+
+
+/-!
 ### Section 9: The Master Theorems for Erdős Problem JSP-000298 (Erdős #360)
 
 This section synthesizes the three historical milestones of Erdős Problem 360 into unified master theorems:
@@ -3136,3 +3313,11 @@ end Erdos298
 #print axioms Erdos298.mem_subsetSums_of_quotient_Icc_subset
 #print axioms Erdos298.mem_subsetSums_of_scaled_Icc_subset
 #print axioms Erdos298.minColors_ge_of_cfp_diverse_witness
+
+#print axioms Erdos298.not_isDiverse_iff
+#print axioms Erdos298.card_le_card_filter_dvd_add
+#print axioms Erdos298.card_image_div_eq_card_filter_dvd
+#print axioms Erdos298.div_step_bounds
+#print axioms Erdos298.exists_diverse_scaled_subset
+#print axioms Erdos298.scale_factor_le_of_mem_bounds
+

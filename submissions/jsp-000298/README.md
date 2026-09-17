@@ -136,6 +136,13 @@ lake build
 - `Erdos298.CFPDiverseWitness`: Conlon–Fox–Pham diverse lower bound witness structure representing the core combinatorial data of Section 5.1.
 - `Erdos298.CFPLowerBoundWitness.ofDiverse`: Bridge theorem from `CFPDiverseWitness` to `CFPLowerBoundWitness`.
 - `Erdos298.minColors_ge_of_cfp_diverse_witness`: Chromatic lower bound theorem $k + 1 \le f(n)$ from any diverse lower bound witness.
+- `Erdos298.not_isDiverse_iff`: Exact predicate characterization of non-diversity ($\neg \mathrm{IsDiverse}(A, t) \iff \exists d \ge 2, |A \setminus d\mathbb{N}| < t$).
+- `Erdos298.card_le_card_filter_dvd_add`: Disjoint partition bound $|A| \le |A \cap d\mathbb{N}| + (t - 1)$ when $|A \setminus d\mathbb{N}| < t$.
+- `Erdos298.card_image_div_eq_card_filter_dvd`: Strict injectivity and cardinality preservation of integer division on multiples: $|(A \cap d\mathbb{N})/d| = |A \cap d\mathbb{N}|$.
+- `Erdos298.div_step_bounds`: Bound preservation under division: $A \subseteq [1, B] \implies (A \cap d\mathbb{N})/d \subseteq [1, \lfloor B/d \rfloor]$.
+- `Erdos298.exists_diverse_scaled_subset`: Algorithmic Conlon–Fox–Pham (2021, §5.1) divisor-extraction iteration theorem: for any $A \subseteq [1, B]$ with $1 \le t$, $B < 2^L$, and $(t-1)L < |A|$, there exist $v > 0$ and non-empty $Q \subseteq \mathbb{N}$ such that $v \cdot Q \subseteq A$, $Q$ is $t$-diverse, and $|A| \le |Q| + (t-1)L$.
+- `Erdos298.scale_factor_le_of_mem_bounds`: Upper bound on the extracted factor: $v \le B$.
+
 
 ### 11. Final Master Theorems (Unified Synthesis)
 - `Erdos298.erdos_problem_360_finite_master`:

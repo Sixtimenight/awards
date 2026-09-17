@@ -79,8 +79,13 @@
 | **Phase 3: Quotient Interval Hitting** | Erdos298.mem_subsetSums_of_quotient_Icc_subset | $\{1, \dots, m\} \subseteq Q \wedge n/v \le m(m+1)/2 \implies n/v \in \Sigma(Q)$ | **Proven & Compiled** | [propext, Classical.choice, Quot.sound] |
 | **Phase 3: Scaled Interval Hitting** | Erdos298.mem_subsetSums_of_scaled_Icc_subset | $\{1, \dots, m\} \subseteq (A \cap v\mathbb{N})/v \wedge n/v \le m(m+1)/2 \implies n \in \Sigma(A)$ | **Proven & Compiled** | [propext, Classical.choice, Quot.sound] |
 | **Phase 3: CFP Diverse Witness Structure** | Erdos298.CFPDiverseWitness | Exact CFP §5.1 witness structure over diverse quotient subset sums | **Proven & Compiled** | [propext, Classical.choice, Quot.sound] |
-| **Phase 3: Diverse to Lower Bound Witness** | Erdos298.CFPLowerBoundWitness.ofDiverse | $\mathrm{CFPDiverseWitness}(n, k) \implies \mathrm{CFPLowerBoundWitness}(n, k)$ | **Proven & Compiled** | [propext, Classical.choice, Quot.sound] |
-| **Phase 3: Diverse Chromatic Lower Bound** | Erdos298.minColors_ge_of_cfp_diverse_witness|  + 1 \le f(n)$ from any CFPDiverseWitness n k | **Proven & Compiled** | [propext, Classical.choice, Quot.sound] |
+| **Phase 3: CFP §5.1 Diverse Chromatic Lower Bound** | `Erdos298.minColors_ge_of_cfp_diverse_witness` | $k + 1 \le f(n)$ from any `CFPDiverseWitness n k` | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
+| **Phase 3: CFP §5.1 Non-diversity Characterization** | `Erdos298.not_isDiverse_iff` | $\neg \mathrm{IsDiverse}(A, t) \iff \exists d \ge 2, |A \setminus d\mathbb{N}| < t$ | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
+| **Phase 3: CFP §5.1 Partition Bound** | `Erdos298.card_le_card_filter_dvd_add` | $|A \setminus d\mathbb{N}| < t \implies |A| \le |A \cap d\mathbb{N}| + (t - 1)$ | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
+| **Phase 3: CFP §5.1 Division Cardinality** | `Erdos298.card_image_div_eq_card_filter_dvd` | Injective division on multiples: $|(A \cap d\mathbb{N})/d| = |A \cap d\mathbb{N}|$ | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
+| **Phase 3: CFP §5.1 Step Bounds Preservation** | `Erdos298.div_step_bounds` | $A \subseteq [1, B] \implies (A \cap d\mathbb{N})/d \subseteq [1, \lfloor B/d \rfloor]$ | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
+| **Phase 3: CFP §5.1 Divisor Extraction Iteration** | `Erdos298.exists_diverse_scaled_subset` | CFP §5.1 Divisor-extraction iteration theorem: $\exists v > 0, Q \subseteq \mathbb{N}$ non-empty, $v \cdot Q \subseteq A$, $Q$ is $t$-diverse, and $|A| \le |Q| + (t - 1) L$ | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
+| **Phase 3: CFP §5.1 Scale Factor Bound** | `Erdos298.scale_factor_le_of_mem_bounds` | $Q \neq \emptyset \wedge \forall x \in Q, 1 \le x \wedge v \cdot x \le B \implies v \le B$ | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
 | **Final Master Theorem** | `Erdos298.erdos_problem_360_finite_master` | Exact two-sided sandwich: $k + 1 \le f(n) \le \text{CFP 4-layer bound}$ | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
 | **Final Master Theorem** | `Erdos298.erdos_problem_360_unconditional_master` | Unconditional two-sided bound: $2 \le f(n) \le \text{CFP 4-layer bound}$ for all $n \ge 3$ | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
 | **Final Master Theorem** | `Erdos298.erdos_problem_360_asymptotic_master` | Sharp asymptotic two-sided equivalence $c F(n) \le f(n) \le C F(n)$ | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
@@ -111,4 +116,11 @@ A rigorous audit of the mathematical dependencies required for the 2021 lower bo
      - Complete Conlon–Fox–Pham witness structures and theorems: `Erdos298.CFPLowerBoundWitness`, `Erdos298.CFPAPWitness`, `Erdos298.minColors_ge_of_cfp_witness`, `Erdos298.minColors_ge_of_cfp_ap_witness`.
      - Asymptotic deduction: `Erdos298.hasChromaticLowerBound_of_cfp_witnesses`.
      - Unconditional specialization: `Erdos298.cfpWitness_two`, `Erdos298.minColors_ge_two_via_cfp`.
-
+     - CFP §5.1 Diverse Witness framework: `Erdos298.IsDiverse`, `Erdos298.CFPDiverseWitness`, `Erdos298.CFPLowerBoundWitness.ofDiverse`, `Erdos298.minColors_ge_of_cfp_diverse_witness`.
+     - CFP §5.1 Divisor-Extraction Iteration Engine:
+       - Non-diversity characterization: `Erdos298.not_isDiverse_iff`.
+       - Partition bound: `Erdos298.card_le_card_filter_dvd_add`.
+       - Division injectivity on multiples: `Erdos298.card_image_div_eq_card_filter_dvd`.
+       - Step bounds preservation: `Erdos298.div_step_bounds`.
+       - Algorithmic divisor-extraction iteration: `Erdos298.exists_diverse_scaled_subset` (mathematical induction on $L$ extracting $v > 0$ and $t$-diverse $Q \subseteq \mathbb{N}$ with $v \cdot Q \subseteq A$, $1 \le x \wedge v \cdot x \le B$, and $|A| \le |Q| + (t - 1) L$).
+       - Extracted factor upper bound: `Erdos298.scale_factor_le_of_mem_bounds` ($v \le B$).
