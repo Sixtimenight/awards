@@ -57,6 +57,10 @@
 | **Phase 3: Asymptotic Lower Bound**| `Erdos298.hasChromaticLowerBound_of_cfp_witnesses`| Deduction of global asymptotic lower bound $\mathrm{HasChromaticLowerBound}(F, c)$ | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
 | **Phase 3: Concrete Witness** | `Erdos298.cfpWitness_two` | Explicit unconditional witness for $k = 1$ on $\{1, n-1\}$ for all $n \ge 3$ | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
 | **Phase 3: Recovered Lower Bound**| `Erdos298.minColors_ge_two_via_cfp` | Unconditional $f(n) \ge 2$ derived via general CFP witness framework | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
+| **Final Master Theorem** | `Erdos298.erdos_problem_360_finite_master` | Exact two-sided sandwich: $k + 1 \le f(n) \le \text{CFP 4-layer bound}$ | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
+| **Final Master Theorem** | `Erdos298.erdos_problem_360_unconditional_master` | Unconditional two-sided bound: $2 \le f(n) \le \text{CFP 4-layer bound}$ for all $n \ge 3$ | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
+| **Final Master Theorem** | `Erdos298.erdos_problem_360_asymptotic_master` | Sharp asymptotic two-sided equivalence $c F(n) \le f(n) \le C F(n)$ | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
+| **Final Master Theorem** | `Erdos298.erdos_problem_360_unified_solution` | Grand synthesis unifying all 3 historical generations of Erdős Problem 360 | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
 
 ---
 

@@ -97,3 +97,22 @@ lake build
 - `Erdos298.hasChromaticLowerBound_of_cfp_witnesses`: Formal deduction of global asymptotic lower bound $\mathrm{HasChromaticLowerBound}(F, c)$.
 - `Erdos298.cfpWitness_two`: Explicit machine-checked witness for $k = 1$ using $\{1, n-1\}$ for any $n \ge 3$.
 - `Erdos298.minColors_ge_two_via_cfp`: Non-trivial lower bound $f(n) \ge 2$ for $n \ge 3$ derived from the general Section 8 witness framework.
+
+### 11. Final Master Theorems (Unified Synthesis)
+- `Erdos298.erdos_problem_360_finite_master`:
+  For any integer $n \ge 3$, any lower bound witness $w : \mathrm{CFPLowerBoundWitness}(n, k)$, and any valid Conlon–Fox–Pham 4-layer upper configuration $(s_1, P, d, s_{rem})$ with $s_{rem} \le s_1$ and $\forall p \in P, p \nmid n$:
+  $$k + 1 \le f(n) \le s_1 + |P| + 2|\mathrm{reducedResidues}(d)| + \left\lceil \frac{|R_{cfp}|}{s_{rem}} \right\rceil.$$
+- `Erdos298.erdos_problem_360_unconditional_master`:
+  Unconditional two-sided bound for all $n \ge 3$:
+  $$2 \le f(n) \le s_1 + |P| + 2|\mathrm{reducedResidues}(d)| + \left\lceil \frac{|R_{cfp}|}{s_{rem}} \right\rceil.$$
+- `Erdos298.erdos_problem_360_asymptotic_master`:
+  Conlon–Fox–Pham (2021) two-sided asymptotic growth equivalence:
+  $$c \cdot F(n) \le f(n) \le C \cdot F(n)$$
+  for all sufficiently large $n$, given matching lower and upper bound witnesses with respect to $F$.
+- `Erdos298.erdos_problem_360_unified_solution`:
+  The grand synthesis theorem unifying all three historical generations of Erdős Problem 360:
+  1. (Alon–Erdős 1996 Elementary): Cubic-root bound $f(n) \le 2s$ for $n \le s^3$.
+  2. (Alon–Erdős 1996 Sieve): Quantitative Selberg prime-sieve bound on $f(n)$.
+  3. (Conlon–Fox–Pham 2021 Upper): 4-layer chromatic upper bound.
+  4. (Conlon–Fox–Pham 2021 Lower): Inverse additive lower bound witness theorem $f(n) \ge k + 1$.
+  5. (Conlon–Fox–Pham 2021 Asymptotic): Two-sided asymptotic growth equivalence $f(n) \asymp F(n)$.

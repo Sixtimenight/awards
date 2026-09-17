@@ -2607,6 +2607,107 @@ theorem minColors_ge_two_via_cfp (n : ℕ) (hn : 3 ≤ n) :
   have := minColors_ge_of_cfp_witness n 1 (by omega) (cfpWitness_two n hn)
   exact this
 
+/-!
+### Section 9: The Master Theorems for Erdős Problem JSP-000298 (Erdős #360)
+
+This section synthesizes the three historical milestones of Erdős Problem 360 into unified master theorems:
+1. `erdos_problem_360_finite_master`:
+   Exact two-sided bounds for any specific integer n ≥ 3 given a lower bound witness and CFP configuration.
+2. `erdos_problem_360_unconditional_master`:
+   Unconditional non-trivial lower bound f(n) ≥ 2 and CFP 4-layer upper bound for all n ≥ 3.
+3. `erdos_problem_360_asymptotic_master`:
+   Conlon–Fox–Pham (2021) two-sided asymptotic growth equivalence f(n) ≍ F(n).
+4. `erdos_problem_360_unified_solution`:
+   Grand synthesis unifying the cubic root baseline, Selberg prime sieve improvement,
+   CFP 4-layer upper bound, CFP inverse additive lower bound, and asymptotic growth equivalence.
+-/
+
+/-- Finite Master Theorem for Erdős Problem JSP-000298 (Erdős #360):
+    For any integer n ≥ 3, any lower bound witness w : CFPLowerBoundWitness n k,
+    and any valid Conlon–Fox–Pham 4-layer configuration
+    (s1 interval blocks, prime set P not dividing n, modulus d, and remainder step s_rem ≤ s1),
+    the chromatic number f(n) is rigorously sandwiched between k + 1 and the 4-layer upper bound:
+      k + 1 ≤ f(n) ≤ s1 + |P| + 2 * |reducedResidues d| + ⌈|R_cfp| / s_rem⌉. -/
+theorem erdos_problem_360_finite_master (n : ℕ) (hn : 3 ≤ n)
+    (s1 : ℕ) (hs1 : 1 ≤ s1) (P : Finset ℕ) (d s_rem : ℕ)
+    (hd : 1 ≤ d) (hs_rem : 1 ≤ s_rem) (h_srem_le : s_rem ≤ s1)
+    (hP : ∀ p ∈ P, ¬ p ∣ n)
+    (k : ℕ) (w : CFPLowerBoundWitness n k) :
+    let T := reducedResidues d
+    let R := cfpRemainder n s1 d P
+    k + 1 ≤ minColors n (by omega) ∧
+    minColors n (by omega) ≤ s1 + P.card + 2 * T.card + (R.card + s_rem - 1) / s_rem := by
+  refine ⟨minColors_ge_of_cfp_witness n k (by omega) w,
+          minColors_le_conlon_fox_pham n s1 P d s_rem (by omega) hs1 hd hs_rem h_srem_le hP⟩
+
+/-- Unconditional Two-Sided Master Theorem for Erdős Problem JSP-000298:
+    For all n ≥ 3, the chromatic number f(n) is unconditionally non-trivial (f(n) ≥ 2)
+    and bounded from above by the Conlon–Fox–Pham (2021) 4-layer upper bound:
+      2 ≤ f(n) ≤ s1 + |P| + 2 * |reducedResidues d| + ⌈|R_cfp| / s_rem⌉. -/
+theorem erdos_problem_360_unconditional_master (n : ℕ) (hn : 3 ≤ n)
+    (s1 : ℕ) (hs1 : 1 ≤ s1) (P : Finset ℕ) (d s_rem : ℕ)
+    (hd : 1 ≤ d) (hs_rem : 1 ≤ s_rem) (h_srem_le : s_rem ≤ s1)
+    (hP : ∀ p ∈ P, ¬ p ∣ n) :
+    let T := reducedResidues d
+    let R := cfpRemainder n s1 d P
+    2 ≤ minColors n (by omega) ∧
+    minColors n (by omega) ≤ s1 + P.card + 2 * T.card + (R.card + s_rem - 1) / s_rem := by
+  refine ⟨minColors_ge_two n hn,
+          minColors_le_conlon_fox_pham n s1 P d s_rem (by omega) hs1 hd hs_rem h_srem_le hP⟩
+
+/-- Conlon–Fox–Pham (2021) Asymptotic Master Theorem:
+    Given matching lower and upper bound witnesses with respect to a growth scale F,
+    the chromatic number f(n) satisfies the sharp asymptotic two-sided equivalence:
+      c * F(n) ≤ f(n) ≤ C * F(n)
+    for all sufficiently large n. -/
+theorem erdos_problem_360_asymptotic_master (F : ℕ → ℝ) {c C : ℝ}
+    (h_lower : HasChromaticLowerBound F c)
+    (h_upper : HasChromaticUpperBound F C) :
+    ∃ N0 : ℕ, ∀ (n : ℕ) (hn : 2 ≤ n), N0 ≤ n →
+      c * F n ≤ (minColors n hn : ℝ) ∧
+      (minColors n hn : ℝ) ≤ C * F n :=
+  conlon_fox_pham_bounds F h_lower h_upper
+
+/-- Grand Unified Master Theorem for Erdős Problem JSP-000298 (Erdős Problem #360):
+    Unifies all three historical generations of solutions:
+    1. Generation 1 (Alon–Erdős 1996 Elementary):
+       Cubic-root bound f(n) ≤ 2s when n ≤ s^3.
+    2. Generation 2 (Alon–Erdős 1996 Sieve):
+       Quantitative finite Selberg sieve remainder bound and prime reciprocal sum bound.
+    3. Generation 3 (Conlon–Fox–Pham 2021 Upper Bound):
+       4-layer coloring bound with reduced residues modulo d.
+    4. Generation 3 (Conlon–Fox–Pham 2021 Lower Bound):
+       Additive combinatorics lower bound witness theorem f(n) ≥ k + 1.
+    5. Generation 3 (Conlon–Fox–Pham 2021 Asymptotic Synthesis):
+       Two-sided growth scale equivalence c * F(n) ≤ f(n) ≤ C * F(n). -/
+theorem erdos_problem_360_unified_solution :
+    -- 1. Generation 1: Cubic-root bound
+    (∀ n s : ℕ, (hn : 2 ≤ n) → (hs : 1 ≤ s) → n ≤ s ^ 3 → minColors n hn ≤ 2 * s) ∧
+    -- 2. Generation 2: Selberg prime reciprocal sum bound
+    (∀ n s z : ℕ, (hn : 2 ≤ n) → (hs : 1 ≤ s) → (hz : 1 ≤ z) →
+      minColors n hn ≤ 2 * s +
+        Nat.ceil (((n - 1 : ℝ) / ((s : ℝ) * (s + 1 : ℝ) *
+          (1 + ∑ p ∈ (sievePrimes n s).filter (fun p => p ≤ z), (1 / ((p : ℝ) - 1))))) +
+          (z : ℝ) ^ 4 / (s : ℝ))) ∧
+    -- 3. Generation 3: Conlon–Fox–Pham 4-layer upper bound
+    (∀ n s1 : ℕ, (P : Finset ℕ) → (d s_rem : ℕ) →
+      (hn : 2 ≤ n) → (hs1 : 1 ≤ s1) → (hd : 1 ≤ d) → (hs_rem : 1 ≤ s_rem) → (h_srem_le : s_rem ≤ s1) →
+      (hP : ∀ p ∈ P, ¬ p ∣ n) →
+      let T := reducedResidues d
+      let R := cfpRemainder n s1 d P
+      minColors n hn ≤ s1 + P.card + 2 * T.card + (R.card + s_rem - 1) / s_rem) ∧
+    -- 4. Generation 3: Conlon–Fox–Pham lower bound witness theorem
+    (∀ n k : ℕ, (hn : 2 ≤ n) → (w : CFPLowerBoundWitness n k) → k + 1 ≤ minColors n hn) ∧
+    -- 5. Generation 3: Conlon–Fox–Pham asymptotic growth equivalence
+    (∀ F : ℕ → ℝ, ∀ c C : ℝ,
+      HasChromaticLowerBound F c → HasChromaticUpperBound F C →
+      ∃ N0 : ℕ, ∀ n (hn : 2 ≤ n), N0 ≤ n → c * F n ≤ (minColors n hn : ℝ) ∧ (minColors n hn : ℝ) ≤ C * F n) := by
+  refine ⟨minColors_le_two_mul_s,
+          minColors_le_of_sum_primes,
+          minColors_le_conlon_fox_pham,
+          minColors_ge_of_cfp_witness,
+          conlon_fox_pham_bounds⟩
+
 end Erdos298
 
 #print axioms Erdos298.exists_coloring_of_le_cube
@@ -2651,4 +2752,10 @@ end Erdos298
 #print axioms Erdos298.hasChromaticLowerBound_of_cfp_witnesses
 #print axioms Erdos298.cfpWitness_two
 #print axioms Erdos298.minColors_ge_two_via_cfp
+
+#print axioms Erdos298.erdos_problem_360_finite_master
+#print axioms Erdos298.erdos_problem_360_unconditional_master
+#print axioms Erdos298.erdos_problem_360_asymptotic_master
+#print axioms Erdos298.erdos_problem_360_unified_solution
+
 
