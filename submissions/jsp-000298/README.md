@@ -142,6 +142,13 @@ lake build
 - `Erdos298.div_step_bounds`: Bound preservation under division: $A \subseteq [1, B] \implies (A \cap d\mathbb{N})/d \subseteq [1, \lfloor B/d \rfloor]$.
 - `Erdos298.exists_diverse_scaled_subset`: Algorithmic Conlon–Fox–Pham (2021, §5.1) divisor-extraction iteration theorem: for any $A \subseteq [1, B]$ with $1 \le t$, $B < 2^L$, and $(t-1)L < |A|$, there exist $v > 0$ and non-empty $Q \subseteq \mathbb{N}$ such that $v \cdot Q \subseteq A$, $Q$ is $t$-diverse, and $|A| \le |Q| + (t-1)L$.
 - `Erdos298.scale_factor_le_of_mem_bounds`: Upper bound on the extracted factor: $v \le B$.
+- `Erdos298.subsetSumsMod`: The set of residue classes modulo $d$ formed by subset sums of $A$.
+- `Erdos298.subsetSumsMod_eq_univ_of_divisor_counts` (Conlon–Fox–Pham 2021, Lemma 5.8): If for every divisor $e \mid d$, $|A \setminus e\mathbb{N}| \ge e - 1$, then subset sums of $A$ cover all residues modulo $d$.
+- `Erdos298.subsetSumsMod_eq_univ_of_isDiverse`: If $A$ is $t$-diverse and $d - 1 \le t$ with $d > 0$, then $\Sigma_d(A) = \mathbb{Z}/d\mathbb{Z}$.
+- `Erdos298.exists_diverse_scaled_subset_mod_coverage`: The extracted diverse scaled subset $Q$ from `exists_diverse_scaled_subset` covers all residues modulo $d$ for every modulus $1 \le d \le t + 1$.
+- `Erdos298.sanity_mod_coverage_empty`: Sanity check for $d = 1, A = \emptyset$.
+- `Erdos298.sanity_mod_coverage_4`: Sanity check for $d = 4, A = \{1, 5, 9\}$.
+- `Erdos298.sanity_mod_coverage_6`: Sanity check for $d = 6, A = \{2, 3, 4, 8, 9\}$.
 
 
 ### 11. Final Master Theorems (Unified Synthesis)

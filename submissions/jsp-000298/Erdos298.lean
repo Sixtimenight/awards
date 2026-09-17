@@ -1,3 +1,6 @@
+import Mathlib.Data.ZMod.Basic
+import Mathlib.GroupTheory.SpecificGroups.Cyclic
+import Mathlib.Tactic.IntervalCases
 import Mathlib.Data.Nat.ModEq
 import Mathlib.Data.Fintype.Card
 import Mathlib.Algebra.BigOperators.Intervals
@@ -3117,6 +3120,513 @@ lemma scale_factor_le_of_mem_bounds {Q : Finset ℕ} (hQ : Q.Nonempty) {v B : �
   have : v * 1 ≤ v * x := Nat.mul_le_mul_left v hxb.1
   omega
 
+/-!
+### Subsection 8.4: Conlon–Fox–Pham Lemma 5.8 Modular Subset Sum Coverage and Diversity Bridge
+
+This subsection formalizes Section 5.1, Lemma 5.8 of Conlon–Fox–Pham (2021):
+Given a finite set A ⊆ ℕ and d ≥ 1 such that for every divisor e ∣ d,
+the number of elements in A not divisible by e is at least e - 1,
+the subset sums of A cover all residue classes modulo d:
+  ∀ r : ZMod d, r ∈ subsetSumsMod d A
+
+We then bridge this to `IsDiverse Q t` and `exists_diverse_scaled_subset`,
+deducing that the diverse subset Q produced by the CFP divisor extraction iteration
+achieves complete modular coverage for all moduli 1 ≤ d ≤ t + 1.
+-/
+
+lemma image_add_eq_self_of_subset {d : ℕ} (S : Finset (ZMod d)) (x : ZMod d)
+    (h_sub : S.image (fun r => r + x) ⊆ S) :
+    S.image (fun r => r + x) = S := by
+  have h_inj : Function.Injective (fun (r : ZMod d) => r + x) := by
+    intro a b hab
+    exact add_right_cancel hab
+  have h_card : (S.image (fun r => r + x)).card = S.card :=
+    Finset.card_image_of_injective S h_inj
+  exact Finset.eq_of_subset_of_card_le h_sub (by rw [h_card])
+
+lemma filter_not_dvd_eq_of_dvd (A : Finset ℕ) (d e : ℕ) (he : e ∣ d) :
+    (A.filter (fun a => ¬ d ∣ a)).filter (fun a => ¬ e ∣ a) = A.filter (fun a => ¬ e ∣ a) := by
+  ext a
+  simp only [Finset.mem_filter]
+  constructor
+  · rintro ⟨⟨ha, _⟩, he_not⟩
+    exact ⟨ha, he_not⟩
+  · rintro ⟨ha, he_not⟩
+    refine ⟨⟨ha, ?_⟩, he_not⟩
+    intro hd
+    exact he_not (dvd_trans he hd)
+
+lemma subsetSums_insert (A : Finset ℕ) (x : ℕ) (hx : x ∉ A) :
+    subsetSums (insert x A) = subsetSums A ∪ (subsetSums A).image (fun s => s + x) := by
+  ext s
+  simp only [mem_subsetSums_iff, Finset.mem_union, Finset.mem_image]
+  constructor
+  · rintro ⟨B, hB, rfl⟩
+    by_cases hxB : x ∈ B
+    · right
+      refine ⟨(B.erase x).sum id, ⟨B.erase x, ?_, rfl⟩, ?_⟩
+      · intro y hy
+        have := hB (Finset.mem_of_mem_erase hy)
+        simp only [Finset.mem_insert] at this
+        cases this with
+        | inl heq => exfalso; exact (Finset.ne_of_mem_erase hy) heq
+        | inr hin => exact hin
+      · have h_not : x ∉ B.erase x := by simp
+        have h_sum : (insert x (B.erase x)).sum id = x + (B.erase x).sum id := Finset.sum_insert h_not
+        rw [Finset.insert_erase hxB] at h_sum
+        rw [h_sum, add_comm]
+    · left
+      refine ⟨B, ?_, rfl⟩
+      intro y hy
+      have := hB hy
+      simp only [Finset.mem_insert] at this
+      cases this with
+      | inl heq => exfalso; subst heq; exact hxB hy
+      | inr hin => exact hin
+  · rintro (⟨B, hB, rfl⟩ | ⟨s', ⟨B, hB, rfl⟩, rfl⟩)
+    · refine ⟨B, hB.trans (Finset.subset_insert x A), rfl⟩
+    · refine ⟨insert x B, ?_, ?_⟩
+      · rw [Finset.insert_subset_iff]
+        refine ⟨Finset.mem_insert_self x A, hB.trans (Finset.subset_insert x A)⟩
+      · have : x ∉ B := fun hxB => hx (hB hxB)
+        have h_sum : (insert x B).sum id = x + B.sum id := Finset.sum_insert this
+        rw [h_sum, add_comm]
+
+/-- The set of residue classes modulo d formed by subset sums of A. -/
+def subsetSumsMod (d : ℕ) (A : Finset ℕ) : Finset (ZMod d) :=
+  Finset.image (fun (s : ℕ) => (s : ZMod d)) (subsetSums A)
+
+lemma mem_subsetSumsMod_iff (d : ℕ) (A : Finset ℕ) (r : ZMod d) :
+    r ∈ subsetSumsMod d A ↔ ∃ B ⊆ A, (B.sum (fun x => (x : ZMod d))) = r := by
+  simp only [subsetSumsMod, Finset.mem_image, mem_subsetSums_iff]
+  constructor
+  · rintro ⟨s, ⟨B, hB, rfl⟩, rfl⟩
+    use B, hB
+    push_cast
+    rfl
+  · rintro ⟨B, hB, rfl⟩
+    use B.sum id
+    refine ⟨⟨B, hB, rfl⟩, ?_⟩
+    push_cast
+    rfl
+
+lemma zero_mem_subsetSumsMod (d : ℕ) (A : Finset ℕ) : (0 : ZMod d) ∈ subsetSumsMod d A := by
+  rw [mem_subsetSumsMod_iff]
+  use ∅
+  simp
+
+lemma subsetSumsMod_mono {d : ℕ} {A B : Finset ℕ} (h : A ⊆ B) :
+    subsetSumsMod d A ⊆ subsetSumsMod d B := by
+  intro r hr
+  rw [mem_subsetSumsMod_iff] at hr ⊢
+  obtain ⟨C, hC, rfl⟩ := hr
+  exact ⟨C, hC.trans h, rfl⟩
+
+lemma subsetSumsMod_insert (d : ℕ) (A : Finset ℕ) (x : ℕ) (hx : x ∉ A) :
+    subsetSumsMod d (insert x A) =
+      subsetSumsMod d A ∪ Finset.image (fun r => r + (x : ZMod d)) (subsetSumsMod d A) := by
+  simp only [subsetSumsMod]
+  rw [subsetSums_insert A x hx, Finset.image_union]
+  congr 1
+  ext r
+  simp only [Finset.mem_image]
+  constructor
+  · rintro ⟨s, ⟨s', hs', rfl⟩, rfl⟩
+    refine ⟨(s' : ZMod d), ⟨s', hs', rfl⟩, ?_⟩
+    push_cast
+    rfl
+  · rintro ⟨r', ⟨s', hs', rfl⟩, rfl⟩
+    refine ⟨s' + x, ⟨s', hs', rfl⟩, ?_⟩
+    push_cast
+    rfl
+
+lemma subsetSumsMod_filter_not_dvd (d : ℕ) (A : Finset ℕ) :
+    subsetSumsMod d (A.filter (fun a => ¬ d ∣ a)) = subsetSumsMod d A := by
+  apply Finset.Subset.antisymm
+  · exact subsetSumsMod_mono (Finset.filter_subset _ _)
+  · intro r hr
+    rw [mem_subsetSumsMod_iff] at hr ⊢
+    obtain ⟨B, hB, rfl⟩ := hr
+    let B0 := B.filter (fun a => ¬ d ∣ a)
+    let B_dvd := B.filter (fun a => d ∣ a)
+    have h_disj : Disjoint B0 B_dvd := by
+      rw [Finset.disjoint_filter]
+      intro x _ hd1 hd2
+      exact hd1 hd2
+    have h_u : B0 ∪ B_dvd = B := by
+      ext x
+      simp only [B0, B_dvd, Finset.mem_union, Finset.mem_filter]
+      tauto
+    have h_sum : B.sum (fun x => (x : ZMod d)) = B0.sum (fun x => (x : ZMod d)) := by
+      rw [← h_u, Finset.sum_union h_disj]
+      have : B_dvd.sum (fun x => (x : ZMod d)) = 0 := by
+        apply Finset.sum_eq_zero
+        intro x hx
+        simp only [B_dvd, Finset.mem_filter] at hx
+        obtain ⟨q, rfl⟩ := hx.2
+        push_cast
+        rw [CharP.cast_eq_zero (ZMod d) d, zero_mul]
+      rw [this, add_zero]
+    use B0
+    refine ⟨?_, h_sum.symm⟩
+    intro x hx
+    simp only [B0, Finset.mem_filter] at hx
+    simp only [Finset.mem_filter]
+    exact ⟨hB hx.1, hx.2⟩
+
+lemma zmod_gcd_mem_zmultiples (d : ℕ) [NeZero d] (h : ZMod d) :
+    (d.gcd h.val : ZMod d) ∈ AddSubgroup.zmultiples h := by
+  have h_bezout := Nat.gcd_eq_gcd_ab d h.val
+  have h_cast : ((d.gcd h.val : ℤ) : ZMod d) =
+      (((d : ℤ) * d.gcdA h.val + (h.val : ℤ) * d.gcdB h.val : ℤ) : ZMod d) := by
+    rw [← h_bezout]
+  push_cast at h_cast
+  rw [CharP.cast_eq_zero (ZMod d) d, zero_mul, zero_add] at h_cast
+  rw [ZMod.natCast_zmod_val h] at h_cast
+  rw [AddSubgroup.mem_zmultiples_iff]
+  use d.gcdB h.val
+  rw [h_cast, zsmul_eq_mul, mul_comm]
+
+lemma zmod_mem_zmultiples_iff_dvd (d g : ℕ) (hg : g ∣ d) (x : ℕ) :
+    (x : ZMod d) ∈ AddSubgroup.zmultiples (g : ZMod d) ↔ g ∣ x := by
+  rw [AddSubgroup.mem_zmultiples_iff]
+  constructor
+  · rintro ⟨k, hk⟩
+    have hk_cast : ((x : ℤ) : ZMod d) = ((k * (g : ℤ) : ℤ) : ZMod d) := by
+      push_cast
+      rw [zsmul_eq_mul] at hk
+      exact hk.symm
+    rw [ZMod.intCast_eq_intCast_iff, Int.modEq_iff_dvd] at hk_cast
+    have hdvd_diff : (g : ℤ) ∣ (k * (g : ℤ) - (x : ℤ)) := by
+      obtain ⟨q, hq⟩ := hg
+      have hd_eq : (d : ℤ) = (g : ℤ) * (q : ℤ) := by exact_mod_cast hq
+      rw [hd_eq] at hk_cast
+      exact dvd_of_mul_right_dvd hk_cast
+    have hdvd_kg : (g : ℤ) ∣ k * (g : ℤ) := dvd_mul_left (g : ℤ) k
+    have hdvd_x : (g : ℤ) ∣ (x : ℤ) := by
+      have := dvd_sub hdvd_kg hdvd_diff
+      ring_nf at this
+      exact this
+    exact Int.natCast_dvd_natCast.mp hdvd_x
+  · rintro ⟨q, rfl⟩
+    use q
+    rw [zsmul_eq_mul, mul_comm]
+    push_cast
+    rfl
+
+lemma stabilizer_closure {d : ℕ} [NeZero d] (S : Finset (ZMod d)) (K : Set (ZMod d))
+    (hK : ∀ x ∈ K, ∀ s ∈ S, s + x ∈ S) :
+    ∀ h ∈ AddSubgroup.closure K, ∀ s ∈ S, s + h ∈ S := by
+  intro h hh
+  induction hh using AddSubgroup.closure_induction with
+  | mem x hx => exact hK x hx
+  | zero => intro s hs; rw [add_zero]; exact hs
+  | add x y hx hy ihx ihy =>
+    intro s hs
+    rw [← add_assoc]
+    exact ihy (s + x) (ihx s hs)
+  | neg x hx ih =>
+    intro s hs
+    have h_nsmul : ∀ n : ℕ, s + (n • x) ∈ S := by
+      intro n
+      induction n with
+      | zero => rw [zero_nsmul, add_zero]; exact hs
+      | succ n ihn =>
+        rw [succ_nsmul, ← add_assoc]
+        exact ih (s + n • x) ihn
+    have hd_pred : d = (d - 1) + 1 := by
+      have hd_pos : 0 < d := NeZero.pos d
+      omega
+    have hd_zero : d • x = 0 := by
+      rw [nsmul_eq_mul]
+      have : (d : ZMod d) = 0 := CharP.cast_eq_zero (ZMod d) d
+      rw [this, zero_mul]
+    have h_add : (d - 1) • x + x = 0 := by
+      calc (d - 1) • x + x = (d - 1) • x + 1 • x := by rw [one_nsmul]
+      _ = ((d - 1) + 1) • x := by rw [add_nsmul]
+      _ = d • x := by rw [← hd_pred]
+      _ = 0 := hd_zero
+    have h_add2 : x + (d - 1) • x = 0 := by rw [add_comm, h_add]
+    have h_neg : -x = (d - 1) • x := by
+      calc -x = -x + 0 := by rw [add_zero]
+      _ = -x + (x + (d - 1) • x) := by rw [h_add2]
+      _ = (-x + x) + (d - 1) • x := by rw [add_assoc]
+      _ = 0 + (d - 1) • x := by rw [neg_add_cancel]
+      _ = (d - 1) • x := by rw [zero_add]
+    rw [h_neg]
+    exact h_nsmul (d - 1)
+
+lemma card_sdiff_eq_sub {α : Type*} [DecidableEq α] {s t : Finset α} (h : t ⊆ s) :
+    (s \ t).card = s.card - t.card := by
+  have : t ∩ s = t := Finset.inter_eq_left.mpr h
+  rw [Finset.card_sdiff, this]
+
+/-- Conlon–Fox–Pham (2021) Lemma 5.8:
+    If for every divisor e ∣ d, the number of elements of A not divisible by e is at least e - 1,
+    then the subset sums of A cover all residues modulo d. -/
+theorem subsetSumsMod_eq_univ_of_divisor_counts (d : ℕ) (hd : 0 < d) (A : Finset ℕ)
+    (hdiv : ∀ e, e ∣ d → e - 1 ≤ (A.filter (fun a => ¬ e ∣ a)).card) :
+    ∀ r : ZMod d, r ∈ subsetSumsMod d A := by
+  induction d using Nat.strong_induction_on generalizing A with
+  | _ d ih =>
+    by_cases hd1 : d = 1
+    · subst hd1
+      intro r
+      have : r = 0 := Subsingleton.elim r 0
+      rw [this]
+      exact zero_mem_subsetSumsMod 1 A
+    · have hd2 : 2 ≤ d := by omega
+      have inst_ne : NeZero d := ⟨by omega⟩
+      let A0 := A.filter (fun a => ¬ d ∣ a)
+      have hA0_eq : subsetSumsMod d A0 = subsetSumsMod d A := subsetSumsMod_filter_not_dvd d A
+      rw [← hA0_eq]
+      by_contra h_contra
+      have h_ex_miss : ∃ r_miss : ZMod d, r_miss ∉ subsetSumsMod d A0 := by
+        by_contra hall
+        apply h_contra
+        intro r
+        by_contra hr
+        exact hall ⟨r, hr⟩
+      obtain ⟨r_miss, hr_miss⟩ := h_ex_miss
+      let Cand := A0.powerset.filter (fun B => B.card + 1 ≤ (subsetSumsMod d B).card)
+      have hCand_empty : ∅ ∈ Cand := by
+        simp only [Cand, Finset.mem_filter, Finset.mem_powerset, Finset.empty_subset,
+          Finset.card_empty, zero_add, true_and]
+        have : (0 : ZMod d) ∈ subsetSumsMod d ∅ := zero_mem_subsetSumsMod d ∅
+        have h_nonempty : (subsetSumsMod d ∅).Nonempty := ⟨0, this⟩
+        exact Finset.Nonempty.card_pos h_nonempty
+      obtain ⟨B, hB_cand, hB_max⟩ := Cand.exists_max_image Finset.card ⟨∅, hCand_empty⟩
+      simp only [Cand, Finset.mem_filter, Finset.mem_powerset] at hB_cand
+      obtain ⟨hB_sub_A0, hB_le_S⟩ := hB_cand
+      let S := subsetSumsMod d B
+      let C := A0 \ B
+      have hr_miss_S : r_miss ∉ S := by
+        intro hr_in
+        have : S ⊆ subsetSumsMod d A0 := subsetSumsMod_mono hB_sub_A0
+        exact hr_miss (this hr_in)
+      have hS_card : S.card ≤ d - 1 := by
+        have h_le : S.card ≤ Fintype.card (ZMod d) := Finset.card_le_univ S
+        rw [ZMod.card d] at h_le
+        by_contra h_contra_card
+        have h_eq_d : S.card = d := by omega
+        have h_univ : (Finset.univ : Finset (ZMod d)).card = d := by rw [Finset.card_univ, ZMod.card d]
+        have : S = Finset.univ := Finset.eq_of_subset_of_card_le (Finset.subset_univ S) (by rw [h_eq_d, h_univ])
+        have : r_miss ∈ S := by rw [this]; exact Finset.mem_univ r_miss
+        exact hr_miss_S this
+      have hB_card : B.card ≤ d - 2 := by
+        have : B.card + 1 ≤ S.card := hB_le_S
+        omega
+      have hA0_card : d - 1 ≤ A0.card := hdiv d (dvd_refl d)
+      have hC_card : 1 ≤ C.card := by
+        have : C.card = A0.card - B.card := card_sdiff_eq_sub hB_sub_A0
+        omega
+      have hC_nonempty : C.Nonempty := Finset.card_pos.mp (by omega)
+      have h_trans : ∀ x ∈ C, ∀ s ∈ S, s + (x : ZMod d) ∈ S := by
+        intro x hx
+        simp only [C, Finset.mem_sdiff] at hx
+        obtain ⟨hxA0, hxB⟩ := hx
+        have h_ins_sub : insert x B ⊆ A0 := by
+          rw [Finset.insert_subset_iff]
+          exact ⟨hxA0, hB_sub_A0⟩
+        have h_ins_card : (insert x B).card = B.card + 1 := Finset.card_insert_of_notMem hxB
+        by_contra h_not_in
+        have h_ex_out : ∃ s_out ∈ S, s_out + (x : ZMod d) ∉ S := by
+          by_contra hall
+          apply h_not_in
+          intro s hs
+          by_contra h_out
+          exact hall ⟨s, hs, h_out⟩
+        obtain ⟨s_out, hs_out, hs_out_not⟩ := h_ex_out
+        have h_img_not_sub : ¬ (S.image (fun r => r + (x : ZMod d)) ⊆ S) := by
+          intro h_sub
+          have : s_out + (x : ZMod d) ∈ S.image (fun r => r + (x : ZMod d)) :=
+            Finset.mem_image_of_mem _ hs_out
+          exact hs_out_not (h_sub this)
+        have h_union_card : S.card + 1 ≤ (S ∪ S.image (fun r => r + (x : ZMod d))).card := by
+          obtain ⟨y, hy, hy_not⟩ := Finset.not_subset.mp h_img_not_sub
+          have : S ⊂ S ∪ S.image (fun r => r + (x : ZMod d)) := by
+            rw [Finset.ssubset_iff_subset_ne]
+            refine ⟨Finset.subset_union_left, ?_⟩
+            intro heq
+            have : y ∈ S := by
+              have : y ∈ S ∪ S.image (fun r => r + (x : ZMod d)) := Finset.mem_union_right S hy
+              rwa [← heq] at this
+            exact hy_not this
+          exact Finset.card_lt_card this
+        have h_mod_ins := subsetSumsMod_insert d B x hxB
+        have h_cand_ins : (insert x B).card + 1 ≤ (subsetSumsMod d (insert x B)).card := by
+          rw [h_mod_ins, h_ins_card]
+          change B.card + 1 + 1 ≤ (S ∪ S.image (fun r => r + (x : ZMod d))).card
+          have : B.card + 1 ≤ S.card := hB_le_S
+          omega
+        have h_ins_mem_cand : insert x B ∈ Cand := by
+          simp only [Cand, Finset.mem_filter, Finset.mem_powerset]
+          exact ⟨h_ins_sub, h_cand_ins⟩
+        have h_le := hB_max (insert x B) h_ins_mem_cand
+        rw [h_ins_card] at h_le
+        omega
+      let K : Set (ZMod d) := (fun (x : ℕ) => (x : ZMod d)) '' (C : Set ℕ)
+      have hK : ∀ x ∈ K, ∀ s ∈ S, s + x ∈ S := by
+        rintro _ ⟨x, hx, rfl⟩ s hs
+        exact h_trans x hx s hs
+      have h_stab : ∀ h ∈ AddSubgroup.closure K, ∀ s ∈ S, s + h ∈ S :=
+        stabilizer_closure S K hK
+      let H0 := AddSubgroup.closure K
+      have _inst_cyc : IsAddCyclic H0 := inferInstance
+      obtain ⟨h_gen, hh_gen⟩ := IsAddCyclic.exists_generator (α := H0)
+      let h0 : ZMod d := (h_gen : ZMod d)
+      have hh0_in : h0 ∈ H0 := h_gen.2
+      have hH0_eq_zmult : ∀ x ∈ H0, x ∈ AddSubgroup.zmultiples h0 := by
+        intro x hx
+        have := hh_gen ⟨x, hx⟩
+        rw [AddSubgroup.mem_zmultiples_iff] at this ⊢
+        obtain ⟨k, hk⟩ := this
+        use k
+        exact congr_arg Subtype.val hk
+      let g := d.gcd h0.val
+      have hg_dvd_d : g ∣ d := Nat.gcd_dvd_left d h0.val
+      have hg_pos : 0 < g := Nat.gcd_pos_of_pos_left h0.val hd
+      have hg_in_H0 : (g : ZMod d) ∈ H0 := by
+        have h_in := zmod_gcd_mem_zmultiples d h0
+        rw [AddSubgroup.mem_zmultiples_iff] at h_in
+        obtain ⟨k, hk⟩ := h_in
+        rw [← hk]
+        exact H0.zsmul_mem hh0_in k
+      have hg_stab : ∀ s ∈ S, s + (g : ZMod d) ∈ S := h_stab (g : ZMod d) hg_in_H0
+      have h_dvd_C : ∀ x ∈ C, g ∣ x := by
+        intro x hx
+        have hx_K : (x : ZMod d) ∈ K := ⟨x, hx, rfl⟩
+        have hx_H0 : (x : ZMod d) ∈ H0 := AddSubgroup.subset_closure hx_K
+        have hx_mult := hH0_eq_zmult (x : ZMod d) hx_H0
+        have h_mult_g : (x : ZMod d) ∈ AddSubgroup.zmultiples (g : ZMod d) := by
+          rw [AddSubgroup.mem_zmultiples_iff] at hx_mult ⊢
+          obtain ⟨k, hk⟩ := hx_mult
+          have hg_dvd_h0 : g ∣ h0.val := Nat.gcd_dvd_right d h0.val
+          have hh0_mult := (zmod_mem_zmultiples_iff_dvd d g hg_dvd_d h0.val).mpr hg_dvd_h0
+          rw [ZMod.natCast_zmod_val h0] at hh0_mult
+          rw [AddSubgroup.mem_zmultiples_iff] at hh0_mult
+          obtain ⟨m, hm⟩ := hh0_mult
+          use k * m
+          rw [mul_zsmul, hm, hk]
+        exact (zmod_mem_zmultiples_iff_dvd d g hg_dvd_d x).mp h_mult_g
+      have hg_lt_d : g < d := by
+        by_contra h_ge
+        have h_eq : g = d := by
+          have : g ≤ d := Nat.le_of_dvd hd hg_dvd_d
+          omega
+        obtain ⟨x, hx⟩ := hC_nonempty
+        have hxd : d ∣ x := by rw [← h_eq]; exact h_dvd_C x hx
+        simp only [C, Finset.mem_sdiff, A0, Finset.mem_filter] at hx
+        exact hx.1.2 hxd
+      have hB_div : ∀ e, e ∣ g → e - 1 ≤ (B.filter (fun a => ¬ e ∣ a)).card := by
+        intro e he
+        have he_dvd_d : e ∣ d := dvd_trans he hg_dvd_d
+        have h_e_A := hdiv e he_dvd_d
+        have h_e_A0 : (A0.filter (fun a => ¬ e ∣ a)).card = (A.filter (fun a => ¬ e ∣ a)).card := by
+          rw [← filter_not_dvd_eq_of_dvd A d e he_dvd_d]
+        rw [← h_e_A0] at h_e_A
+        have h_sub_B : A0.filter (fun a => ¬ e ∣ a) ⊆ B.filter (fun a => ¬ e ∣ a) := by
+          intro x hx
+          simp only [Finset.mem_filter] at hx ⊢
+          refine ⟨?_, hx.2⟩
+          by_contra hxB
+          have : x ∈ C := by
+            simp only [C, Finset.mem_sdiff]
+            exact ⟨hx.1, hxB⟩
+          have hgx := h_dvd_C x this
+          have hex := dvd_trans he hgx
+          exact hx.2 hex
+        exact h_e_A.trans (Finset.card_le_card h_sub_B)
+      have h_ih := ih g hg_lt_d hg_pos B hB_div
+      have h_r0 := h_ih (r_miss.val : ZMod g)
+      rw [mem_subsetSumsMod_iff] at h_r0
+      obtain ⟨B_sub, hB_sub_B, hB_sum⟩ := h_r0
+      have h_cast_g : ((B_sub.sum id : ℕ) : ZMod g) = (r_miss.val : ZMod g) := by
+        have : ((B_sub.sum id : ℕ) : ZMod g) = B_sub.sum (fun x => (x : ZMod g)) := by
+          push_cast
+          rfl
+        rw [this, hB_sum]
+      let s_val : ℕ := B_sub.sum id
+      have hs_in : (s_val : ZMod d) ∈ S := by
+        have : s_val ∈ subsetSums B := by
+          rw [mem_subsetSums_iff]
+          exact ⟨B_sub, hB_sub_B, rfl⟩
+        simp only [S, subsetSumsMod, Finset.mem_image]
+        exact ⟨s_val, this, rfl⟩
+      have h_modeq : (s_val : ℤ) ≡ (r_miss.val : ℤ) [ZMOD (g : ℤ)] := by
+        have := (ZMod.intCast_eq_intCast_iff (s_val : ℤ) (r_miss.val : ℤ) g).mp
+        push_cast at this
+        exact this h_cast_g
+      rw [Int.modEq_iff_dvd] at h_modeq
+      obtain ⟨k, hk⟩ := h_modeq
+      have hr_eq : (r_miss : ZMod d) = (s_val : ZMod d) + k • (g : ZMod d) := by
+        have h_int : (r_miss.val : ℤ) = (s_val : ℤ) + (g : ℤ) * k := by omega
+        have h_cast_d : ((r_miss.val : ℤ) : ZMod d) = (((s_val : ℤ) + (g : ℤ) * k : ℤ) : ZMod d) :=
+          congr_arg _ h_int
+        push_cast at h_cast_d
+        rw [ZMod.natCast_zmod_val r_miss] at h_cast_d
+        rw [h_cast_d]
+        rw [zsmul_eq_mul, mul_comm]
+      have hk_in_H0 : k • (g : ZMod d) ∈ H0 := H0.zsmul_mem hg_in_H0 k
+      have h_stab_k : (s_val : ZMod d) + k • (g : ZMod d) ∈ S :=
+        h_stab (k • (g : ZMod d)) hk_in_H0 (s_val : ZMod d) hs_in
+      rw [hr_eq] at hr_miss_S
+      exact hr_miss_S h_stab_k
+
+/-- Modular subset sum coverage for diverse sets:
+    If A is t-diverse and d - 1 ≤ t with d > 0, then A covers all residues modulo d. -/
+lemma subsetSumsMod_eq_univ_of_isDiverse (d t : ℕ) (hd : 0 < d) (hdt : d - 1 ≤ t)
+    (A : Finset ℕ) (h_div : IsDiverse A t) :
+    ∀ r : ZMod d, r ∈ subsetSumsMod d A := by
+  apply subsetSumsMod_eq_univ_of_divisor_counts d hd A
+  intro e he
+  by_cases he1 : e = 1
+  · subst he1
+    omega
+  · have he2 : 2 ≤ e := by
+      have he_pos : 0 < e := Nat.pos_of_dvd_of_pos he hd
+      omega
+    have h_div_e := h_div e he2
+    have he_le_d : e ≤ d := Nat.le_of_dvd hd he
+    omega
+
+/-- The extracted scaled diverse subset Q from `exists_diverse_scaled_subset`
+    covers all residues modulo d for every modulus 1 ≤ d ≤ t + 1. -/
+lemma exists_diverse_scaled_subset_mod_coverage (L : ℕ) (A : Finset ℕ) (B t : ℕ)
+    (hA_ge : ∀ x ∈ A, 1 ≤ x) (hA_le : ∀ x ∈ A, x ≤ B)
+    (ht : 1 ≤ t) (hB : B < 2 ^ L) (hcard : (t - 1) * L < A.card) :
+    ∃ (v : ℕ) (Q : Finset ℕ),
+      0 < v ∧ Q.Nonempty ∧ (∀ x ∈ Q, 1 ≤ x ∧ v * x ≤ B) ∧
+      Q.image (fun x => v * x) ⊆ A ∧ IsDiverse Q t ∧
+      A.card ≤ Q.card + (t - 1) * L ∧
+      (∀ d : ℕ, 1 ≤ d → d ≤ t + 1 → ∀ r : ZMod d, r ∈ subsetSumsMod d Q) := by
+  obtain ⟨v, Q, hv, hQ_ne, hQ_bnd, hQ_sub, hQ_div, hQ_card⟩ :=
+    exists_diverse_scaled_subset L A B t hA_ge hA_le ht hB hcard
+  refine ⟨v, Q, hv, hQ_ne, hQ_bnd, hQ_sub, hQ_div, hQ_card, ?_⟩
+  intro d hd1 hdt r
+  exact subsetSumsMod_eq_univ_of_isDiverse d t (by omega) (by omega) Q hQ_div r
+
+/-- Sanity check 1: Modulo 1 coverage holds trivially for the empty set. -/
+lemma sanity_mod_coverage_empty : ∀ r : ZMod 1, r ∈ subsetSumsMod 1 ∅ := by
+  intro r
+  have : r = 0 := Subsingleton.elim r 0
+  rw [this]
+  exact zero_mem_subsetSumsMod 1 ∅
+
+/-- Sanity check 2: Modulo 4 coverage for A = {1, 5, 9}. -/
+lemma sanity_mod_coverage_4 : ∀ r : ZMod 4, r ∈ subsetSumsMod 4 {1, 5, 9} := by
+  apply subsetSumsMod_eq_univ_of_divisor_counts 4 (by decide) {1, 5, 9}
+  intro e he
+  have : e ≤ 4 := Nat.le_of_dvd (by decide) he
+  interval_cases e <;> revert he <;> decide
+
+/-- Sanity check 3: Modulo 6 coverage for A = {2, 3, 4, 8, 9}. -/
+lemma sanity_mod_coverage_6 : ∀ r : ZMod 6, r ∈ subsetSumsMod 6 {2, 3, 4, 8, 9} := by
+  apply subsetSumsMod_eq_univ_of_divisor_counts 6 (by decide) {2, 3, 4, 8, 9}
+  intro e he
+  have : e ≤ 6 := Nat.le_of_dvd (by decide) he
+  interval_cases e <;> revert he <;> decide
+
 
 
 /-!
@@ -3321,3 +3831,9 @@ end Erdos298
 #print axioms Erdos298.exists_diverse_scaled_subset
 #print axioms Erdos298.scale_factor_le_of_mem_bounds
 
+#print axioms Erdos298.subsetSumsMod_eq_univ_of_divisor_counts
+#print axioms Erdos298.subsetSumsMod_eq_univ_of_isDiverse
+#print axioms Erdos298.exists_diverse_scaled_subset_mod_coverage
+#print axioms Erdos298.sanity_mod_coverage_empty
+#print axioms Erdos298.sanity_mod_coverage_4
+#print axioms Erdos298.sanity_mod_coverage_6
