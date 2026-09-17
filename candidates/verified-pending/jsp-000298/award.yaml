@@ -18,11 +18,11 @@ recipients:
     confirmation: null
   - id: RECIPIENT-JSP-000298-ERDOS
     affiliation: "Hungarian Academy of Sciences"
-    contribution_en: "Posed the original monochromatic subset sum problem and co-authored the 1996 resolution."
+    contribution_en: "Posed the original monochromatic subset sum problem (Erdos Problem #360) and co-authored the 1996 resolution."
     confirmation: null
   - id: RECIPIENT-JSP-000298-SIXTIMENIGHT
     affiliation: "Independent Researcher"
-    contribution_en: "Original machine-checked Lean 4 formalization of monochromatic subset sum definitions, chromatic lower bound f(n) >= 2, and Alon-Erdos interval avoidance lemma."
+    contribution_en: "Original machine-checked Lean 4 formalization of the cubic-root upper bound f(n) <= 2*ceil(n^(1/3)), interval avoidance family, and chromatic lower bounds."
     confirmation: null
 verification:
   peer_review:
