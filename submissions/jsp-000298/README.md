@@ -79,3 +79,21 @@ lake build
 - `Erdos298.HasChromaticUpperBound`: Formal witness predicate for upper bounds relative to growth scale $F(n)$.
 - `Erdos298.HasChromaticLowerBound`: Formal witness predicate for lower bounds relative to growth scale $F(n)$.
 - `Erdos298.conlon_fox_pham_bounds`: The Conlon–Fox–Pham two-sided asymptotic growth theorem $c F(n) \le f(n) \le C F(n)$.
+
+### 10. Conlon–Fox–Pham (2021) Lower Bound Formulation & Combinatorial Reductions
+- `Erdos298.hasValidColoring_of_le`: Monotone lifting of valid colorings ($m \le k \wedge \mathrm{HasValidColoring}(n, m) \implies \mathrm{HasValidColoring}(n, k)$).
+- `Erdos298.minColors_gt_of_not_hasValidColoring`: Contrapositive chromatic lower bound: $\neg \mathrm{HasValidColoring}(n, k) \implies f(n) > k$.
+- `Erdos298.minColors_ge_of_not_hasValidColoring`: Lower bound: $\neg \mathrm{HasValidColoring}(n, k) \implies f(n) \ge k + 1$.
+- `Erdos298.monochromatic_fiber_sum_eq`: Exact partition identity $\sum_{i < k} |S \cap c^{-1}(i)| = |S|$ for any coloring $c$.
+- `Erdos298.exists_monochromatic_fiber_strict`: Strict monochromatic pigeonhole principle: $|S| > k M \implies \exists i \in \mathrm{Fin}\; k, |S \cap c^{-1}(i)| > M$.
+- `Erdos298.subsetSums`: Explicit subset sum collection $\Sigma(A) = \{\sum_{x \in B} x \mid B \subseteq A\}$.
+- `Erdos298.arithProg`: Explicit arithmetic progression finset $\{a + l \cdot d \mid 0 \le l \le L\}$.
+- `Erdos298.not_avoids_of_arithProg_subset`: Subset-sum hitting from arithmetic progression coverage: $\mathrm{arithProg}(a, d, L) \subseteq \Sigma(A) \wedge n \in \mathrm{arithProg}(a, d, L) \implies \neg \mathrm{AvoidsSubsetSum}(A, n)$.
+- `Erdos298.denseSubsetSumHitting_of_ap`: Bridge theorem from arithmetic progression witness to dense subset sum hitting.
+- `Erdos298.not_avoidsMonoSubsetSum_of_dense`: Proof that any $k$-coloring fails avoidance when $|S| > k M$ and every subset of size $M + 1$ hits $n$.
+- `Erdos298.minColors_ge_of_dense`: General lower bound $f(n) \ge k + 1$ from dense subset hitting.
+- `Erdos298.minColors_ge_of_cfp_witness`: Conlon–Fox–Pham lower bound theorem from structured witness `CFPLowerBoundWitness n k`.
+- `Erdos298.minColors_ge_of_cfp_ap_witness`: Arithmetic progression form of the lower bound theorem from `CFPAPWitness n k`.
+- `Erdos298.hasChromaticLowerBound_of_cfp_witnesses`: Formal deduction of global asymptotic lower bound $\mathrm{HasChromaticLowerBound}(F, c)$.
+- `Erdos298.cfpWitness_two`: Explicit machine-checked witness for $k = 1$ using $\{1, n-1\}$ for any $n \ge 3$.
+- `Erdos298.minColors_ge_two_via_cfp`: Non-trivial lower bound $f(n) \ge 2$ for $n \ge 3$ derived from the general Section 8 witness framework.

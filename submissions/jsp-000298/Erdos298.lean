@@ -2284,6 +2284,329 @@ theorem minColors_le_conlon_fox_pham_coarse (n s1 : ℕ) (P : Finset ℕ) (d s_r
   have h_T := reducedResidues_card_le d
   omega
 
+/-!
+### Section 8: Conlon–Fox–Pham Lower Bound Formulation & Combinatorial Reductions
+
+In arXiv:2104.14766 (Theorem 1.5/1.6 and Section 5.1), Conlon, Fox, and Pham establish the matching
+lower bound f(n) ≥ c * F(n) by analyzing monochromatic subset sums via inverse additive combinatorics.
+
+The mathematical structure of the lower bound consists of:
+1. Monotonicity of Valid Colorings:
+   If {1, ..., n-1} cannot be colored by k colors avoiding monochromatic subset sum n,
+   then f(n) ≥ k + 1.
+2. Combinatorial Pigeonhole Principle for Fibers:
+   Any k-coloring of a base set S partitions S into k monochromatic classes.
+   If |S| > k * M, there exists at least one monochromatic class of size ≥ M + 1.
+3. Additive Progression / Dense Subset Sum Hitting:
+   If every subset A ⊆ S of size ≥ M + 1 contains an arithmetic progression covering n
+   (or has n ∈ subsetSums A), then this dense monochromatic class hits n.
+4. Conlon–Fox–Pham Lower Bound Witness:
+   Encapsulates this density-progression data into a structure `CFPLowerBoundWitness n k`,
+   yielding f(n) ≥ k + 1.
+5. Specialization:
+   Instantiates the witness concretely for k = 1 to recover f(n) ≥ 2 for all n ≥ 3.
+-/
+
+/-- Monotone lifting of valid colorings: if a valid m-coloring exists and m ≤ k,
+    then a valid k-coloring exists. -/
+lemma hasValidColoring_of_le (n : ℕ) (hn : 2 ≤ n) {m k : ℕ}
+    (hm : HasValidColoring n m) (hmk : m ≤ k) :
+    HasValidColoring n k := by
+  obtain ⟨c, hc⟩ := hm
+  by_cases hm0 : m = 0
+  · subst hm0
+    have h1 : 1 ∈ Finset.Ico 1 n := by
+      simp only [Finset.mem_Ico]
+      omega
+    exact Fin.elim0 (c 1)
+  · have hm_pos : 1 ≤ m := Nat.pos_of_ne_zero hm0
+    have hk_pos : 1 ≤ k := hm_pos.trans hmk
+    let c' : ℕ → Fin k := fun x => Fin.castLE hmk (c x)
+    refine ⟨c', fun j => ?_⟩
+    intro ⟨A, hA_sub, hA_sum⟩
+    have hA_ne : A.Nonempty := by
+      rw [Finset.nonempty_iff_ne_empty]
+      rintro rfl
+      simp only [Finset.sum_empty] at hA_sum
+      omega
+    obtain ⟨a, ha⟩ := hA_ne
+    have ha_mem := hA_sub ha
+    simp only [Finset.mem_filter] at ha_mem
+    have ha_val : (c' a).val = j.val := by
+      rw [ha_mem.2]
+    have hj_lt : j.val < m := by
+      have : (c' a).val = (c a).val := rfl
+      rw [this] at ha_val
+      rw [← ha_val]
+      exact (c a).isLt
+    let j0 : Fin m := ⟨j.val, hj_lt⟩
+    have hA_sub_j0 : A ⊆ (Finset.Ico 1 n).filter (fun x => c x = j0) := by
+      intro x hx
+      have hx_mem := hA_sub hx
+      simp only [Finset.mem_filter] at hx_mem ⊢
+      refine ⟨hx_mem.1, ?_⟩
+      have : (c' x).val = (c x).val := rfl
+      have hx_val : (c' x).val = j.val := by rw [hx_mem.2]
+      rw [this] at hx_val
+      ext
+      exact hx_val
+    have hc_j0 := hc j0
+    exact hc_j0 ⟨A, hA_sub_j0, hA_sum⟩
+
+/-- Chromatic lower bound from non-existence of valid k-coloring:
+    if no k-coloring avoids monochromatic subset sums to n, then f(n) > k. -/
+theorem minColors_gt_of_not_hasValidColoring (n k : ℕ) (hn : 2 ≤ n)
+    (h_not : ¬ HasValidColoring n k) :
+    k < minColors n hn := by
+  by_contra h_le
+  push Not at h_le
+  have h_col := minColors_has_coloring n hn
+  have h_val := hasValidColoring_of_le n hn h_col h_le
+  exact h_not h_val
+
+/-- Chromatic lower bound: f(n) ≥ k + 1 when k colors are insufficient. -/
+theorem minColors_ge_of_not_hasValidColoring (n k : ℕ) (hn : 2 ≤ n)
+    (h_not : ¬ HasValidColoring n k) :
+    k + 1 ≤ minColors n hn :=
+  minColors_gt_of_not_hasValidColoring n k hn h_not
+
+/-- Fiber sum partition: the sum of cardinalities of color fibers equals the total cardinality. -/
+lemma monochromatic_fiber_sum_eq (S : Finset ℕ) (k : ℕ) (c : ℕ → Fin k) :
+    ∑ i : Fin k, (S.filter (fun x => c x = i)).card = S.card := by
+  have : ∑ i : Fin k, (S.filter (fun x => c x = i)).card =
+      ∑ i : Fin k, ∑ x ∈ S, if c x = i then 1 else 0 := by
+    apply Finset.sum_congr rfl
+    intro i _
+    rw [Finset.card_filter]
+  rw [this, Finset.sum_comm]
+  have h_inner : ∀ x ∈ S, (∑ i : Fin k, if c x = i then 1 else 0) = 1 := by
+    intro x _
+    have h_eq : (Finset.univ.filter (fun i : Fin k => c x = i)) = {c x} := by
+      ext i
+      simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_singleton]
+      exact eq_comm
+    have h_sum : (∑ i : Fin k, if c x = i then 1 else 0) =
+        (Finset.univ.filter (fun i : Fin k => c x = i)).card := by
+      rw [Finset.card_filter]
+    rw [h_sum, h_eq, Finset.card_singleton]
+  have : (∑ x ∈ S, ∑ i : Fin k, if c x = i then 1 else 0) = ∑ x ∈ S, 1 :=
+    Finset.sum_congr rfl h_inner
+  rw [this]
+  exact (Finset.card_eq_sum_ones S).symm
+
+/-- Combinatorial Pigeonhole Principle for Colorings (strict form):
+    If |S| > k * M, there exists at least one color i whose fiber has size > M. -/
+lemma exists_monochromatic_fiber_strict (S : Finset ℕ) (k M : ℕ) (c : ℕ → Fin k)
+    (h_card : k * M < S.card) :
+    ∃ i : Fin k, M < (S.filter (fun x => c x = i)).card := by
+  by_contra h_not
+  push Not at h_not
+  have h_sum_le : (∑ i : Fin k, (S.filter (fun x => c x = i)).card) ≤ ∑ i : Fin k, M :=
+    Finset.sum_le_sum (fun i _ => h_not i)
+  rw [monochromatic_fiber_sum_eq] at h_sum_le
+  have h_const : (∑ i : Fin k, M) = k * M := by
+    simp
+  rw [h_const] at h_sum_le
+  omega
+
+/-- Subset sums: the set of all integers expressible as a sum of a subset of A. -/
+def subsetSums (A : Finset ℕ) : Finset ℕ :=
+  (A.powerset).image (fun B => B.sum id)
+
+lemma mem_subsetSums_iff (A : Finset ℕ) (s : ℕ) :
+    s ∈ subsetSums A ↔ ∃ B : Finset ℕ, B ⊆ A ∧ B.sum id = s := by
+  simp only [subsetSums, Finset.mem_image, Finset.mem_powerset]
+
+/-- Arithmetic progression: {a + l * d | 0 ≤ l ≤ L}. -/
+def arithProg (a d L : ℕ) : Finset ℕ :=
+  (Finset.range (L + 1)).image (fun l => a + l * d)
+
+lemma mem_arithProg_iff (a d L x : ℕ) :
+    x ∈ arithProg a d L ↔ ∃ l ≤ L, x = a + l * d := by
+  simp only [arithProg, Finset.mem_image, Finset.mem_range]
+  constructor
+  · rintro ⟨l, hl, rfl⟩
+    exact ⟨l, Nat.lt_succ_iff.mp hl, rfl⟩
+  · rintro ⟨l, hl, rfl⟩
+    exact ⟨l, Nat.lt_succ_iff.mpr hl, rfl⟩
+
+lemma not_avoids_of_subsetSums {A : Finset ℕ} {n : ℕ} (hn : n ∈ subsetSums A) :
+    ¬ AvoidsSubsetSum A n := by
+  rw [mem_subsetSums_iff] at hn
+  obtain ⟨B, hB_sub, hB_sum⟩ := hn
+  intro h_avoid
+  exact h_avoid ⟨B, hB_sub, hB_sum⟩
+
+lemma not_avoids_of_arithProg_subset {A : Finset ℕ} {a d L n : ℕ}
+    (h_sub : arithProg a d L ⊆ subsetSums A) (hn : n ∈ arithProg a d L) :
+    ¬ AvoidsSubsetSum A n :=
+  not_avoids_of_subsetSums (h_sub hn)
+
+lemma not_avoids_of_subset {A B : Finset ℕ} {n : ℕ} (hAB : A ⊆ B)
+    (hA : ¬ AvoidsSubsetSum A n) : ¬ AvoidsSubsetSum B n := by
+  intro hB
+  apply hA
+  intro ⟨T, hT_sub, hT_sum⟩
+  exact hB ⟨T, hT_sub.trans hAB, hT_sum⟩
+
+/-- Dense subset sum hitting: every subset of S of size at least M has subset sum equal to n. -/
+def DenseSubsetSumHitting (S : Finset ℕ) (M n : ℕ) : Prop :=
+  ∀ A : Finset ℕ, A ⊆ S → M ≤ A.card → ¬ AvoidsSubsetSum A n
+
+/-- Arithmetic progression density witness: every subset of S of size at least M
+    contains an arithmetic progression covering n. -/
+def APDenseSubsetSumWitness (S : Finset ℕ) (M n : ℕ) : Prop :=
+  ∀ A : Finset ℕ, A ⊆ S → M ≤ A.card →
+    ∃ a d L : ℕ, arithProg a d L ⊆ subsetSums A ∧ n ∈ arithProg a d L
+
+theorem denseSubsetSumHitting_of_ap (S : Finset ℕ) (M n : ℕ)
+    (hap : APDenseSubsetSumWitness S M n) :
+    DenseSubsetSumHitting S M n := by
+  intro A hA hM
+  obtain ⟨a, d, L, h_sub, hn⟩ := hap A hA hM
+  exact not_avoids_of_arithProg_subset h_sub hn
+
+/-- Dense subset sum theorem: if |S| > k * M and every subset of size M + 1 hits n,
+    then any k-coloring fails to avoid monochromatic subset sums to n. -/
+theorem not_avoidsMonoSubsetSum_of_dense (n k : ℕ) (c : ℕ → Fin k)
+    (S : Finset ℕ) (hS : S ⊆ Finset.Ico 1 n) (M : ℕ) (hM : k * M < S.card)
+    (h_hit : DenseSubsetSumHitting S (M + 1) n) :
+    ¬ AvoidsMonoSubsetSum n k c := by
+  obtain ⟨i, hi⟩ := exists_monochromatic_fiber_strict S k M c hM
+  let A := S.filter (fun x => c x = i)
+  have hA_sub : A ⊆ S := Finset.filter_subset _ _
+  have hA_card : M + 1 ≤ A.card := hi
+  have hA_not : ¬ AvoidsSubsetSum A n := h_hit A hA_sub hA_card
+  have hA_fiber : A ⊆ (Finset.Ico 1 n).filter (fun x => c x = i) := by
+    intro x hx
+    have hx_mem := Finset.mem_filter.mp hx
+    exact Finset.mem_filter.mpr ⟨hS hx_mem.1, hx_mem.2⟩
+  have h_fiber_not := not_avoids_of_subset hA_fiber hA_not
+  intro h_mono
+  exact h_fiber_not (h_mono i)
+
+/-- Non-existence of valid k-coloring under dense hitting witness. -/
+theorem not_hasValidColoring_of_dense (n k : ℕ)
+    (S : Finset ℕ) (hS : S ⊆ Finset.Ico 1 n) (M : ℕ) (hM : k * M < S.card)
+    (h_hit : DenseSubsetSumHitting S (M + 1) n) :
+    ¬ HasValidColoring n k := by
+  rintro ⟨c, hc⟩
+  exact not_avoidsMonoSubsetSum_of_dense n k c S hS M hM h_hit hc
+
+/-- Strict lower bound from dense hitting witness: k < f(n). -/
+theorem minColors_gt_of_dense (n k : ℕ) (hn : 2 ≤ n)
+    (S : Finset ℕ) (hS : S ⊆ Finset.Ico 1 n) (M : ℕ) (hM : k * M < S.card)
+    (h_hit : DenseSubsetSumHitting S (M + 1) n) :
+    k < minColors n hn :=
+  minColors_gt_of_not_hasValidColoring n k hn
+    (not_hasValidColoring_of_dense n k S hS M hM h_hit)
+
+/-- Lower bound from dense hitting witness: k + 1 ≤ f(n). -/
+theorem minColors_ge_of_dense (n k : ℕ) (hn : 2 ≤ n)
+    (S : Finset ℕ) (hS : S ⊆ Finset.Ico 1 n) (M : ℕ) (hM : k * M < S.card)
+    (h_hit : DenseSubsetSumHitting S (M + 1) n) :
+    k + 1 ≤ minColors n hn :=
+  minColors_ge_of_not_hasValidColoring n k hn
+    (not_hasValidColoring_of_dense n k S hS M hM h_hit)
+
+/-- Conlon–Fox–Pham Lower Bound Witness:
+    Encapsulates the mathematical data that guarantees no k-coloring
+    can avoid monochromatic subset sum to n.
+    - S is a chosen subset of {1, ..., n-1}
+    - M is the density threshold such that k * M < |S|
+    - Any subset of S of size > M hits n in its subset sums. -/
+structure CFPLowerBoundWitness (n k : ℕ) : Type where
+  S : Finset ℕ
+  hS : S ⊆ Finset.Ico 1 n
+  M : ℕ
+  h_card : k * M < S.card
+  h_hit : DenseSubsetSumHitting S (M + 1) n
+
+theorem minColors_ge_of_cfp_witness (n k : ℕ) (hn : 2 ≤ n)
+    (w : CFPLowerBoundWitness n k) :
+    k + 1 ≤ minColors n hn :=
+  minColors_ge_of_dense n k hn w.S w.hS w.M w.h_card w.h_hit
+
+/-- Conlon–Fox–Pham Additive Progression Witness:
+    Encapsulates the Szemerédi–Vu arithmetic progression formulation:
+    every subset of size > M produces an AP covering n. -/
+structure CFPAPWitness (n k : ℕ) : Type where
+  S : Finset ℕ
+  hS : S ⊆ Finset.Ico 1 n
+  M : ℕ
+  h_card : k * M < S.card
+  hap : APDenseSubsetSumWitness S (M + 1) n
+
+def CFPLowerBoundWitness.ofAP (n k : ℕ) (w : CFPAPWitness n k) : CFPLowerBoundWitness n k where
+  S := w.S
+  hS := w.hS
+  M := w.M
+  h_card := w.h_card
+  h_hit := denseSubsetSumHitting_of_ap w.S (w.M + 1) n w.hap
+
+theorem minColors_ge_of_cfp_ap_witness (n k : ℕ) (hn : 2 ≤ n)
+    (w : CFPAPWitness n k) :
+    k + 1 ≤ minColors n hn :=
+  minColors_ge_of_cfp_witness n k hn (CFPLowerBoundWitness.ofAP n k w)
+
+/-- Conlon–Fox–Pham Asymptotic Lower Bound Reduction:
+    If for all sufficiently large n, there exists a lower bound witness
+    at scale k + 1 ≥ c * F(n), then f(n) satisfies HasChromaticLowerBound F c. -/
+theorem hasChromaticLowerBound_of_cfp_witnesses (F : ℕ → ℝ) (c : ℝ) (hc : 0 < c)
+    (N0 : ℕ)
+    (h_wit : ∀ n, 2 ≤ n → N0 ≤ n → ∃ k : ℕ, c * F n ≤ (k + 1 : ℝ) ∧ Nonempty (CFPLowerBoundWitness n k)) :
+    HasChromaticLowerBound F c := by
+  refine ⟨hc, N0, fun n hn hN => ?_⟩
+  obtain ⟨k, h_scale, ⟨w⟩⟩ := h_wit n hn hN
+  have h_bound := minColors_ge_of_cfp_witness n k hn w
+  have h_cast : (k + 1 : ℝ) ≤ (minColors n hn : ℝ) := by exact_mod_cast h_bound
+  exact h_scale.trans h_cast
+
+/-- Unconditional concrete witness for k = 1:
+    For any n ≥ 3, the pair {1, n-1} forms a CFPLowerBoundWitness n 1. -/
+def cfpWitness_two (n : ℕ) (hn : 3 ≤ n) : CFPLowerBoundWitness n 1 where
+  S := {1, n - 1}
+  hS := by
+    intro x hx
+    simp only [Finset.mem_insert, Finset.mem_singleton, Finset.mem_Ico] at hx ⊢
+    rcases hx with rfl | rfl
+    · omega
+    · omega
+  M := 1
+  h_card := by
+    have h_ne : 1 ≠ n - 1 := by omega
+    have h_card : ({1, n - 1} : Finset ℕ).card = 2 := by
+      rw [Finset.card_insert_of_notMem (by simp [h_ne]), Finset.card_singleton]
+    rw [h_card]
+    omega
+  h_hit := by
+    intro A hA hM
+    have h_ne : 1 ≠ n - 1 := by omega
+    have hS_card : ({1, n - 1} : Finset ℕ).card = 2 := by
+      rw [Finset.card_insert_of_notMem (by simp [h_ne]), Finset.card_singleton]
+    have hA_card : A.card = 2 := by
+      have : A.card ≤ 2 := (Finset.card_le_card hA).trans_eq hS_card
+      omega
+    have hA_eq : A = {1, n - 1} :=
+      Finset.eq_of_subset_of_card_le hA (by rw [hS_card, hA_card])
+    intro h_avoid
+    apply h_avoid
+    use A
+    refine ⟨le_rfl, ?_⟩
+    rw [hA_eq]
+    have : ({1, n - 1} : Finset ℕ).sum id = 1 + (n - 1) := by
+      rw [Finset.sum_insert (by simp [h_ne]), Finset.sum_singleton]
+      rfl
+    rw [this]
+    omega
+
+/-- Alternative derivation of the non-trivial lower bound f(n) ≥ 2 for n ≥ 3
+    via the general Conlon–Fox–Pham lower bound witness framework. -/
+theorem minColors_ge_two_via_cfp (n : ℕ) (hn : 3 ≤ n) :
+    2 ≤ minColors n (by omega) := by
+  have := minColors_ge_of_cfp_witness n 1 (by omega) (cfpWitness_two n hn)
+  exact this
+
 end Erdos298
 
 #print axioms Erdos298.exists_coloring_of_le_cube
@@ -2311,3 +2634,21 @@ end Erdos298
 #print axioms Erdos298.exists_coloring_conlon_fox_pham
 #print axioms Erdos298.minColors_le_conlon_fox_pham
 #print axioms Erdos298.minColors_le_conlon_fox_pham_coarse
+
+#print axioms Erdos298.hasValidColoring_of_le
+#print axioms Erdos298.minColors_gt_of_not_hasValidColoring
+#print axioms Erdos298.minColors_ge_of_not_hasValidColoring
+#print axioms Erdos298.monochromatic_fiber_sum_eq
+#print axioms Erdos298.exists_monochromatic_fiber_strict
+#print axioms Erdos298.not_avoids_of_arithProg_subset
+#print axioms Erdos298.denseSubsetSumHitting_of_ap
+#print axioms Erdos298.not_avoidsMonoSubsetSum_of_dense
+#print axioms Erdos298.not_hasValidColoring_of_dense
+#print axioms Erdos298.minColors_gt_of_dense
+#print axioms Erdos298.minColors_ge_of_dense
+#print axioms Erdos298.minColors_ge_of_cfp_witness
+#print axioms Erdos298.minColors_ge_of_cfp_ap_witness
+#print axioms Erdos298.hasChromaticLowerBound_of_cfp_witnesses
+#print axioms Erdos298.cfpWitness_two
+#print axioms Erdos298.minColors_ge_two_via_cfp
+
