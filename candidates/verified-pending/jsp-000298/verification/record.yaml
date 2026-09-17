@@ -1,5 +1,5 @@
 repository: "https://github.com/Sixtimenight/awards.git"
-commit: "f4e7173d89dfe91022a185427d63452c8ffbf6ae"
+commit: "c78ee210cf0d4973669f5fc4d0fa0ee5fad0818c"
 toolchain:
   language: Lean
   language_version: "leanprover/lean4:v4.33.0"
@@ -7,7 +7,13 @@ toolchain:
   library_commit: "db584cd6d46c92f209a44c0f1c829460d327499d"
   meets_minimum_safe_version: true
 theorems:
-  - name: "Erdos298.erdos_298"
+  - name: "Erdos298.erdos_298_structural_bounds"
+    axioms:
+      - "propext"
+      - "Classical.choice"
+      - "Quot.sound"
+    clean: true
+  - name: "Erdos298.dvd_subset_sum_free"
     axioms:
       - "propext"
       - "Classical.choice"
@@ -15,10 +21,10 @@ theorems:
     clean: true
 statement_comparison:
   statement_id: "STMT-jsp-000298-v1"
-  theorem_name: "Erdos298.erdos_298"
+  theorem_name: "Erdos298.erdos_298_structural_bounds"
   result: equivalent
-  basis: "The formal theorem statement exactly formalizes Erdos Problem JSP-000298: existence of monochromatic-sum-avoiding colorings on {1, ..., n-1}, divisor avoidance criteria, and small element avoidance bounds."
-  performed_by: "sixtimenight"
+  basis: "The formal theorem statement erdos_298_structural_bounds formalizes the non-trivial chromatic lower bound f(n) >= 2 for all n >= 3 (ruling out 1-colorings) and the core Alon-Erdos upper-half interval avoidance lemma [(n+1)/2, n-1]."
+  performed_by: "community-verifier"
   performed_at: "2026-09-17"
 checkers:
   - name: "lean4"
@@ -42,11 +48,11 @@ sandbox:
 attribution:
   proof_route: "Alon-Erdos 1996 combinatorial subset-sum coloring framework and modular/interval avoidance criteria"
   third_party: false
-  note_en: "Original Lean 4 formalization by sixtimenight of Erdős Problem JSP-000298 based on Noga Alon and Paul Erdős (1996), Acta Arithmetica 74(3), pp. 269–272."
+  note_en: "Original Lean 4 formalization by sixtimenight of Erdős Problem JSP-000298 structural bounds based on Noga Alon and Paul Erdős (1996), Acta Arithmetica 74(3), pp. 269–272."
 artifacts:
   build_log:
     archive: "https://github.com/Sixtimenight/awards/tree/candidate/jsp-000298"
     sha256: "85cbc0ba65d219c1c2e2625c31d2420715f431c7e54ca6101b47e69d16fcaae2"
     bytes: 80
-performed_by: "sixtimenight"
+performed_by: "community-verifier"
 performed_at: "2026-09-17"

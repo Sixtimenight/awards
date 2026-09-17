@@ -8,4 +8,4 @@ Attribution for this formal candidate distinguishes the original mathematical pr
 2. RECIPIENT-JSP-000298-ERDOS: Paul Erdős, who originally posed the problem and co-authored the 1996 resolution.
 3. RECIPIENT-JSP-000298-SIXTIMENIGHT: Sixtimenight, author of the original machine-checked Lean 4 formalization, definitions, and verification package.
 
-Candidate packaging and formal proof verification were performed by Sixtimenight.
+Formal proof authored by Sixtimenight. Candidate packaging and verification recorded by community curators and verifiers.

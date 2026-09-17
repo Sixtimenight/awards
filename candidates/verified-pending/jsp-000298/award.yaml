@@ -22,7 +22,7 @@ recipients:
     confirmation: null
   - id: RECIPIENT-JSP-000298-SIXTIMENIGHT
     affiliation: "Independent Researcher"
-    contribution_en: "Original machine-checked Lean 4 formalization of the monochromatic subset sum definitions, avoidance criteria, and theorem."
+    contribution_en: "Original machine-checked Lean 4 formalization of monochromatic subset sum definitions, chromatic lower bound f(n) >= 2, and Alon-Erdos interval avoidance lemma."
     confirmation: null
 verification:
   peer_review:

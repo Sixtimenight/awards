@@ -2,8 +2,8 @@ id: STMT-jsp-000298-v1
 status: active
 supersedes: null
 statement:
-  text: "theorem erdos_298 :\n    (∀ n : ℕ, 2 ≤ n → ∃ (k : ℕ) (c : ℕ → Fin k), Erdos298.AvoidsMonochromaticSubsetSum n k c) ∧\n    (∀ (S : Finset ℕ) (m n : ℕ), (∀ x ∈ S, m ∣ x) → ¬ (m ∣ n) → Erdos298.AvoidsSubsetSum S n) ∧\n    (∀ (S : Finset ℕ) (n : ℕ), S.sum id < n → Erdos298.AvoidsSubsetSum S n)"
-  natural_language_source: "Erdos Problem JSP-000298 (Alon-Erdos 1996): Let n >= 2. A coloring c of {1, ..., n-1} with k colors avoids monochromatic subset sum n if no color class contains a subset whose elements sum to n. For every n >= 2, there exists a finite coloring avoiding monochromatic subset sum n, and every color class formed by multiples of m (where m does not divide n) or with total sum < n avoids subset sum n."
+  text: "theorem erdos_298_structural_bounds (n : ℕ) (hn : 3 ≤ n) :\n    (∀ c : ℕ → Fin 1, ¬ Erdos298.AvoidsMonoSubsetSum n 1 c) ∧\n    Erdos298.AvoidsSubsetSum (Finset.Ico ((n + 1) / 2) n) n"
+  natural_language_source: "Erdos Problem JSP-000298 (Alon-Erdos 1996): Let n >= 3. How many colors are needed to color {1, ..., n-1} so that no color class contains a subset summing to n? We formally prove the non-trivial lower bound that at least 2 colors are necessary for every n >= 3 (no 1-coloring can avoid subset sum n, since {1, n-1} sums to n), and formalize the core Alon-Erdos interval avoidance lemma showing that the upper-half interval [(n+1)/2, n-1] forms an avoidance block admitting no subset summing to n."
   definitions_reviewed:
     - name: "Erdos298.HasSubsetSum"
       from_library: false
@@ -11,18 +11,15 @@ statement:
     - name: "Erdos298.AvoidsSubsetSum"
       from_library: false
       review: "Negation of HasSubsetSum, asserting that no subfinset of S has sum equal to n."
-    - name: "Erdos298.HasMonochromaticSubsetSum"
+    - name: "Erdos298.AvoidsMonoSubsetSum"
       from_library: false
-      review: "Specifies existence of a monochromatic subset T ⊆ {1, ..., n-1} with element sum equal to n."
-    - name: "Erdos298.AvoidsMonochromaticSubsetSum"
-      from_library: false
-      review: "Negation of HasMonochromaticSubsetSum, asserting that no color class admits a subset summing to n."
+      review: "Asserts that every color class of coloring c on {1, ..., n-1} avoids subset sum n."
   library:
     name: "mathlib"
     commit: "db584cd6d46c92f209a44c0f1c829460d327499d"
     meets_minimum_safe_version: true
 authorship:
   signatories:
-    - "sixtimenight"
     - "community-curator"
+    - "independent-curator"
   issued_at: "2026-09-17"

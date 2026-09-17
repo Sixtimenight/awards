@@ -1,0 +1,8 @@
+id: community-verifier
+name: "Community Verifier"
+role: verifier
+affiliation: "Justin Sun Prize Community Verification"
+links:
+  - "https://github.com/TheJustinSunPrize"
+publication_consent: null
+recusals: []

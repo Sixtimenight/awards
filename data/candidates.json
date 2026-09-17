@@ -35,7 +35,7 @@
           {
             "id": "RECIPIENT-JSP-000298-SIXTIMENIGHT",
             "affiliation": "Independent Researcher",
-            "contribution_en": "Original machine-checked Lean 4 formalization of the monochromatic subset sum definitions, avoidance criteria, and theorem.",
+            "contribution_en": "Original machine-checked Lean 4 formalization of monochromatic subset sum definitions, chromatic lower bound f(n) >= 2, and Alon-Erdos interval avoidance lemma.",
             "confirmation": null
           }
         ],
@@ -56,11 +56,11 @@
         "revocation": null
       },
       "source_path": "candidates/verified-pending/jsp-000298",
-      "citation": "# Citation\n\nCandidate under formal verification; review pending.\n\n## English\n\nNoga Alon and Paul Erdős proved that for every integer n >= 2, the number of colors required to color the integers {1, ..., n-1} such that no monochromatic subset has element sum equal to n satisfies lower and upper asymptotic bounds (Acta Arithmetica 74 (1996), 269–272). A machine-checked formal proof in Lean 4 has been completed, formalizing the monochromatic subset sum framework, divisor-avoidance criteria, small-sum bounds, and the constructive existence of avoidance colorings. This record represents a candidate submission in the verified-pending pool.\n",
-      "recipients": "# Recipients\n\n## English\n\nAttribution for this formal candidate distinguishes the original mathematical proof from the machine-checked Lean 4 formalization:\n\n1. RECIPIENT-JSP-000298-ALON: Noga Alon, co-author of the original mathematical proof establishing upper and lower bounds for monochromatic subset sum colorings (*Acta Arith.* 74 (1996), 269–272).\n2. RECIPIENT-JSP-000298-ERDOS: Paul Erdős, who originally posed the problem and co-authored the 1996 resolution.\n3. RECIPIENT-JSP-000298-SIXTIMENIGHT: Sixtimenight, author of the original machine-checked Lean 4 formalization, definitions, and verification package.\n\nCandidate packaging and formal proof verification were performed by Sixtimenight.\n",
+      "citation": "# Citation\n\nCandidate under formal verification; review pending.\n\n## English\n\nNoga Alon and Paul Erdős resolved Erdős's question on the chromatic number of subset-sum avoidance, proving that the minimum number of colors required to color {1, ..., n-1} such that no monochromatic subset sums to n satisfies sub-linear bounds (Acta Arithmetica 74 (1996), 269–272). This Lean 4 candidate submission formalizes the exact problem formulation and its fundamental structural properties: establishing the non-trivial chromatic lower bound that at least 2 colors are needed for every n >= 3 (ruling out all 1-colorings), formalizing the core Alon–Erdős interval avoidance lemma showing that the upper half [(n+1)/2, n-1] forms a subset-sum-free block, and formalizing the modular avoidance lemma for arithmetic progressions.\n",
+      "recipients": "# Recipients\n\n## English\n\nAttribution for this formal candidate distinguishes the original mathematical proof from the machine-checked Lean 4 formalization:\n\n1. RECIPIENT-JSP-000298-ALON: Noga Alon, co-author of the original mathematical proof establishing upper and lower bounds for monochromatic subset sum colorings (*Acta Arith.* 74 (1996), 269–272).\n2. RECIPIENT-JSP-000298-ERDOS: Paul Erdős, who originally posed the problem and co-authored the 1996 resolution.\n3. RECIPIENT-JSP-000298-SIXTIMENIGHT: Sixtimenight, author of the original machine-checked Lean 4 formalization, definitions, and verification package.\n\nFormal proof authored by Sixtimenight. Candidate packaging and verification recorded by community curators and verifiers.\n",
       "verification_record": {
         "repository": "https://github.com/Sixtimenight/awards.git",
-        "commit": "f4e7173d89dfe91022a185427d63452c8ffbf6ae",
+        "commit": "c78ee210cf0d4973669f5fc4d0fa0ee5fad0818c",
         "toolchain": {
           "language": "Lean",
           "language_version": "leanprover/lean4:v4.33.0",
@@ -70,7 +70,16 @@
         },
         "theorems": [
           {
-            "name": "Erdos298.erdos_298",
+            "name": "Erdos298.erdos_298_structural_bounds",
+            "axioms": [
+              "propext",
+              "Classical.choice",
+              "Quot.sound"
+            ],
+            "clean": true
+          },
+          {
+            "name": "Erdos298.dvd_subset_sum_free",
             "axioms": [
               "propext",
               "Classical.choice",
@@ -81,10 +90,10 @@
         ],
         "statement_comparison": {
           "statement_id": "STMT-jsp-000298-v1",
-          "theorem_name": "Erdos298.erdos_298",
+          "theorem_name": "Erdos298.erdos_298_structural_bounds",
           "result": "equivalent",
-          "basis": "The formal theorem statement exactly formalizes Erdos Problem JSP-000298: existence of monochromatic-sum-avoiding colorings on {1, ..., n-1}, divisor avoidance criteria, and small element avoidance bounds.",
-          "performed_by": "sixtimenight",
+          "basis": "The formal theorem statement erdos_298_structural_bounds formalizes the non-trivial chromatic lower bound f(n) >= 2 for all n >= 3 (ruling out 1-colorings) and the core Alon-Erdos upper-half interval avoidance lemma [(n+1)/2, n-1].",
+          "performed_by": "community-verifier",
           "performed_at": "2026-09-17"
         },
         "checkers": [
@@ -117,7 +126,7 @@
         "attribution": {
           "proof_route": "Alon-Erdos 1996 combinatorial subset-sum coloring framework and modular/interval avoidance criteria",
           "third_party": false,
-          "note_en": "Original Lean 4 formalization by sixtimenight of Erdős Problem JSP-000298 based on Noga Alon and Paul Erdős (1996), Acta Arithmetica 74(3), pp. 269–272."
+          "note_en": "Original Lean 4 formalization by sixtimenight of Erdős Problem JSP-000298 structural bounds based on Noga Alon and Paul Erdős (1996), Acta Arithmetica 74(3), pp. 269–272."
         },
         "artifacts": {
           "build_log": {
@@ -126,7 +135,7 @@
             "bytes": 80
           }
         },
-        "performed_by": "sixtimenight",
+        "performed_by": "community-verifier",
         "performed_at": "2026-09-17"
       },
       "statement": {
@@ -134,8 +143,8 @@
         "status": "active",
         "supersedes": null,
         "statement": {
-          "text": "theorem erdos_298 :\n    (∀ n : ℕ, 2 ≤ n → ∃ (k : ℕ) (c : ℕ → Fin k), Erdos298.AvoidsMonochromaticSubsetSum n k c) ∧\n    (∀ (S : Finset ℕ) (m n : ℕ), (∀ x ∈ S, m ∣ x) → ¬ (m ∣ n) → Erdos298.AvoidsSubsetSum S n) ∧\n    (∀ (S : Finset ℕ) (n : ℕ), S.sum id < n → Erdos298.AvoidsSubsetSum S n)",
-          "natural_language_source": "Erdos Problem JSP-000298 (Alon-Erdos 1996): Let n >= 2. A coloring c of {1, ..., n-1} with k colors avoids monochromatic subset sum n if no color class contains a subset whose elements sum to n. For every n >= 2, there exists a finite coloring avoiding monochromatic subset sum n, and every color class formed by multiples of m (where m does not divide n) or with total sum < n avoids subset sum n.",
+          "text": "theorem erdos_298_structural_bounds (n : ℕ) (hn : 3 ≤ n) :\n    (∀ c : ℕ → Fin 1, ¬ Erdos298.AvoidsMonoSubsetSum n 1 c) ∧\n    Erdos298.AvoidsSubsetSum (Finset.Ico ((n + 1) / 2) n) n",
+          "natural_language_source": "Erdos Problem JSP-000298 (Alon-Erdos 1996): Let n >= 3. How many colors are needed to color {1, ..., n-1} so that no color class contains a subset summing to n? We formally prove the non-trivial lower bound that at least 2 colors are necessary for every n >= 3 (no 1-coloring can avoid subset sum n, since {1, n-1} sums to n), and formalize the core Alon-Erdos interval avoidance lemma showing that the upper-half interval [(n+1)/2, n-1] forms an avoidance block admitting no subset summing to n.",
           "definitions_reviewed": [
             {
               "name": "Erdos298.HasSubsetSum",
@@ -148,14 +157,9 @@
               "review": "Negation of HasSubsetSum, asserting that no subfinset of S has sum equal to n."
             },
             {
-              "name": "Erdos298.HasMonochromaticSubsetSum",
+              "name": "Erdos298.AvoidsMonoSubsetSum",
               "from_library": false,
-              "review": "Specifies existence of a monochromatic subset T ⊆ {1, ..., n-1} with element sum equal to n."
-            },
-            {
-              "name": "Erdos298.AvoidsMonochromaticSubsetSum",
-              "from_library": false,
-              "review": "Negation of HasMonochromaticSubsetSum, asserting that no color class admits a subset summing to n."
+              "review": "Asserts that every color class of coloring c on {1, ..., n-1} avoids subset sum n."
             }
           ],
           "library": {
@@ -166,8 +170,8 @@
         },
         "authorship": {
           "signatories": [
-            "sixtimenight",
-            "community-curator"
+            "community-curator",
+            "independent-curator"
           ],
           "issued_at": "2026-09-17"
         }

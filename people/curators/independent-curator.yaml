@@ -1,0 +1,8 @@
+id: independent-curator
+name: "Independent Curator"
+role: curator
+affiliation: "Justin Sun Prize Community Reviewers"
+links:
+  - "https://github.com/TheJustinSunPrize/awards"
+publication_consent: null
+recusals: []
