@@ -11,9 +11,11 @@ import Mathlib.Data.Finset.Card
 import Mathlib.Data.List.Basic
 import Mathlib.Order.Interval.Finset.Nat
 import Mathlib.Tactic.Ring
+import Mathlib.Tactic.Linarith
 import Mathlib.NumberTheory.SelbergSieve
 import Mathlib.Data.Nat.Squarefree
 import Mathlib.Data.Nat.GCD.BigOperators
+import Mathlib.Algebra.GCDMonoid.Finset
 import Mathlib.Data.Real.Basic
 import Mathlib.Data.Nat.Factorization.Basic
 import Mathlib.Algebra.Order.Floor.Ring
@@ -3659,6 +3661,10 @@ lemma zmodProj_zero {N d : ℕ} (h : d ∣ N) :
 lemma zmodProj_add {N d : ℕ} (h : d ∣ N) (x y : ZMod N) :
     zmodProj h (x + y) = zmodProj h x + zmodProj h y := by
   exact map_add (ZMod.castHom h (ZMod d)) x y
+lemma zmodProj_sub {N d : ℕ} (h : d ∣ N) (x y : ZMod N) :
+    zmodProj h (x - y) = zmodProj h x - zmodProj h y := by
+  exact map_sub (ZMod.castHom h (ZMod d)) x y
+
 
 lemma zmodProj_sum {N d : ℕ} (h : d ∣ N) {α : Type*} (s : Finset α) (f : α → ZMod N) :
     zmodProj h (s.sum f) = s.sum (fun x => zmodProj h (f x)) := by
@@ -3851,6 +3857,365 @@ example : (subsetSumsMod 2 {1, 7, 2}).card * (subsetSumsMod 6 (({1, 7, 2} : Fins
 
 
 
+
+/-!
+### Subsection 8.6: Conlon–Fox–Pham Lemma 2.6 & Lemma 2.7 Translation Growth and Double Counting
+
+In §2.1 of Conlon–Fox–Pham (2021), the growth of sumsets under greedy element addition
+is analyzed using translation increments:
+- 	ranslate S x = S + x = {s + x | s ∈ S}.
+- delta S x = |(S + x) \ S| is the number of new elements produced by translation by x.
+- smallGrowth S D = {x | delta S x ≤ D} is the set of elements with small growth.
+- interCard S x = |(S + x) ∩ S|.
+
+Key theorems formalized here:
+1. delta_add_le: Subadditivity of growth delta S (x + y) ≤ delta S x + delta S y.
+2. delta_sum_le_sum_delta & delta_sum_le_mul_of_forall_le (CFP Lemma 2.7):
+   The growth of a sum is bounded by the sum of individual growths.
+3. sum_interCard_eq_sq: Double counting identity ∑ x ∈ G, |(S + x) ∩ S| = |S|^2.
+4. card_smallGrowth_mul_le & card_smallGrowth_le_div (CFP Lemma 2.6):
+   |G| * (|S| - D) ≤ |S|^2 and |G| ≤ |S|^2 / (|S| - D) for any D < |S|.
+5. exists_mem_large_growth: Finding an element in a candidate set T with growth > D whenever |T| > |G|.
+6. card_subsetSumsMod_insert_eq: Identification of subset-sum cardinality increment upon element addition with delta.
+7. 
+atCast_zmod_injOn_Ico & card_image_natCast_zmod_of_Ico: Preservation of candidate cardinality under modulo projection on intervals of length ≤ d.
+-/
+
+variable {G : Type*} [AddCommGroup G] [DecidableEq G]
+
+/-- The translation of a finset S by an element x. -/
+def translate (S : Finset G) (x : G) : Finset G :=
+  S.image (fun s => s + x)
+
+/-- The number of new elements added to S when translated by x. -/
+def delta (S : Finset G) (x : G) : ℕ :=
+  (translate S x \ S).card
+
+/-- Translation preserves cardinality. -/
+@[simp]
+lemma card_translate (S : Finset G) (x : G) : (translate S x).card = S.card := by
+  simp only [translate]
+  exact Finset.card_image_of_injective S (fun _ _ h => add_right_cancel h)
+
+/-- Translation by zero is the identity. -/
+@[simp]
+lemma translate_zero (S : Finset G) : translate S 0 = S := by
+  ext s
+  simp only [translate, Finset.mem_image, add_zero]
+  constructor
+  · rintro ⟨a, ha, rfl⟩; exact ha
+  · intro hs; exact ⟨s, hs, rfl⟩
+
+/-- Composition of translations. -/
+lemma translate_add (S : Finset G) (x y : G) :
+    translate (translate S x) y = translate S (x + y) := by
+  ext z
+  simp only [translate, Finset.mem_image]
+  constructor
+  · rintro ⟨w, ⟨s, hs, rfl⟩, rfl⟩
+    exact ⟨s, hs, by rw [add_assoc]⟩
+  · rintro ⟨s, hs, rfl⟩
+    exact ⟨s + x, ⟨s, hs, rfl⟩, add_assoc s x y⟩
+
+/-- delta S 0 = 0. -/
+@[simp]
+lemma delta_zero (S : Finset G) : delta S 0 = 0 := by
+  simp [delta]
+
+/-- card (S ∪ translate S x) = S.card + delta S x. -/
+lemma card_union_translate (S : Finset G) (x : G) :
+    (S ∪ translate S x).card = S.card + delta S x := by
+  have h_union : S ∪ translate S x = S ∪ (translate S x \ S) := by
+    ext z
+    simp only [Finset.mem_union, Finset.mem_sdiff]
+    tauto
+  have h_disj : Disjoint S (translate S x \ S) := by
+    rw [Finset.disjoint_left]
+    intro z hz1 hz2
+    simp only [Finset.mem_sdiff] at hz2
+    exact hz2.2 hz1
+  rw [h_union, Finset.card_union_of_disjoint h_disj]
+  rfl
+
+/-- Set inclusion underlying the subadditivity of delta. -/
+lemma translate_sdiff_subset_union (S : Finset G) (x y : G) :
+    translate S (x + y) \ S ⊆ translate (translate S x \ S) y ∪ (translate S y \ S) := by
+  intro z hz
+  simp only [Finset.mem_sdiff, translate, Finset.mem_image] at hz
+  obtain ⟨⟨s, hs, rfl⟩, hz_not_in⟩ := hz
+  by_cases hw : s + x ∈ S
+  · apply Finset.mem_union_right
+    simp only [Finset.mem_sdiff, translate, Finset.mem_image]
+    refine ⟨⟨s + x, hw, by rw [add_assoc]⟩, hz_not_in⟩
+  · apply Finset.mem_union_left
+    simp only [Finset.mem_sdiff, translate, Finset.mem_image]
+    refine ⟨s + x, ⟨⟨s, hs, rfl⟩, hw⟩, by rw [add_assoc]⟩
+
+/-- Subadditivity of delta: delta S (x + y) ≤ delta S x + delta S y. -/
+lemma delta_add_le (S : Finset G) (x y : G) :
+    delta S (x + y) ≤ delta S x + delta S y := by
+  simp only [delta]
+  have h_sub := translate_sdiff_subset_union S x y
+  have h_le := Finset.card_le_card h_sub
+  have h_union := Finset.card_union_le (translate (translate S x \ S) y) (translate S y \ S)
+  rw [card_translate] at h_union
+  exact h_le.trans h_union
+
+/-- Conlon–Fox–Pham (2021) Lemma 2.7 (Sumset growth bound for lists):
+    The growth of a sum is bounded by the sum of individual growths. -/
+lemma delta_sum_le_sum_delta (S : Finset G) (xs : List G) :
+    delta S xs.sum ≤ (xs.map (delta S)).sum := by
+  induction xs with
+  | nil =>
+    simp only [List.sum_nil, List.map_nil, delta_zero, le_refl]
+  | cons a as ih =>
+    simp only [List.sum_cons, List.map_cons]
+    exact (delta_add_le S a as.sum).trans (Nat.add_le_add_left ih _)
+
+/-- Conlon–Fox–Pham (2021) Lemma 2.7 (Uniform threshold version):
+    If each element has delta S x ≤ D, then delta S xs.sum ≤ xs.length * D. -/
+lemma delta_sum_le_mul_of_forall_le (S : Finset G) (xs : List G) (D : ℕ)
+    (h : ∀ x ∈ xs, delta S x ≤ D) :
+    delta S xs.sum ≤ xs.length * D := by
+  induction xs with
+  | nil =>
+    simp only [List.sum_nil, List.length_nil, zero_mul, delta_zero, le_refl]
+  | cons a as ih =>
+    simp only [List.sum_cons, List.length_cons]
+    have ha : delta S a ≤ D := h a (by simp)
+    have has : ∀ x ∈ as, delta S x ≤ D := fun x hx => h x (List.mem_cons_of_mem a hx)
+    have ih_app := ih has
+    have h_add := delta_add_le S a as.sum
+    have h_step : delta S a + delta S as.sum ≤ D + as.length * D := Nat.add_le_add ha ih_app
+    have h_ring : (as.length + 1) * D = D + as.length * D := by ring
+    rw [h_ring]
+    exact h_add.trans h_step
+
+/-- Real threshold version of Lemma 2.7. -/
+lemma delta_sum_le_mul_of_forall_le_real (S : Finset G) (xs : List G) (D : ℝ)
+    (h : ∀ x ∈ xs, (delta S x : ℝ) ≤ D) :
+    (delta S xs.sum : ℝ) ≤ (xs.length : ℝ) * D := by
+  induction xs with
+  | nil =>
+    simp only [List.sum_nil, List.length_nil, Nat.cast_zero, zero_mul, delta_zero, le_refl]
+  | cons a as ih =>
+    simp only [List.sum_cons, List.length_cons, Nat.cast_add, Nat.cast_one]
+    have ha : (delta S a : ℝ) ≤ D := h a (by simp)
+    have has : ∀ x ∈ as, (delta S x : ℝ) ≤ D := fun x hx => h x (List.mem_cons_of_mem a hx)
+    have ih_app := ih has
+    have h_add : (delta S (a + as.sum) : ℝ) ≤ (delta S a : ℝ) + (delta S as.sum : ℝ) := by
+      exact_mod_cast delta_add_le S a as.sum
+    have h_step : (delta S a : ℝ) + (delta S as.sum : ℝ) ≤ D + (as.length : ℝ) * D :=
+      add_le_add ha ih_app
+    have h_ring : ((as.length : ℝ) + 1) * D = D + (as.length : ℝ) * D := by ring
+    rw [h_ring]
+    exact h_add.trans h_step
+
+/-- Small growth set with natural threshold. -/
+def smallGrowth (S : Finset G) (D : ℕ) [Fintype G] : Finset G :=
+  Finset.univ.filter (fun x => delta S x ≤ D)
+
+/-- Small growth set with real threshold. -/
+noncomputable def smallGrowthR (S : Finset G) (D : ℝ) [Fintype G] : Finset G :=
+  Finset.univ.filter (fun x => (delta S x : ℝ) ≤ D)
+
+/-- The intersection cardinality I(x) = |(S + x) ∩ S|. -/
+def interCard (S : Finset G) (x : G) : ℕ :=
+  (translate S x ∩ S).card
+
+/-- I(x) + delta S x = S.card. -/
+lemma interCard_add_delta (S : Finset G) (x : G) :
+    interCard S x + delta S x = S.card := by
+  have h_union : translate S x = (translate S x ∩ S) ∪ (translate S x \ S) := by
+    ext z
+    simp only [Finset.mem_union, Finset.mem_inter, Finset.mem_sdiff]
+    tauto
+  have h_disj : Disjoint (translate S x ∩ S) (translate S x \ S) := by
+    rw [Finset.disjoint_left]
+    intro z hz1 hz2
+    simp only [Finset.mem_inter, Finset.mem_sdiff] at hz1 hz2
+    exact hz2.2 hz1.2
+  have h_card : (translate S x).card = (translate S x ∩ S).card + (translate S x \ S).card := by
+    conv_lhs => rw [h_union]
+    exact Finset.card_union_of_disjoint h_disj
+  rw [card_translate] at h_card
+  exact h_card.symm
+
+/-- Bijection between the fiber of difference and (S + x) ∩ S. -/
+lemma card_fiber_sub_eq_interCard (S : Finset G) (x : G) :
+    ((S ×ˢ S).filter (fun p => p.1 - p.2 = x)).card = interCard S x := by
+  simp only [interCard]
+  apply Finset.card_bij (fun p _ => p.1)
+  · intro p hp
+    simp only [Finset.mem_filter, Finset.mem_product] at hp
+    simp only [Finset.mem_inter, translate, Finset.mem_image]
+    refine ⟨⟨p.2, hp.1.2, ?_⟩, hp.1.1⟩
+    rw [add_comm]
+    exact (sub_eq_iff_eq_add.mp hp.2).symm
+  · intro p1 hp1 p2 hp2 h
+    simp only [Finset.mem_filter] at hp1 hp2
+    have h1 : p1.2 = p1.1 - x := by rw [← hp1.2, sub_sub_self]
+    have h2 : p2.2 = p2.1 - x := by rw [← hp2.2, sub_sub_self]
+    ext
+    · exact h
+    · rw [h1, h2, h]
+  · intro s hs
+    simp only [Finset.mem_inter, translate, Finset.mem_image] at hs
+    obtain ⟨⟨b, hb, rfl⟩, hs_in⟩ := hs
+    refine ⟨(b + x, b), ?_, rfl⟩
+    simp only [Finset.mem_filter, Finset.mem_product]
+    refine ⟨⟨hs_in, hb⟩, by rw [add_sub_cancel_left]⟩
+
+/-- Double counting sum: ∑ x : G, I(x) = S.card ^ 2. -/
+lemma sum_interCard_eq_sq [Fintype G] (S : Finset G) :
+    ∑ x : G, interCard S x = S.card ^ 2 := by
+  have h_fiber : ∑ x : G, ((S ×ˢ S).filter (fun p => p.1 - p.2 = x)).card = (S ×ˢ S).card := by
+    exact (Finset.card_eq_sum_card_fiberwise (f := fun (p : G × G) => p.1 - p.2)
+      (t := (Finset.univ : Finset G)) (fun _ _ => Finset.mem_univ _)).symm
+  have h_step : ∑ x : G, interCard S x = ∑ x : G, ((S ×ˢ S).filter (fun p => p.1 - p.2 = x)).card := by
+    apply Finset.sum_congr rfl
+    intro x _
+    exact (card_fiber_sub_eq_interCard S x).symm
+  rw [h_step, h_fiber, Finset.card_product, sq]
+
+/-- Conlon–Fox–Pham (2021) Lemma 2.6 (Division-free natural bound):
+    |G| * (|S| - D) ≤ |S|^2. -/
+theorem card_smallGrowth_mul_le [Fintype G] (S : Finset G) (D : ℕ) :
+    (smallGrowth S D).card * (S.card - D) ≤ S.card ^ 2 := by
+  have h_sum_le : ∑ _x ∈ smallGrowth S D, (S.card - D) ≤ ∑ x ∈ smallGrowth S D, interCard S x := by
+    apply Finset.sum_le_sum
+    intro x hx
+    simp only [smallGrowth, Finset.mem_filter, Finset.mem_univ, true_and] at hx
+    have h_id := interCard_add_delta S x
+    omega
+  have h_sub_univ : ∑ x ∈ smallGrowth S D, interCard S x ≤ ∑ x : G, interCard S x := by
+    apply Finset.sum_le_univ_sum_of_nonneg
+    intro _
+    exact Nat.zero_le _
+  rw [sum_interCard_eq_sq S] at h_sub_univ
+  have h_card_mul : (smallGrowth S D).card * (S.card - D) = ∑ _x ∈ smallGrowth S D, (S.card - D) := by
+    simp
+  rw [h_card_mul]
+  exact h_sum_le.trans h_sub_univ
+
+/-- Natural division version of Lemma 2.6. -/
+theorem card_smallGrowth_le_div [Fintype G] (S : Finset G) (D : ℕ) (hD : D < S.card) :
+    (smallGrowth S D).card ≤ S.card ^ 2 / (S.card - D) :=
+  (Nat.le_div_iff_mul_le (by omega)).mpr (card_smallGrowth_mul_le S D)
+
+/-- Real division-free version of Lemma 2.6. -/
+theorem card_smallGrowthR_mul_le [Fintype G] (S : Finset G) (D : ℝ) :
+    ((smallGrowthR S D).card : ℝ) * ((S.card : ℝ) - D) ≤ (S.card : ℝ) ^ 2 := by
+  have h_sum_le : ∑ _x ∈ smallGrowthR S D, ((S.card : ℝ) - D) ≤ ∑ x ∈ smallGrowthR S D, (interCard S x : ℝ) := by
+    apply Finset.sum_le_sum
+    intro x hx
+    simp only [smallGrowthR, Finset.mem_filter, Finset.mem_univ, true_and] at hx
+    have h_id := interCard_add_delta S x
+    have h_id_r : (interCard S x : ℝ) + (delta S x : ℝ) = (S.card : ℝ) := by
+      exact_mod_cast h_id
+    linarith
+  have h_sub_univ : ∑ x ∈ smallGrowthR S D, (interCard S x : ℝ) ≤ ∑ x : G, (interCard S x : ℝ) := by
+    apply Finset.sum_le_univ_sum_of_nonneg
+    intro _
+    exact Nat.cast_nonneg _
+  have h_univ_eq : ∑ x : G, (interCard S x : ℝ) = (S.card : ℝ) ^ 2 := by
+    have := sum_interCard_eq_sq S
+    exact_mod_cast this
+  rw [h_univ_eq] at h_sub_univ
+  have h_card_mul : ∑ _x ∈ smallGrowthR S D, ((S.card : ℝ) - D) = ((smallGrowthR S D).card : ℝ) * ((S.card : ℝ) - D) := by
+    rw [Finset.sum_const, nsmul_eq_mul]
+  rw [h_card_mul] at h_sum_le
+  exact h_sum_le.trans h_sub_univ
+
+/-- Real division version of Lemma 2.6. -/
+theorem card_smallGrowthR_le_div [Fintype G] (S : Finset G) (D : ℝ) (hD : D < (S.card : ℝ)) :
+    ((smallGrowthR S D).card : ℝ) ≤ (S.card : ℝ) ^ 2 / ((S.card : ℝ) - D) := by
+  have h_pos : 0 < (S.card : ℝ) - D := by linarith
+  have h_mul := card_smallGrowthR_mul_le S D
+  rw [le_div_iff₀ h_pos]
+  exact h_mul
+
+/-- Selection of element with growth strictly exceeding threshold (natural version). -/
+lemma exists_mem_large_growth [Fintype G] (S : Finset G) (T : Finset G) (D : ℕ)
+    (h_card : (smallGrowth S D).card < T.card) :
+    ∃ a ∈ T, D < delta S a := by
+  by_contra! h
+  have h_sub : T ⊆ smallGrowth S D := by
+    intro x hx
+    simp only [smallGrowth, Finset.mem_filter, Finset.mem_univ, true_and]
+    exact h x hx
+  have h_le := Finset.card_le_card h_sub
+  omega
+
+/-- Selection of element with growth strictly exceeding threshold (real version). -/
+lemma exists_mem_large_growth_real [Fintype G] (S : Finset G) (T : Finset G) (D : ℝ)
+    (h_card : ((smallGrowthR S D).card : ℝ) < (T.card : ℝ)) :
+    ∃ a ∈ T, D < (delta S a : ℝ) := by
+  by_contra! h
+  have h_sub : T ⊆ smallGrowthR S D := by
+    intro x hx
+    simp only [smallGrowthR, Finset.mem_filter, Finset.mem_univ, true_and]
+    exact h x hx
+  have h_le := Finset.card_le_card h_sub
+  have : (T.card : ℝ) ≤ ((smallGrowthR S D).card : ℝ) := Nat.cast_le.mpr h_le
+  linarith
+
+/-- Incremental cardinality formula for subsetSumsMod upon inserting an element:
+    |subsetSumsMod d (insert x A)| = |subsetSumsMod d A| + delta (subsetSumsMod d A) (x : ZMod d). -/
+lemma card_subsetSumsMod_insert_eq (d : ℕ) (A : Finset ℕ) (x : ℕ) (hx : x ∉ A) :
+    (subsetSumsMod d (insert x A)).card =
+      (subsetSumsMod d A).card + delta (subsetSumsMod d A) (x : ZMod d) := by
+  have h_ins := subsetSumsMod_insert d A x hx
+  have h_trans : Finset.image (fun r => r + (x : ZMod d)) (subsetSumsMod d A) =
+      translate (subsetSumsMod d A) (x : ZMod d) := rfl
+  rw [h_trans] at h_ins
+  rw [h_ins]
+  exact card_union_translate (subsetSumsMod d A) (x : ZMod d)
+
+/-- Modulo injectivity on an interval of length ≤ d. -/
+lemma natCast_zmod_injOn_Ico (d y : ℕ) (A : Finset ℕ)
+    (hA : ∀ x ∈ A, y ≤ x ∧ x < y + d) :
+    Set.InjOn (fun (x : ℕ) => (x : ZMod d)) (A : Set ℕ) := by
+  intro a ha b hb hab
+  have ha_bounds := hA a ha
+  have hb_bounds := hA b hb
+  by_cases hd : d = 0
+  · subst hd; omega
+  have inst_ne : NeZero d := ⟨hd⟩
+  rw [ZMod.natCast_eq_natCast_iff] at hab
+  have h_diff_a : a - y < d := by omega
+  have h_diff_b : b - y < d := by omega
+  have h_sub_a : a - y + y = a := Nat.sub_add_cancel ha_bounds.1
+  have h_sub_b : b - y + y = b := Nat.sub_add_cancel hb_bounds.1
+  have h_modeq : (a - y) % d = (b - y) % d := by
+    have h1 : (a - y + y) ≡ (b - y + y) [MOD d] := by
+      rw [h_sub_a, h_sub_b]
+      exact hab
+    exact Nat.ModEq.add_right_cancel' y h1
+  rw [Nat.mod_eq_of_lt h_diff_a, Nat.mod_eq_of_lt h_diff_b] at h_modeq
+  omega
+
+/-- Cardinality preservation under modulo projection on an interval of length ≤ d. -/
+lemma card_image_natCast_zmod_of_Ico (d y : ℕ) (A : Finset ℕ)
+    (hA : ∀ x ∈ A, y ≤ x ∧ x < y + d) :
+    (A.image (fun (x : ℕ) => (x : ZMod d))).card = A.card := by
+  exact Finset.card_image_of_injOn (natCast_zmod_injOn_Ico d y A hA)
+
+-- Sanity Check 1: N = 7, S = {0, 1, 2}, D = 1
+example : (smallGrowth ({0, 1, 2} : Finset (ZMod 7)) 1) = {0, 1, 6} := by
+  decide
+
+example : (smallGrowth ({0, 1, 2} : Finset (ZMod 7)) 1).card * (3 - 1) ≤ 3 ^ 2 := by
+  decide
+
+-- Sanity Check 2: N = 6, S = {0, 2, 4}, D = 0
+example : (smallGrowth ({0, 2, 4} : Finset (ZMod 6)) 0) = {0, 2, 4} := by
+  decide
+
+example : (smallGrowth ({0, 2, 4} : Finset (ZMod 6)) 0).card * (3 - 0) ≤ 3 ^ 2 := by
+  decide
+
+
 /-!
 ### Section 9: The Master Theorems for Erdős Problem JSP-000298 (Erdős #360)
 
@@ -3883,6 +4248,1554 @@ theorem erdos_problem_360_finite_master (n : ℕ) (hn : 3 ≤ n)
     minColors n (by omega) ≤ s1 + P.card + 2 * T.card + (R.card + s_rem - 1) / s_rem := by
   refine ⟨minColors_ge_of_cfp_witness n k (by omega) w,
           minColors_le_conlon_fox_pham n s1 P d s_rem (by omega) hs1 hd hs_rem h_srem_le hP⟩
+
+/-!
+### Subsection 8.7: Iterated Sumsets and Kneser–Lemma 2.3 Algebraic Bridge (CFP Lemma 2.3)
+
+In §2.1 of Conlon–Fox–Pham (2021), Lemma 2.3 provides the growth of iterated sumsets:
+for a subset T of a finite abelian group G containing 0 and generating G,
+  min (|G|) ((k + 1) * |T| / 2) ≤ |k T|.
+
+Here we formalize:
+1. sumset A B: standard sumset in an additive abelian group.
+2. iterSum k T: k-fold iterated sumset, with decomposition iterSum (a + b) T = sumset (iterSum a T) (iterSum b T).
+3. iterSum_mono_of_zero_mem: monotonicity under 0 ∈ T.
+4. iterSum_smallGrowth_subset: containment of iterated small growth sumsets in small growth of scaled threshold.
+5. cochrane_ostergaard_spencer_arith_le: Cochrane–Ostergaard–Spencer algebraic inequality:
+   for k ≥ 1 and q ≥ 2, (k + 1) * q ≤ 2 * (k * (q - 1) + 1).
+6. iterSum_growth_bound_of_kneser_data: deduced bound (k + 1) * |T| ≤ 2 * |kT| from Kneser bounds.
+7. iterSum_card_ge_of_kneser_hyp and iterSum_card_ge_of_kneser_hyp_real:
+   natural and real-valued conditional growth interfaces for Lemma 2.3.
+-/
+
+/-- Sumset of two finsets in an additive group. -/
+def sumset (A B : Finset G) : Finset G :=
+  (A ×ˢ B).image (fun p => p.1 + p.2)
+
+/-- k-fold iterated sumset of a finset T. -/
+def iterSum : ℕ → Finset G → Finset G
+  | 0, _ => {0}
+  | k + 1, T => sumset (iterSum k T) T
+
+@[simp]
+lemma iterSum_zero (T : Finset G) : iterSum 0 T = {0} := rfl
+
+@[simp]
+lemma iterSum_succ (k : ℕ) (T : Finset G) :
+    iterSum (k + 1) T = sumset (iterSum k T) T := rfl
+
+lemma mem_sumset_iff (A B : Finset G) (x : G) :
+    x ∈ sumset A B ↔ ∃ a ∈ A, ∃ b ∈ B, a + b = x := by
+  simp only [sumset, Finset.mem_image, Finset.mem_product]
+  constructor
+  · rintro ⟨p, ⟨ha, hb⟩, rfl⟩
+    exact ⟨p.1, ha, p.2, hb, rfl⟩
+  · rintro ⟨a, ha, b, hb, rfl⟩
+    exact ⟨(a, b), ⟨ha, hb⟩, rfl⟩
+
+lemma sumset_assoc (A B C : Finset G) :
+    sumset (sumset A B) C = sumset A (sumset B C) := by
+  ext x
+  simp only [mem_sumset_iff]
+  constructor
+  · rintro ⟨ab, ⟨a, ha, b, hb, rfl⟩, c, hc, rfl⟩
+    exact ⟨a, ha, b + c, ⟨b, hb, c, hc, rfl⟩, (add_assoc a b c).symm⟩
+  · rintro ⟨a, ha, bc, ⟨b, hb, c, hc, rfl⟩, rfl⟩
+    exact ⟨a + b, ⟨a, ha, b, hb, rfl⟩, c, hc, add_assoc a b c⟩
+
+lemma sumset_zero_left (A : Finset G) : sumset {0} A = A := by
+  ext x
+  simp only [mem_sumset_iff, Finset.mem_singleton]
+  constructor
+  · rintro ⟨a, rfl, b, hb, rfl⟩
+    rwa [zero_add]
+  · intro hx
+    exact ⟨0, rfl, x, hx, zero_add x⟩
+
+lemma sumset_zero_right (A : Finset G) : sumset A {0} = A := by
+  ext x
+  simp only [mem_sumset_iff, Finset.mem_singleton]
+  constructor
+  · rintro ⟨a, ha, b, rfl, rfl⟩
+    rwa [add_zero]
+  · intro hx
+    exact ⟨x, hx, 0, rfl, add_zero x⟩
+
+/-- Iterated sumset splits over natural addition: (a + b)T = aT + bT. -/
+lemma iterSum_add (a b : ℕ) (T : Finset G) :
+    iterSum (a + b) T = sumset (iterSum a T) (iterSum b T) := by
+  induction b with
+  | zero =>
+    simp only [Nat.add_zero, iterSum_zero, sumset_zero_right]
+  | succ b ih =>
+    rw [Nat.add_succ, iterSum_succ, ih, iterSum_succ, sumset_assoc]
+
+/-- Single-step expansion when 0 ∈ T: kT ⊆ (k + 1)T. -/
+lemma iterSum_subset_succ (T : Finset G) (h0 : 0 ∈ T) (k : ℕ) :
+    iterSum k T ⊆ iterSum (k + 1) T := by
+  intro x hx
+  simp only [iterSum_succ, mem_sumset_iff]
+  exact ⟨x, hx, 0, h0, add_zero x⟩
+
+/-- Monotonicity of iterated sumsets when 0 ∈ T. -/
+lemma iterSum_mono_of_zero_mem (T : Finset G) (h0 : 0 ∈ T) {k1 k2 : ℕ} (h : k1 ≤ k2) :
+    iterSum k1 T ⊆ iterSum k2 T := by
+  obtain ⟨d, rfl⟩ := Nat.le.dest h
+  clear h
+  induction d with
+  | zero => exact Finset.Subset.refl _
+  | succ d ih =>
+    exact Finset.Subset.trans ih (iterSum_subset_succ T h0 (k1 + d))
+
+/-- Small growth is preserved under iterated sumsets:
+    kT ⊆ smallGrowth S (k * D) when T ⊆ smallGrowth S D. -/
+lemma iterSum_smallGrowth_subset [Fintype G] (S : Finset G) (D : ℕ) (k : ℕ) :
+    iterSum k (smallGrowth S D) ⊆ smallGrowth S (k * D) := by
+  induction k with
+  | zero =>
+    intro x hx
+    simp only [iterSum_zero, Finset.mem_singleton] at hx
+    subst hx
+    simp only [smallGrowth, Finset.mem_filter, Finset.mem_univ, true_and]
+    rw [delta_zero, Nat.zero_mul]
+  | succ k ih =>
+    intro z hz
+    simp only [iterSum_succ, mem_sumset_iff] at hz
+    obtain ⟨x, hx, y, hy, rfl⟩ := hz
+    have hx_growth : delta S x ≤ k * D := by
+      have := ih hx
+      simp only [smallGrowth, Finset.mem_filter, Finset.mem_univ, true_and] at this
+      exact this
+    have hy_growth : delta S y ≤ D := by
+      have := hy
+      simp only [smallGrowth, Finset.mem_filter, Finset.mem_univ, true_and] at this
+      exact this
+    simp only [smallGrowth, Finset.mem_filter, Finset.mem_univ, true_and]
+    have h_add := delta_add_le S x y
+    have : delta S x + delta S y ≤ k * D + D := Nat.add_le_add hx_growth hy_growth
+    have h_ring : (k + 1) * D = k * D + D := by ring
+    rw [h_ring]
+    exact h_add.trans this
+
+/-- Cochrane–Ostergaard–Spencer algebraic bridge from Kneser to Lemma 2.3:
+    If 2 ≤ q and 1 ≤ k, then (k + 1) * q ≤ 2 * (k * (q - 1) + 1). -/
+lemma cochrane_ostergaard_spencer_arith_le (k q : ℕ) (hk : 1 ≤ k) (hq : 2 ≤ q) :
+    (k + 1) * q ≤ 2 * (k * (q - 1) + 1) := by
+  obtain ⟨k', rfl⟩ : ∃ k', k = 1 + k' := ⟨k - 1, by omega⟩
+  obtain ⟨q', rfl⟩ : ∃ q', q = 2 + q' := ⟨q - 2, by omega⟩
+  have hq1 : 2 + q' - 1 = q' + 1 := by omega
+  rw [hq1]
+  have h_lhs : (1 + k' + 1) * (2 + q') = k' * q' + 2 * k' + 2 * q' + 4 := by ring
+  have h_rhs : 2 * ((1 + k') * (q' + 1) + 1) = 2 * (k' * q') + 2 * k' + 2 * q' + 4 := by ring
+  rw [h_lhs, h_rhs]
+  omega
+
+/-- The Kneser bridge theorem:
+    Under Kneser bounds |kT| ≥ (k * (q - 1) + 1) * |H| and |T| ≤ q * |H|
+    with q ≥ 2, we deduce (k + 1) * |T| ≤ 2 * |kT|. -/
+theorem iterSum_growth_bound_of_kneser_data (card_kT card_T card_H k q : ℕ)
+    (hk : 1 ≤ k) (hq : 2 ≤ q)
+    (h_T_le : card_T ≤ q * card_H)
+    (h_kT_ge : (k * (q - 1) + 1) * card_H ≤ card_kT) :
+    (k + 1) * card_T ≤ 2 * card_kT := by
+  have h_arith := cochrane_ostergaard_spencer_arith_le k q hk hq
+  have h1 : (k + 1) * card_T ≤ (k + 1) * (q * card_H) :=
+    Nat.mul_le_mul_left (k + 1) h_T_le
+  have h_assoc : (k + 1) * (q * card_H) = ((k + 1) * q) * card_H := by ring
+  rw [h_assoc] at h1
+  have h2 : ((k + 1) * q) * card_H ≤ (2 * (k * (q - 1) + 1)) * card_H :=
+    Nat.mul_le_mul_right card_H h_arith
+  have h3 : (2 * (k * (q - 1) + 1)) * card_H = 2 * ((k * (q - 1) + 1) * card_H) := by ring
+  rw [h3] at h2
+  have h4 : 2 * ((k * (q - 1) + 1) * card_H) ≤ 2 * card_kT :=
+    Nat.mul_le_mul_left 2 h_kT_ge
+  exact h1.trans (h2.trans h4)
+
+/-- Stabilizer of a finset S in G: elements x such that delta S x = 0. -/
+def stab (S : Finset G) [Fintype G] : Finset G :=
+  Finset.univ.filter (fun x => delta S x = 0)
+
+/-- Conditional interface for Conlon–Fox–Pham (2021) Lemma 2.3:
+    For a set T in a finite abelian group G containing 0 and generating G,
+    either |kT| = |G| or 2 * |kT| ≥ (k + 1) * |T|. -/
+theorem iterSum_card_ge_of_kneser_hyp [Fintype G] (T : Finset G) (k : ℕ)
+    (hk : 1 ≤ k)
+    (h_kneser : (iterSum k T).card = Fintype.card G ∨
+      ∃ card_H q : ℕ, 2 ≤ q ∧ T.card ≤ q * card_H ∧
+        (k * (q - 1) + 1) * card_H ≤ (iterSum k T).card) :
+    min (2 * Fintype.card G) ((k + 1) * T.card) ≤ 2 * (iterSum k T).card := by
+  cases h_kneser with
+  | inl h_full =>
+    rw [h_full]
+    exact min_le_left _ _
+  | inr h_sub =>
+    obtain ⟨card_H, q, hq, hT, hkT⟩ := h_sub
+    have h_bound := iterSum_growth_bound_of_kneser_data (iterSum k T).card T.card card_H k q hk hq hT hkT
+    exact (min_le_right _ _).trans h_bound
+
+/-- Real version of the conditional Lemma 2.3 interface. -/
+theorem iterSum_card_ge_of_kneser_hyp_real [Fintype G] (T : Finset G) (k : ℕ)
+    (hk : 1 ≤ k)
+    (h_kneser : (iterSum k T).card = Fintype.card G ∨
+      ∃ card_H q : ℕ, 2 ≤ q ∧ T.card ≤ q * card_H ∧
+        (k * (q - 1) + 1) * card_H ≤ (iterSum k T).card) :
+    min (Fintype.card G : ℝ) (((k + 1 : ℝ) * (T.card : ℝ)) / 2) ≤ ((iterSum k T).card : ℝ) := by
+  have h_int := iterSum_card_ge_of_kneser_hyp T k hk h_kneser
+  have h_min := min_le_iff.mp h_int
+  rcases h_min with h | h
+  · have : Fintype.card G ≤ (iterSum k T).card := by omega
+    have : (Fintype.card G : ℝ) ≤ ((iterSum k T).card : ℝ) := Nat.cast_le.mpr this
+    exact (min_le_left _ _).trans this
+  · have : ((k + 1 : ℝ) * (T.card : ℝ)) / 2 ≤ ((iterSum k T).card : ℝ) := by
+      have h_real : ((k + 1) * T.card : ℝ) ≤ ((2 * (iterSum k T).card : ℕ) : ℝ) := by
+        exact_mod_cast h
+      push_cast at h_real
+      linarith
+    exact (min_le_right _ _).trans this
+
+/-!
+### Subsection 8.8: Subgroup Index, Scaled Coprimality and Fiber Coordinates (P04)
+
+In §5.1 of Conlon–Fox–Pham (2021), when analyzing residue classes modulo t,
+the remaining candidate set B may have integer gcd not dividing t.
+The true subgroup index is:
+  g = gcd(t, gcd of all elements of B).
+
+Here we formalize:
+1. subgroupIndex t B = Nat.gcd t (B.gcd id): the exact subgroup index dividing t.
+2. Positivity, divisibility, and monotonicity: B' ⊆ B → g(B) ∣ g(B').
+3. Strict increase doubles the index: g(B) < g(B') → 2 * g(B) ≤ g(B').
+4. subgroupIndex_scaled_coprime: the scaled set {a / g | a ∈ B} generates ZMod (t / g).
+5. 
+atCast_zmod_div_injOn_Ico & card_image_natCast_zmod_div_of_Ico:
+   injectivity and cardinality preservation under scaled projection on intervals of length ≤ t / g.
+6. Fiber coordinates:
+   iber h S r (connecting to existing 
+esidueFiber),
+   card_eq_sum_image_fibers,
+   delta_fiber_le_delta,
+   centerFiber: centering fibers to the kernel subgroup,
+   card_centerFiber, centerFiber_subset_kernel, and delta_centerFiber_eq.
+-/
+
+/-- The subgroup index g = gcd(t, gcd of all elements of B). -/
+def subgroupIndex (t : ℕ) (B : Finset ℕ) : ℕ :=
+  Nat.gcd t (B.gcd id)
+
+lemma subgroupIndex_pos (t : ℕ) (B : Finset ℕ) (ht : 0 < t) :
+    0 < subgroupIndex t B :=
+  Nat.gcd_pos_of_pos_left (B.gcd id) ht
+
+lemma subgroupIndex_dvd_modulus (t : ℕ) (B : Finset ℕ) :
+    subgroupIndex t B ∣ t :=
+  Nat.gcd_dvd_left t (B.gcd id)
+
+lemma subgroupIndex_dvd_mem (t : ℕ) (B : Finset ℕ) {a : ℕ} (ha : a ∈ B) :
+    subgroupIndex t B ∣ a := by
+  have h1 : subgroupIndex t B ∣ B.gcd id := Nat.gcd_dvd_right t (B.gcd id)
+  have h2 : B.gcd id ∣ a := Finset.gcd_dvd ha
+  exact h1.trans h2
+
+lemma subgroupIndex_mono (t : ℕ) {B B' : Finset ℕ} (hsub : B' ⊆ B) :
+    subgroupIndex t B ∣ subgroupIndex t B' := by
+  apply Nat.dvd_gcd (subgroupIndex_dvd_modulus t B)
+  have h1 : subgroupIndex t B ∣ B.gcd id := Nat.gcd_dvd_right t (B.gcd id)
+  have h2 : B.gcd id ∣ B'.gcd id := Finset.gcd_mono hsub
+  exact h1.trans h2
+
+lemma subgroupIndex_doubles_of_lt (t : ℕ) {B B' : Finset ℕ} (ht : 0 < t) (hsub : B' ⊆ B)
+    (hlt : subgroupIndex t B < subgroupIndex t B') :
+    2 * subgroupIndex t B ≤ subgroupIndex t B' := by
+  have hdvd := subgroupIndex_mono t hsub
+  have hpos := subgroupIndex_pos t B ht
+  obtain ⟨c, hc⟩ := hdvd
+  have hc_gt_one : 1 < c := by
+    by_contra! hc_le
+    interval_cases c
+    · rw [hc, mul_zero] at hlt
+      omega
+    · rw [hc, mul_one] at hlt
+      omega
+  have : 2 ≤ c := hc_gt_one
+  calc 2 * subgroupIndex t B ≤ c * subgroupIndex t B := Nat.mul_le_mul_right (subgroupIndex t B) this
+  _ = subgroupIndex t B' := by rw [mul_comm, hc]
+
+lemma subgroupIndex_le_of_mem (t : ℕ) {B : Finset ℕ} {a : ℕ} (ha : a ∈ B) (ha_pos : 0 < a) :
+    subgroupIndex t B ≤ a :=
+  Nat.le_of_dvd ha_pos (subgroupIndex_dvd_mem t B ha)
+
+lemma subgroupIndex_le_modulus (t : ℕ) (B : Finset ℕ) (ht : 0 < t) :
+    subgroupIndex t B ≤ t :=
+  Nat.le_of_dvd ht (subgroupIndex_dvd_modulus t B)
+
+/-- Coprimality of the scaled set with (t / g):
+    the elements {a / g | a ∈ B} generate ZMod (t / g). -/
+theorem subgroupIndex_scaled_coprime (t : ℕ) (B : Finset ℕ) (ht : 0 < t) :
+    let g := subgroupIndex t B
+    Nat.gcd (t / g) ((B.image (fun x => x / g)).gcd id) = 1 := by
+  intro g
+  let d := Nat.gcd (t / g) ((B.image (fun x => x / g)).gcd id)
+  have hd_t : d ∣ t / g := Nat.gcd_dvd_left _ _
+  have hd_B : d ∣ (B.image (fun x => x / g)).gcd id := Nat.gcd_dvd_right _ _
+  have hg_dvd_t : g ∣ t := subgroupIndex_dvd_modulus t B
+  have hg_pos : 0 < g := subgroupIndex_pos t B ht
+  have hdg_dvd_t : d * g ∣ t := by
+    have : d * g ∣ (t / g) * g := Nat.mul_dvd_mul_right hd_t g
+    rwa [Nat.div_mul_cancel hg_dvd_t] at this
+  have hdg_dvd_mem : ∀ a ∈ B, d * g ∣ a := by
+    intro a ha
+    have ha_img : a / g ∈ B.image (fun x => x / g) := Finset.mem_image.mpr ⟨a, ha, rfl⟩
+    have hd_ag : d ∣ a / g := hd_B.trans (Finset.gcd_dvd ha_img)
+    have hg_dvd_a : g ∣ a := subgroupIndex_dvd_mem t B ha
+    have : d * g ∣ (a / g) * g := Nat.mul_dvd_mul_right hd_ag g
+    rwa [Nat.div_mul_cancel hg_dvd_a] at this
+  have hdg_dvd_Bgcd : d * g ∣ B.gcd id := Finset.dvd_gcd hdg_dvd_mem
+  have hdg_dvd_g : d * g ∣ g := by
+    have : d * g ∣ Nat.gcd t (B.gcd id) := Nat.dvd_gcd hdg_dvd_t hdg_dvd_Bgcd
+    exact this
+  have : d * g ≤ 1 * g := by
+    have h_le := Nat.le_of_dvd hg_pos hdg_dvd_g
+    rwa [one_mul]
+  have hd_le_one : d ≤ 1 := Nat.le_of_mul_le_mul_right this hg_pos
+  have hd_pos : 0 < d := by
+    apply Nat.gcd_pos_of_pos_left
+    have h_div_pos : 0 < t / g := Nat.div_pos (subgroupIndex_le_modulus t B ht) hg_pos
+    exact h_div_pos
+  omega
+
+-- Sanity checks from P04:
+-- 1. B = {6, 10}, t = 15: integer gcd is 2, but does not divide 15; subgroupIndex is 1.
+example : subgroupIndex 15 {6, 10} = 1 := by
+  decide
+
+-- 2. B = {6, 10}, t = 12: subgroupIndex is 2.
+example : subgroupIndex 12 {6, 10} = 2 := by
+  decide
+
+-- 3. t = 1: subgroupIndex is 1.
+example : subgroupIndex 1 {6, 10} = 1 := by
+  decide
+
+/-- Scaled injectivity on an interval of length ≤ t / g. -/
+lemma natCast_zmod_div_injOn_Ico (t g L : ℕ) (B : Finset ℕ)
+    (_hg : 0 < g) (h_dvd : ∀ x ∈ B, g ∣ x)
+    (hB : ∀ x ∈ B, L ≤ x / g ∧ x / g < L + t / g) :
+    Set.InjOn (fun (x : ℕ) => ((x / g : ℕ) : ZMod (t / g))) (B : Set ℕ) := by
+  intro a ha b hb hab
+  have ha_dvd := h_dvd a ha
+  have hb_dvd := h_dvd b hb
+  have h_inj := natCast_zmod_injOn_Ico (t / g) L (B.image (fun x => x / g)) (by
+    intro z hz
+    simp only [Finset.mem_image] at hz
+    obtain ⟨x, hx, rfl⟩ := hz
+    exact hB x hx)
+  have ha_in : a / g ∈ (B.image (fun x => x / g) : Set ℕ) := Finset.mem_coe.mpr (Finset.mem_image.mpr ⟨a, ha, rfl⟩)
+  have hb_in : b / g ∈ (B.image (fun x => x / g) : Set ℕ) := Finset.mem_coe.mpr (Finset.mem_image.mpr ⟨b, hb, rfl⟩)
+  have h_div_eq : a / g = b / g := h_inj ha_in hb_in hab
+  have ha_eq : a = (a / g) * g := (Nat.div_mul_cancel ha_dvd).symm
+  have hb_eq : b = (b / g) * g := (Nat.div_mul_cancel hb_dvd).symm
+  rw [ha_eq, hb_eq, h_div_eq]
+
+/-- Cardinality preservation under scaled modulo projection. -/
+lemma card_image_natCast_zmod_div_of_Ico (t g L : ℕ) (B : Finset ℕ)
+    (hg : 0 < g) (h_dvd : ∀ x ∈ B, g ∣ x)
+    (hB : ∀ x ∈ B, L ≤ x / g ∧ x / g < L + t / g) :
+    (B.image (fun (x : ℕ) => ((x / g : ℕ) : ZMod (t / g)))).card = B.card := by
+  exact Finset.card_image_of_injOn (natCast_zmod_div_injOn_Ico t g L B hg h_dvd hB)
+
+/-- A fiber of a subset S ⊆ ZMod N over residue r ∈ ZMod d. -/
+def fiber {N d : ℕ} (h : d ∣ N) (S : Finset (ZMod N)) (r : ZMod d) : Finset (ZMod N) :=
+  S.filter (fun s => zmodProj h s = r)
+
+lemma fiber_subset {N d : ℕ} (h : d ∣ N) (S : Finset (ZMod N)) (r : ZMod d) :
+    fiber h S r ⊆ S :=
+  Finset.filter_subset _ _
+
+lemma disjoint_fibers {N d : ℕ} (h : d ∣ N) (S : Finset (ZMod N)) {r1 r2 : ZMod d} (hne : r1 ≠ r2) :
+    Disjoint (fiber h S r1) (fiber h S r2) := by
+  rw [Finset.disjoint_left]
+  intro x hx1 hx2
+  simp only [fiber, Finset.mem_filter] at hx1 hx2
+  exact hne (hx1.2.symm.trans hx2.2)
+
+lemma card_eq_sum_image_fibers {N d : ℕ} (h : d ∣ N) (S : Finset (ZMod N)) :
+    S.card = ∑ r ∈ S.image (zmodProj h), (fiber h S r).card := by
+  have h_decomp := Finset.card_eq_sum_card_image (zmodProj h) S
+  exact h_decomp
+
+/-- When translation x has zmodProj h x = 0 (i.e. x is in the kernel),
+    translation by x preserves fibers. -/
+lemma translate_fiber_subset {N d : ℕ} (h : d ∣ N) (S : Finset (ZMod N)) (x : ZMod N)
+    (hx : zmodProj h x = 0) (r : ZMod d) :
+    translate (fiber h S r) x ⊆ fiber h (translate S x) r := by
+  intro z hz
+  simp only [translate, Finset.mem_image, fiber, Finset.mem_filter] at hz ⊢
+  obtain ⟨s, ⟨hs_in, hs_proj⟩, rfl⟩ := hz
+  refine ⟨⟨s, hs_in, rfl⟩, ?_⟩
+  rw [zmodProj_add, hs_proj, hx, add_zero]
+
+/-- Single fiber growth is bounded by total growth when zmodProj h x = 0. -/
+lemma delta_fiber_le_delta {N d : ℕ} (h : d ∣ N) (S : Finset (ZMod N)) (x : ZMod N)
+    (hx : zmodProj h x = 0) (r : ZMod d) :
+    delta (fiber h S r) x ≤ delta S x := by
+  simp only [delta]
+  have h_sub : translate (fiber h S r) x \ fiber h S r ⊆ translate S x \ S := by
+    intro z hz
+    simp only [Finset.mem_sdiff, translate, Finset.mem_image, fiber, Finset.mem_filter] at hz ⊢
+    obtain ⟨⟨s, ⟨hs_in, hs_proj⟩, rfl⟩, hz_not_fib⟩ := hz
+    refine ⟨⟨s, hs_in, rfl⟩, ?_⟩
+    intro hz_in
+    apply hz_not_fib
+    refine ⟨hz_in, ?_⟩
+    rw [zmodProj_add, hs_proj, hx, add_zero]
+  exact Finset.card_le_card h_sub
+
+/-- Coordinate centering of a fiber around a basepoint x0:
+    shifts fiber elements to the kernel (multiples of d). -/
+def centerFiber {N d : ℕ} (h : d ∣ N) (S : Finset (ZMod N)) (r : ZMod d) (x0 : ZMod N) : Finset (ZMod N) :=
+  (fiber h S r).image (fun s => s - x0)
+
+/-- Center fiber preserves cardinality. -/
+lemma card_centerFiber {N d : ℕ} (h : d ∣ N) (S : Finset (ZMod N)) (r : ZMod d) (x0 : ZMod N) :
+    (centerFiber h S r x0).card = (fiber h S r).card := by
+  simp only [centerFiber]
+  exact Finset.card_image_of_injective _ (fun a b hab => by
+    rw [← sub_add_cancel a x0, hab, sub_add_cancel])
+
+/-- Center fiber elements lie in the kernel of zmodProj when x0 is in the fiber. -/
+lemma centerFiber_subset_kernel {N d : ℕ} (h : d ∣ N) (S : Finset (ZMod N)) (r : ZMod d)
+    (x0 : ZMod N) (hx0 : zmodProj h x0 = r) :
+    ∀ y ∈ centerFiber h S r x0, zmodProj h y = 0 := by
+  intro y hy
+  simp only [centerFiber, Finset.mem_image, fiber, Finset.mem_filter] at hy
+  obtain ⟨s, ⟨_, hs_proj⟩, rfl⟩ := hy
+  rw [zmodProj_sub, hs_proj, hx0, sub_self]
+
+/-- Translation of centered fiber by an element in the kernel matches translation of the original fiber. -/
+lemma delta_centerFiber_eq {N d : ℕ} (h : d ∣ N) (S : Finset (ZMod N)) (r : ZMod d)
+    (x0 : ZMod N) (x : ZMod N) :
+    delta (centerFiber h S r x0) x = delta (fiber h S r) x := by
+  simp only [delta, centerFiber, translate]
+  have h_img1 : ((fiber h S r).image (fun s => s - x0)).image (fun s => s + x) =
+      ((fiber h S r).image (fun s => s + x)).image (fun s => s - x0) := by
+    ext z
+    simp only [Finset.mem_image]
+    constructor
+    · rintro ⟨y, ⟨s, hs, rfl⟩, rfl⟩
+      exact ⟨s + x, ⟨s, hs, rfl⟩, by ring⟩
+    · rintro ⟨y, ⟨s, hs, rfl⟩, rfl⟩
+      exact ⟨s - x0, ⟨s, hs, rfl⟩, by ring⟩
+  rw [h_img1]
+  have h_sdiff : ((fiber h S r).image (fun s => s + x)).image (fun s => s - x0) \
+                 (fiber h S r).image (fun s => s - x0) =
+                 (((fiber h S r).image (fun s => s + x)) \ (fiber h S r)).image (fun s => s - x0) := by
+    ext z
+    simp only [Finset.mem_sdiff, Finset.mem_image]
+    constructor
+    · rintro ⟨⟨s1, hs1, rfl⟩, hz_not⟩
+      refine ⟨s1, ⟨hs1, ?_⟩, rfl⟩
+      intro hs1_in
+      exact hz_not ⟨s1, hs1_in, rfl⟩
+    · rintro ⟨s1, ⟨hs1_trans, hs1_not⟩, rfl⟩
+      refine ⟨⟨s1, hs1_trans, rfl⟩, ?_⟩
+      rintro ⟨s2, hs2, heq⟩
+      have : s1 = s2 := by rw [← sub_add_cancel s1 x0, ← heq, sub_add_cancel]
+      subst this
+      exact hs1_not hs2
+  rw [h_sdiff]
+  exact Finset.card_image_of_injective _ (fun a b hab => by
+    rw [← sub_add_cancel a x0, hab, sub_add_cancel])
+
+/-!
+### 15. Integer Arithmetic Progressions and Coset AP Lifting (Conlon–Fox–Pham 2021, Lemma 5.10 / Phase P08)
+
+Integer AP representations, cardinality preservation, coset AP lifting, and length sum bounds.
+-/
+
+/-- An integer arithmetic progression with start a, common difference b > 0, and length k. -/
+structure IntAP where
+  a : ℤ
+  b : ℕ
+  hb : 0 < b
+  k : ℕ
+
+/-- The elements of an integer arithmetic progression as a finite set. -/
+def IntAP.toFinset (P : IntAP) : Finset ℤ :=
+  (Finset.range P.k).image (fun (j : ℕ) => P.a + (j : ℤ) * (P.b : ℤ))
+
+/-- The cardinality of an IntAP with positive step is exactly its length k. -/
+lemma IntAP.card_toFinset (P : IntAP) : P.toFinset.card = P.k := by
+  dsimp [IntAP.toFinset]
+  rw [Finset.card_image_of_injective (Finset.range P.k)]
+  · exact Finset.card_range P.k
+  · intro x y hxy
+    have hb_pos := P.hb
+    have hb_ne : (P.b : ℤ) ≠ 0 := by omega
+    have : (x : ℤ) * (P.b : ℤ) = (y : ℤ) * (P.b : ℤ) := by linarith
+    have : (x : ℤ) = (y : ℤ) := mul_right_cancel₀ hb_ne this
+    exact_mod_cast this
+
+/-- Lifting a coset of a cyclic subgroup H ≤ ZMod N of order h (with h ∣ N)
+    to an integer arithmetic progression of length h with common difference N / h. -/
+def cosetAPLift (N h : ℕ) (hN_pos : 0 < N) (hh_pos : 0 < h) (hhN : h ∣ N) (c : ℤ) : IntAP where
+  a := c
+  b := N / h
+  hb := Nat.div_pos (Nat.le_of_dvd hN_pos hhN) hh_pos
+  k := h
+
+/-- Cardinality of the lifted coset arithmetic progression equals the subgroup order h. -/
+lemma cosetAPLift_card (N h : ℕ) (hN_pos : 0 < N) (hh_pos : 0 < h) (hhN : h ∣ N) (c : ℤ) :
+    (cosetAPLift N h hN_pos hh_pos hhN c).toFinset.card = h := by
+  rw [IntAP.card_toFinset]
+  rfl
+
+/-- Exact length sum identity for a family of q lifted coset APs each of length h:
+    sum of lengths = q * h. -/
+lemma coset_family_length_sum_eq (q h : ℕ) (APs : Fin q → IntAP)
+    (h_len : ∀ i, (APs i).k = h) :
+    ∑ i, (APs i).k = q * h := by
+  simp [h_len]
+
+/-- CFP Lemma 5.10 Branch A length sum upper bound:
+    For a disjoint coset family partitioning R (so q * h = |R|),
+    the total length sum is at most 3 * |R|. -/
+lemma coset_family_length_sum_le_three_mul (R_card : ℕ) (q h : ℕ)
+    (h_prod : q * h = R_card) :
+    q * h ≤ 3 * R_card := by
+  omega
+
+/-!
+### 16. Finite Numerical Parameter Package (Conlon–Fox–Pham 2021, Lemma 5.6 Finite Conditions / Phase P12)
+
+Explicit parameter interface separating finite combinatorial conditions from real analytic asymptotic bounds.
+-/
+
+/-- Finite combinatorial parameter package for Conlon–Fox–Pham Lemma 5.6.
+    Explicitly separates discrete combinatorial hypotheses and bounds from
+    the real-analytic parameter instantiation (completed in Phase P19). -/
+structure FiniteConditions where
+  -- Core discrete parameters
+  t : ℕ                  -- Modulus of subset sums
+  ht_pos : 0 < t
+  A : Finset ℕ           -- Candidate set of positive integers
+  hA_pos : ∀ a ∈ A, 0 < a
+  v : ℕ                  -- Common divisor scaling factor
+  hv_pos : 0 < v
+  K : ℕ                  -- Greedy iteration step count
+  M : ℕ                  -- Minimum remaining candidates threshold
+  hM_pos : 0 < M
+  k_div : ℕ              -- Diversity parameter of A
+  U : ℕ                  -- Small-fiber growth threshold
+  hU_pos : 0 < U
+  D : ℕ                  -- Single-step translation growth increment threshold
+  hD_pos : 0 < D
+  gMax : ℕ               -- Uniform upper bound on subgroup indices during iteration
+  hgMax_pos : 0 < gMax
+
+  -- Paper layer parameters
+  xi : ℝ                 -- Linear density lower bound constant (e.g. 1/128 or ξ_DF)
+  hxi_pos : 0 < xi
+  ell : ℕ                -- Chromatic reduction parameter
+  hell_pos : 0 < ell
+
+  -- Growth step budget for Claim 1
+  B_growth : ℕ           -- Maximum number of growth steps
+  hB_le_K : B_growth ≤ K
+
+  -- Explicit Numerical and Combinatorial Hypotheses:
+  hK_add_M_le : K + M ≤ A.card
+  hA_diverse : IsDiverse A k_div
+  h_subgroup_le : ∀ B ⊆ A, M ≤ B.card → subgroupIndex t B ≤ gMax
+  h_subgroup_diverse : ∀ B ⊆ A, M ≤ B.card → subgroupIndex t B - 1 ≤ k_div
+  h_small_fiber_bound : U < t / (2 * gMax)
+  h_growth_threshold : 8 * D < U
+  h_growth_budget : (32 : ℝ) / (ell : ℝ) * (t : ℝ) ≤ (D * (K - B_growth) : ℝ)
+
+/-!
+### 17. Greedy Iteration State Machine & Stage Classification (Conlon–Fox–Pham 2021, Lemma 5.6 Iteration / Phase P13)
+
+Discrete state, stage classification (growth, unsaturated, saturated), and invariant preservation.
+-/
+
+/-- A state in the greedy element selection process for CFP Lemma 5.6. -/
+structure GreedyState (A : Finset ℕ) where
+  E : Finset ℕ
+  hE_sub : E ⊆ A
+
+/-- Remaining unselected candidates at state st. -/
+def GreedyState.B {A : Finset ℕ} (st : GreedyState A) : Finset ℕ :=
+  A \ st.E
+
+/-- Modulo t subset sums generated by the selected elements st.E. -/
+def GreedyState.S {A : Finset ℕ} (t : ℕ) (st : GreedyState A) : Finset (ZMod t) :=
+  subsetSumsMod t st.E
+
+/-- Subgroup index generated by the remaining candidates st.B modulo t. -/
+def GreedyState.g {A : Finset ℕ} (t : ℕ) (st : GreedyState A) : ℕ :=
+  subgroupIndex t st.B
+
+/-- Number of remaining candidates is |A| - |E|. -/
+lemma GreedyState.card_B {A : Finset ℕ} (st : GreedyState A) :
+    st.B.card = A.card - st.E.card :=
+  card_sdiff_eq_sub st.hE_sub
+
+/-- When |E| ≤ K, at least M candidates remain unselected. -/
+lemma GreedyState.B_card_ge {fc : FiniteConditions} (st : GreedyState fc.A)
+    (hj : st.E.card ≤ fc.K) : fc.M ≤ st.B.card := by
+  have h_card := st.card_B
+  have hKM := fc.hK_add_M_le
+  omega
+
+/-- Remaining candidate set is non-empty at any step j ≤ K. -/
+lemma GreedyState.B_nonempty {fc : FiniteConditions} (st : GreedyState fc.A)
+    (hj : st.E.card ≤ fc.K) : st.B.Nonempty := by
+  have hM := st.B_card_ge hj
+  have hM_pos := fc.hM_pos
+  exact Finset.card_pos.mp (by omega)
+
+/-- Growth stage: there exists a non-empty residue fiber with cardinality ≤ U. -/
+def isGrowthStage {A : Finset ℕ} (t U : ℕ) (st : GreedyState A) : Prop :=
+  let hd := subgroupIndex_dvd_modulus t st.B
+  ∃ r ∈ (st.S t).image (zmodProj hd), (fiber hd (st.S t) r).card ≤ U
+
+/-- Saturated stage: every non-empty residue fiber has
+    cardinality ≥ xi * t / g. -/
+def isSaturatedStage {A : Finset ℕ} (t : ℕ) (xi : ℝ) (st : GreedyState A) : Prop :=
+  let hd := subgroupIndex_dvd_modulus t st.B
+  let g := st.g t
+  ∀ r ∈ (st.S t).image (zmodProj hd), xi * (t : ℝ) / (g : ℝ) ≤ ((fiber hd (st.S t) r).card : ℝ)
+
+/-- Unsaturated stage: neither growth stage nor saturated stage. -/
+def isUnsaturatedStage {A : Finset ℕ} (t U : ℕ) (xi : ℝ) (st : GreedyState A) : Prop :=
+  ¬ isGrowthStage t U st ∧ ¬ isSaturatedStage t xi st
+
+/-- Greedy step: existence of a candidate in B maximizing the translation growth of S. -/
+lemma exists_greedy_element {A : Finset ℕ} (t : ℕ) (st : GreedyState A)
+    (hB_nonempty : st.B.Nonempty) :
+    ∃ a ∈ st.B, ∀ x ∈ st.B, delta (st.S t) (x : ZMod t) ≤ delta (st.S t) (a : ZMod t) :=
+  Finset.exists_max_image st.B (fun x => delta (st.S t) (x : ZMod t)) hB_nonempty
+
+/-- Transition to next state by inserting chosen candidate  ∈ st.B. -/
+def nextState {A : Finset ℕ} (st : GreedyState A) (a : ℕ) (ha : a ∈ st.B) : GreedyState A where
+  E := insert a st.E
+  hE_sub := by
+    intro x hx
+    simp only [Finset.mem_insert] at hx
+    rcases hx with rfl | hx
+    · exact (Finset.mem_sdiff.mp ha).1
+    · exact st.hE_sub hx
+
+/-- Candidate addition strictly increments the chosen set cardinality by 1. -/
+lemma nextState_card {A : Finset ℕ} (st : GreedyState A) (a : ℕ) (ha : a ∈ st.B) :
+    (nextState st a ha).E.card = st.E.card + 1 := by
+  dsimp [nextState]
+  rw [Finset.card_insert_of_notMem]
+  intro h_in
+  exact (Finset.mem_sdiff.mp ha).2 h_in
+
+/-- Subset sums are monotone under state transitions: S_j ⊆ S_{j+1}. -/
+lemma nextState_S_mono {A : Finset ℕ} (t : ℕ) (st : GreedyState A) (a : ℕ) (ha : a ∈ st.B) :
+    st.S t ⊆ (nextState st a ha).S t := by
+  apply subsetSumsMod_mono
+  intro x hx
+  simp [nextState, hx]
+
+/-- Subgroup index divisibility invariant: g(B) ∣ g(B') under candidate removal. -/
+lemma nextState_g_dvd {A : Finset ℕ} (t : ℕ) (st : GreedyState A) (a : ℕ) (ha : a ∈ st.B) :
+    st.g t ∣ (nextState st a ha).g t := by
+  apply subgroupIndex_mono
+  dsimp [nextState, GreedyState.B]
+  intro x hx
+  simp only [Finset.mem_sdiff, Finset.mem_insert] at hx
+  exact Finset.mem_sdiff.mpr ⟨hx.1, fun hxE => hx.2 (Or.inr hxE)⟩
+
+/-!
+### 18. Saturated Branch Elimination and Linear Density Lower Bound (Conlon–Fox–Pham 2021, Lemma 5.6 Saturated Branch / Phase P14)
+
+Closed proof that if a saturated stage occurs, the final modular subset sums achieve the target linear density.
+-/
+
+/-- When remaining candidates B are all divisible by d, the subset sums modulo d
+    of E equal the subset sums of E ∪ B. -/
+lemma subsetSumsMod_eq_of_compl_dvd {d : ℕ} (A E B : Finset ℕ)
+    (h_union : A = E ∪ B) (hB : ∀ b ∈ B, d ∣ b) :
+    subsetSumsMod d E = subsetSumsMod d A := by
+  have h_filter : A.filter (fun a => ¬ d ∣ a) = E.filter (fun a => ¬ d ∣ a) := by
+    ext x
+    simp only [Finset.mem_filter]
+    constructor
+    · rintro ⟨hx, hndvd⟩
+      rw [h_union, Finset.mem_union] at hx
+      rcases hx with hxE | hxB
+      · exact ⟨hxE, hndvd⟩
+      · exact (hndvd (hB x hxB)).elim
+    · rintro ⟨hxE, hndvd⟩
+      rw [h_union, Finset.mem_union]
+      exact ⟨Or.inl hxE, hndvd⟩
+  rw [← subsetSumsMod_filter_not_dvd d E, ← h_filter, subsetSumsMod_filter_not_dvd d A]
+
+/-- Fiber sum lower bound: if π(S) = univ (all residue fibers non-empty) and every fiber
+    satisfies |F_r| ≥ bound, then |S| ≥ g * bound. -/
+lemma card_ge_of_fibers_ge {t g : ℕ} (h : g ∣ t) [NeZero g] (S : Finset (ZMod t)) (bound : ℝ)
+    (h_univ : S.image (zmodProj h) = Finset.univ)
+    (h_fiber_bound : ∀ r : ZMod g, bound ≤ ((fiber h S r).card : ℝ)) :
+    (g : ℝ) * bound ≤ (S.card : ℝ) := by
+  rw [card_eq_sum_image_fibers h S, h_univ]
+  have h_sum_le : (Finset.univ : Finset (ZMod g)).sum (fun _ => bound) ≤
+                  (Finset.univ : Finset (ZMod g)).sum (fun r => ((fiber h S r).card : ℝ)) := by
+    apply Finset.sum_le_sum
+    intro r _
+    exact h_fiber_bound r
+  rw [Finset.sum_const, nsmul_eq_mul] at h_sum_le
+  have h_card_univ : (Finset.univ : Finset (ZMod g)).card = g := ZMod.card g
+  rw [h_card_univ] at h_sum_le
+  have h_cast : (((Finset.univ : Finset (ZMod g)).sum (fun r => (fiber h S r).card) : ℕ) : ℝ) =
+                (Finset.univ : Finset (ZMod g)).sum (fun r => ((fiber h S r).card : ℝ)) := by
+    push_cast; rfl
+  rw [← h_cast] at h_sum_le
+  exact h_sum_le
+
+/-- Product cancellation helper: g * (xi * t / g) = xi * t for positive g. -/
+lemma mul_div_cancel_of_pos (g : ℕ) (hg : 0 < g) (xi t : ℝ) :
+    (g : ℝ) * (xi * t / (g : ℝ)) = xi * t := by
+  have : (g : ℝ) ≠ 0 := by norm_cast; omega
+  exact mul_div_cancel₀ (xi * t) this
+
+/-- CFP Lemma 5.6 Saturated Branch Closure (Phase P14):
+    If at any step j ≤ K of the greedy iteration, the state st is saturated,
+    then the final subset sums satisfy the target linear density lower bound:
+      ξ * t ≤ |Σ_t(A)|. -/
+theorem card_subsetSumsMod_ge_of_saturated (fc : FiniteConditions)
+    (st : GreedyState fc.A) (hj : st.E.card ≤ fc.K)
+    (h_sat : isSaturatedStage fc.t fc.xi st) :
+    fc.xi * (fc.t : ℝ) ≤ ((subsetSumsMod fc.t fc.A).card : ℝ) := by
+  have hB_ge := st.B_card_ge hj
+  have hB_sub : st.B ⊆ fc.A := Finset.sdiff_subset
+  have hg_div := fc.h_subgroup_diverse st.B hB_sub hB_ge
+  have hg_pos := subgroupIndex_pos fc.t st.B fc.ht_pos
+  let g := st.g fc.t
+  have hg_pos' : 0 < g := hg_pos
+  have : NeZero g := ⟨by omega⟩
+  have hd : g ∣ fc.t := subgroupIndex_dvd_modulus fc.t st.B
+  have h_union : fc.A = st.E ∪ st.B := (Finset.union_sdiff_of_subset st.hE_sub).symm
+  have h_dvd : ∀ b ∈ st.B, g ∣ b := fun b hb => subgroupIndex_dvd_mem fc.t st.B hb
+  have h_eq_compl : subsetSumsMod g st.E = subsetSumsMod g fc.A :=
+    subsetSumsMod_eq_of_compl_dvd fc.A st.E st.B h_union h_dvd
+  have h_univ_g : subsetSumsMod g st.E = Finset.univ := by
+    ext r
+    simp only [Finset.mem_univ, iff_true]
+    by_cases hg2 : 2 ≤ g
+    · rw [h_eq_compl]
+      exact subsetSumsMod_eq_univ_of_isDiverse g fc.k_div (by omega) hg_div fc.A fc.hA_diverse r
+    · have hg1 : g = 1 := by omega
+      have : Subsingleton (ZMod g) := by rw [hg1]; infer_instance
+      have hr0 : r = 0 := Subsingleton.elim r 0
+      rw [hr0]
+      exact zero_mem_subsetSumsMod g st.E
+  have h_proj_univ : (st.S fc.t).image (zmodProj hd) = Finset.univ := by
+    dsimp [GreedyState.S]
+    rw [subsetSumsMod_image_zmodProj fc.t g hd st.E, h_univ_g]
+  have h_fiber_all : ∀ r : ZMod g,
+      fc.xi * (fc.t : ℝ) / (g : ℝ) ≤ ((fiber hd (st.S fc.t) r).card : ℝ) := by
+    intro r
+    have hr_in : r ∈ (st.S fc.t).image (zmodProj hd) := by
+      rw [h_proj_univ]
+      exact Finset.mem_univ r
+    exact h_sat r hr_in
+  have h_sum_bnd := card_ge_of_fibers_ge hd (st.S fc.t) (fc.xi * (fc.t : ℝ) / (g : ℝ))
+                    h_proj_univ h_fiber_all
+  rw [mul_div_cancel_of_pos g hg_pos'] at h_sum_bnd
+  have h_sub_card : (st.S fc.t).card ≤ (subsetSumsMod fc.t fc.A).card := by
+    dsimp [GreedyState.S]
+    exact Finset.card_le_card (subsetSumsMod_mono st.hE_sub)
+  have h_cast : ((st.S fc.t).card : ℝ) ≤ ((subsetSumsMod fc.t fc.A).card : ℝ) := by
+    exact_mod_cast h_sub_card
+  linarith
+
+
+/-!
+### 19. Single-Step Growth Bounds for Growth Stage (Conlon–Fox–Pham 2021, Lemma 5.6 Claim 1 / Phase P15)
+
+Two range bounds for the growth stage:
+- Range 1: 2 * |S| < |T| ==> exists element with growth > |S| / 2.
+- Range 2: |T| / 2 <= |S| <= U ==> arithmetic contradiction on small growth.
+-/
+
+/-- Double counting bound on small growth elements with threshold D = S.card / 2:
+    |G_{s/2}| <= 2s. -/
+lemma card_smallGrowth_half_le {G : Type*} [AddCommGroup G] [Fintype G] [DecidableEq G]
+    (S : Finset G) (hS : 0 < S.card) :
+    (smallGrowth S (S.card / 2)).card ≤ 2 * S.card := by
+  have h_mul := card_smallGrowth_mul_le S (S.card / 2)
+  have h_diff : 0 < S.card - S.card / 2 := by omega
+  have h_bound : S.card ^ 2 ≤ 2 * S.card * (S.card - S.card / 2) := by
+    generalize hq : S.card / 2 = q
+    generalize hr : S.card % 2 = r
+    have h_eq : S.card = 2 * q + r := by
+      have := (Nat.div_add_mod S.card 2).symm
+      omega
+    have h_sub : 2 * q + r - q = q + r := by omega
+    have h_alg : (2 * q + r) ^ 2 ≤ 2 * (2 * q + r) * (q + r) := by nlinarith
+    rw [h_eq, h_sub]
+    exact h_alg
+  have : (smallGrowth S (S.card / 2)).card * (S.card - S.card / 2) ≤ 2 * S.card * (S.card - S.card / 2) :=
+    h_mul.trans h_bound
+  exact Nat.le_of_mul_le_mul_right this h_diff
+
+/-- Range 1 of CFP Claim 1 (Phase P15):
+    If 2 * |S| < |T|, then there exists an element in T with translation growth > |S| / 2. -/
+lemma exists_large_growth_of_two_mul_lt {G : Type*} [AddCommGroup G] [Fintype G] [DecidableEq G]
+    (S T : Finset G) (hS : 0 < S.card) (hT : 2 * S.card < T.card) :
+    ∃ x ∈ T, S.card / 2 < delta S x := by
+  have h_small := card_smallGrowth_half_le S hS
+  have h_lt : (smallGrowth S (S.card / 2)).card < T.card := by omega
+  exact exists_mem_large_growth S T (S.card / 2) h_lt
+
+/-- Floor property for Range 2 contradiction: 4s < (floor(4s/b) + 1) * b. -/
+lemma floor_mul_succ_gt (s b : ℕ) (hb : 0 < b) :
+    4 * s < (4 * s / b + 1) * b := by
+  have h_div : 4 * s = b * (4 * s / b) + (4 * s) % b := (Nat.div_add_mod (4 * s) b).symm
+  have h_mod : (4 * s) % b < b := Nat.mod_lt (4 * s) hb
+  rw [add_mul, one_mul, mul_comm (4 * s / b) b]
+  omega
+
+/-- Range 2 contradiction inequality:
+    If (q + 1) * b ≤ 4s and 4s < (q + 1) * b, then False. -/
+lemma range2_arith_contradiction (s b q : ℕ) (hb : 0 < b) (hq : q = 4 * s / b)
+    (h_le : (q + 1) * b ≤ 4 * s) : False := by
+  have h_gt := floor_mul_succ_gt s b hb
+  rw [← hq] at h_gt
+  omega
+
+/-!
+### 20. Combinatorial Core F1 of CFP Lemma 5.6 (Phases P16, P17, P18)
+-/
+
+/-- Initial empty greedy state. -/
+def initialGreedyState (A : Finset ℕ) : GreedyState A where
+  E := ∅
+  hE_sub := Finset.empty_subset A
+
+/-- Deterministic greedy candidate selection using Classical.choose. -/
+noncomputable def greedyChoice {A : Finset ℕ} (t : ℕ) (st : GreedyState A)
+    (hB : st.B.Nonempty) : ℕ :=
+  (exists_greedy_element t st hB).choose
+
+lemma greedyChoice_mem {A : Finset ℕ} (t : ℕ) (st : GreedyState A)
+    (hB : st.B.Nonempty) :
+    greedyChoice t st hB ∈ st.B :=
+  (exists_greedy_element t st hB).choose_spec.1
+
+lemma greedyChoice_max {A : Finset ℕ} (t : ℕ) (st : GreedyState A)
+    (hB : st.B.Nonempty) (x : ℕ) (hx : x ∈ st.B) :
+    delta (st.S t) (x : ZMod t) ≤ delta (st.S t) (greedyChoice t st hB : ZMod t) :=
+  (exists_greedy_element t st hB).choose_spec.2 x hx
+
+/-- Recursive trajectory of greedy states.
+    If remaining candidates are non-empty and j < K, pick the greedy element. -/
+noncomputable def greedySeq (fc : FiniteConditions) : ℕ → GreedyState fc.A
+  | 0 => initialGreedyState fc.A
+  | j + 1 =>
+    if j < fc.K then
+      let st := greedySeq fc j
+      if hB : st.B.Nonempty then
+        nextState st (greedyChoice fc.t st hB) (greedyChoice_mem fc.t st hB)
+      else st
+    else greedySeq fc j
+
+/-- Base case: initial chosen set is empty, card is 0. -/
+@[simp]
+lemma greedySeq_zero_E (fc : FiniteConditions) :
+    (greedySeq fc 0).E = ∅ := rfl
+
+@[simp]
+lemma card_greedySeq_zero_E (fc : FiniteConditions) :
+    (greedySeq fc 0).E.card = 0 := by simp [greedySeq_zero_E]
+
+/-- Cardinality of chosen set E at step j <= K is exactly j. -/
+lemma card_greedySeq_E (fc : FiniteConditions) (j : ℕ) (hj : j ≤ fc.K) :
+    (greedySeq fc j).E.card = j := by
+  induction j with
+  | zero => exact card_greedySeq_zero_E fc
+  | succ j ih =>
+    have hj_lt : j < fc.K := by omega
+    have ih_j : (greedySeq fc j).E.card = j := ih (by omega)
+    have h_nonempty : (greedySeq fc j).B.Nonempty :=
+      (greedySeq fc j).B_nonempty (by omega)
+    dsimp [greedySeq]
+    rw [if_pos hj_lt, dif_pos h_nonempty]
+    rw [nextState_card]
+    rw [ih_j]
+
+/-- Subset sum inclusion: subset sums at step j are contained in total subset sums. -/
+lemma greedySeq_S_subset (fc : FiniteConditions) (j : ℕ) :
+    (greedySeq fc j).S fc.t ⊆ subsetSumsMod fc.t fc.A :=
+  subsetSumsMod_mono (greedySeq fc j).hE_sub
+
+/-- Helper for the delta increment at step j. -/
+noncomputable def greedyDelta (fc : FiniteConditions) (j : ℕ) : ℕ :=
+  if hj : j < fc.K then
+    let st := greedySeq fc j
+    have hB : st.B.Nonempty := st.B_nonempty (by rw [card_greedySeq_E fc j (by omega)]; omega)
+    delta (st.S fc.t) (greedyChoice fc.t st hB : ZMod fc.t)
+  else 0
+
+/-- Step increment formula for subset sums cardinality. -/
+lemma card_greedySeq_S_succ (fc : FiniteConditions) (j : ℕ) (hj : j < fc.K) :
+    ((greedySeq fc (j + 1)).S fc.t).card =
+      ((greedySeq fc j).S fc.t).card + greedyDelta fc j := by
+  let st := greedySeq fc j
+  have hB : st.B.Nonempty := st.B_nonempty (by rw [card_greedySeq_E fc j (by omega)]; omega)
+  have hj_card : st.E.card ≤ fc.K := by rw [card_greedySeq_E fc j (by omega)]; omega
+  have h_notMem : greedyChoice fc.t st hB ∉ st.E :=
+    (Finset.mem_sdiff.mp (greedyChoice_mem fc.t st hB)).2
+  dsimp [greedySeq]
+  rw [if_pos hj, dif_pos hB]
+  dsimp [GreedyState.S, nextState, greedyDelta]
+  rw [dif_pos hj]
+  rw [card_subsetSumsMod_insert_eq fc.t st.E (greedyChoice fc.t st hB) h_notMem]
+
+/-- Telescoping sum lower bound: sum of delta increments is bounded by the final subset sums size. -/
+lemma sum_delta_le_card_final (fc : FiniteConditions) :
+    ∑ j ∈ Finset.range fc.K, greedyDelta fc j ≤ ((greedySeq fc fc.K).S fc.t).card := by
+  have h_tel : ∀ k ≤ fc.K, ∑ j ∈ Finset.range k, greedyDelta fc j ≤ ((greedySeq fc k).S fc.t).card := by
+    intro k
+    induction k with
+    | zero =>
+      intro _
+      simp
+    | succ k ih =>
+      intro hk
+      rw [Finset.sum_range_succ]
+      have hk_lt : k < fc.K := by omega
+      have ih_k := ih (by omega)
+      have h_succ := card_greedySeq_S_succ fc k hk_lt
+      omega
+  exact h_tel fc.K (le_refl _)
+
+/-- Master telescoping bound: sum of delta increments is bounded by the total subset sums card. -/
+lemma sum_delta_le_total (fc : FiniteConditions) :
+    ∑ j ∈ Finset.range fc.K, greedyDelta fc j ≤ (subsetSumsMod fc.t fc.A).card := by
+  have h_final := sum_delta_le_card_final fc
+  have h_sub := greedySeq_S_subset fc fc.K
+  have h_card_le := Finset.card_le_card h_sub
+  omega
+
+/-- Growth steps during the greedy iteration. -/
+noncomputable def growthSteps (fc : FiniteConditions) : Finset ℕ :=
+  (Finset.range fc.K).filter (fun j => isGrowthStage fc.t fc.U (greedySeq fc j))
+
+/-- Saturated steps during the greedy iteration. -/
+noncomputable def saturatedSteps (fc : FiniteConditions) : Finset ℕ :=
+  (Finset.range fc.K).filter (fun j => isSaturatedStage fc.t fc.xi (greedySeq fc j))
+
+/-- Unsaturated steps during the greedy iteration. -/
+noncomputable def unsaturatedSteps (fc : FiniteConditions) : Finset ℕ :=
+  (Finset.range fc.K).filter (fun j => isUnsaturatedStage fc.t fc.U fc.xi (greedySeq fc j))
+
+/-- Growth and unsaturated steps are disjoint. -/
+lemma disjoint_growth_unsaturated (fc : FiniteConditions) :
+    Disjoint (growthSteps fc) (unsaturatedSteps fc) := by
+  rw [Finset.disjoint_left]
+  intro j hj_grow hj_unsat
+  simp only [growthSteps, Finset.mem_filter] at hj_grow
+  simp only [unsaturatedSteps, Finset.mem_filter] at hj_unsat
+  dsimp [isUnsaturatedStage] at hj_unsat
+  exact hj_unsat.2.1 hj_grow.2
+
+/-- Saturated, growth, and unsaturated steps cover all steps j < K. -/
+lemma steps_partition (fc : FiniteConditions) (j : ℕ) (hj : j < fc.K) :
+    j ∈ saturatedSteps fc ∨ j ∈ growthSteps fc ∨ j ∈ unsaturatedSteps fc := by
+  have hj_range : j ∈ Finset.range fc.K := Finset.mem_range.mpr hj
+  by_cases h_sat : isSaturatedStage fc.t fc.xi (greedySeq fc j)
+  · left; simp only [saturatedSteps, Finset.mem_filter, hj_range, h_sat, and_self]
+  · right
+    by_cases h_grow : isGrowthStage fc.t fc.U (greedySeq fc j)
+    · left; simp only [growthSteps, Finset.mem_filter, hj_range, h_grow, and_self]
+    · right; simp only [unsaturatedSteps, Finset.mem_filter, hj_range, true_and]; exact ⟨h_grow, h_sat⟩
+
+/-- When saturated steps are empty, unsaturated steps are bounded below by K - B_growth. -/
+lemma card_unsaturatedSteps_ge (fc : FiniteConditions)
+    (h_no_sat : saturatedSteps fc = ∅)
+    (h_growth_budget : (growthSteps fc).card ≤ fc.B_growth) :
+    fc.K - fc.B_growth ≤ (unsaturatedSteps fc).card := by
+  have h_union : Finset.range fc.K = growthSteps fc ∪ unsaturatedSteps fc := by
+    ext j
+    constructor
+    · intro hj
+      have hj_lt : j < fc.K := Finset.mem_range.mp hj
+      rcases steps_partition fc j hj_lt with h1 | h2 | h3
+      · rw [h_no_sat] at h1
+        simp at h1
+      · exact Finset.mem_union_left _ h2
+      · exact Finset.mem_union_right _ h3
+    · intro hj
+      simp only [Finset.mem_union, growthSteps, unsaturatedSteps, Finset.mem_filter] at hj
+      rcases hj with ⟨hj, _⟩ | ⟨hj, _⟩ <;> exact hj
+  have h_disj := disjoint_growth_unsaturated fc
+  have h_card_union : (Finset.range fc.K).card = (growthSteps fc).card + (unsaturatedSteps fc).card := by
+    rw [h_union, Finset.card_union_of_disjoint h_disj]
+  rw [Finset.card_range] at h_card_union
+  have hB := fc.hB_le_K
+  omega
+
+/-- CFP Lemma 5.6 Finite Conditions Version (Combinatorial Core F1 / Phase P18):
+    Under the explicit numerical and combinatorial hypotheses of FiniteConditions,
+    the modular subset sums satisfy the linear density lower bound:
+      min(xi, 32 / ell) * t ≤ |Σ_t(A)|. -/
+theorem cfp_lemma_5_6_finite_core (fc : FiniteConditions)
+    (h_growth_budget_bound : (growthSteps fc).card ≤ fc.B_growth)
+    (h_unsaturated_step_growth : ∀ j ∈ unsaturatedSteps fc, fc.D ≤ greedyDelta fc j) :
+    min fc.xi ((32 : ℝ) / (fc.ell : ℝ)) * (fc.t : ℝ) ≤ ((subsetSumsMod fc.t fc.A).card : ℝ) := by
+  by_cases h_sat_nonempty : (saturatedSteps fc).Nonempty
+  · rcases h_sat_nonempty with ⟨j, hj⟩
+    simp only [saturatedSteps, Finset.mem_filter, Finset.mem_range] at hj
+    have hj_lt := hj.1
+    have hj_sat := hj.2
+    have hj_card : (greedySeq fc j).E.card ≤ fc.K := by
+      rw [card_greedySeq_E fc j (by omega)]
+      omega
+    have h_sat_bound := card_subsetSumsMod_ge_of_saturated fc (greedySeq fc j) hj_card hj_sat
+    have h_min_le : min fc.xi ((32 : ℝ) / (fc.ell : ℝ)) ≤ fc.xi := min_le_left _ _
+    have ht_nonneg : 0 ≤ (fc.t : ℝ) := by positivity
+    have h_mul_le : min fc.xi ((32 : ℝ) / (fc.ell : ℝ)) * (fc.t : ℝ) ≤ fc.xi * (fc.t : ℝ) :=
+      mul_le_mul_of_nonneg_right h_min_le ht_nonneg
+    exact h_mul_le.trans h_sat_bound
+  · rw [Finset.nonempty_iff_ne_empty, not_not] at h_sat_nonempty
+    have h_unsat_card := card_unsaturatedSteps_ge fc h_sat_nonempty h_growth_budget_bound
+    have h_sum_ge : (unsaturatedSteps fc).card * fc.D ≤ ∑ j ∈ unsaturatedSteps fc, greedyDelta fc j := by
+      have : ∑ j ∈ unsaturatedSteps fc, fc.D ≤ ∑ j ∈ unsaturatedSteps fc, greedyDelta fc j := by
+        apply Finset.sum_le_sum
+        intro j hj
+        exact h_unsaturated_step_growth j hj
+      rw [Finset.sum_const, nsmul_eq_mul] at this
+      exact this
+    have h_sub_sum : ∑ j ∈ unsaturatedSteps fc, greedyDelta fc j ≤ ∑ j ∈ Finset.range fc.K, greedyDelta fc j := by
+      apply Finset.sum_le_sum_of_subset_of_nonneg
+      · intro j hj
+        simp only [unsaturatedSteps, Finset.mem_filter] at hj
+        exact hj.1
+      · intro j _ _
+        dsimp [greedyDelta]
+        split_ifs <;> omega
+    have h_total := sum_delta_le_total fc
+    have h_unsat_le_D : (fc.K - fc.B_growth) * fc.D ≤ (unsaturatedSteps fc).card * fc.D :=
+      Nat.mul_le_mul_right fc.D h_unsat_card
+    have h_K_sub_le : (fc.K - fc.B_growth) * fc.D ≤ (subsetSumsMod fc.t fc.A).card := by
+      omega
+    have h_K_sub_real : (fc.D : ℝ) * ((fc.K : ℝ) - (fc.B_growth : ℝ)) ≤ ((subsetSumsMod fc.t fc.A).card : ℝ) := by
+      have h_cast : (fc.D : ℝ) * ((fc.K : ℝ) - (fc.B_growth : ℝ)) = ((fc.D * (fc.K - fc.B_growth) : ℕ) : ℝ) := by
+        rw [Nat.cast_mul, Nat.cast_sub fc.hB_le_K]
+      rw [h_cast]
+      exact_mod_cast (by rw [mul_comm] at h_K_sub_le; exact h_K_sub_le)
+    have h_budget := fc.h_growth_budget
+    have h_density_le : (32 : ℝ) / (fc.ell : ℝ) * (fc.t : ℝ) ≤ ((subsetSumsMod fc.t fc.A).card : ℝ) :=
+      h_budget.trans h_K_sub_real
+    have h_min_le : min fc.xi ((32 : ℝ) / (fc.ell : ℝ)) ≤ (32 : ℝ) / (fc.ell : ℝ) := min_le_right _ _
+    have ht_nonneg : 0 ≤ (fc.t : ℝ) := by positivity
+    have h_mul_le : min fc.xi ((32 : ℝ) / (fc.ell : ℝ)) * (fc.t : ℝ) ≤ (32 : ℝ) / (fc.ell : ℝ) * (fc.t : ℝ) :=
+      mul_le_mul_of_nonneg_right h_min_le ht_nonneg
+    exact h_mul_le.trans h_density_le
+
+
+/-!
+### 21. Parameter Instantiation, Arithmetic Adapter & Non-Vacuity (Phase P19)
+
+Number-theoretic rough candidate infrastructure (CFP §5.1, Lemma 5.3 & Phase P11),
+concrete non-vacuous realizability of FiniteConditions, arithmetic parameter configuration,
+and CFP Lemma 5.6 master specialization for m = n.
+-/
+
+/-- Example concrete instance of FiniteConditions proving non-vacuity and satisfiability. -/
+noncomputable def concreteFiniteConditions : FiniteConditions where
+  t := 20
+  ht_pos := by decide
+  A := {1, 3, 7}
+  hA_pos := by
+    intro a ha
+    fin_cases ha <;> decide
+  v := 1
+  hv_pos := by decide
+  K := 2
+  M := 1
+  hM_pos := by decide
+  k_div := 1
+  U := 9
+  hU_pos := by decide
+  D := 1
+  hD_pos := by decide
+  gMax := 1
+  hgMax_pos := by decide
+  xi := (1 : ℝ) / 128
+  hxi_pos := by norm_num
+  ell := 1024
+  hell_pos := by decide
+  B_growth := 0
+  hB_le_K := by decide
+  hK_add_M_le := by decide
+  hA_diverse := by
+    intro d hd
+    have h_not_dvd_one : ¬ d ∣ 1 := by
+      intro h_dvd
+      have : d ≤ 1 := Nat.le_of_dvd (by decide) h_dvd
+      omega
+    have h_mem_filter : 1 ∈ ({1, 3, 7} : Finset ℕ).filter (fun x => ¬ d ∣ x) := by
+      simp only [Finset.mem_filter, Finset.mem_insert, true_or, true_and]
+      exact h_not_dvd_one
+    have h_card_ge := Finset.card_le_card (Finset.singleton_subset_iff.mpr h_mem_filter)
+    rw [Finset.card_singleton] at h_card_ge
+    exact h_card_ge
+  h_subgroup_le := by
+    intro B hB hM
+    have h_nonempty : B.Nonempty := by
+      rw [Finset.nonempty_iff_ne_empty]
+      intro h_empty
+      subst h_empty
+      simp only [Finset.card_empty] at hM
+      omega
+    rcases h_nonempty with ⟨b, hb⟩
+    have hb_A := hB hb
+    dsimp [subgroupIndex]
+    have h_dvd_gcd : Finset.gcd B id ∣ b := Finset.gcd_dvd hb
+    have h_gcd_dvd_b : Nat.gcd 20 (Finset.gcd B id) ∣ Nat.gcd 20 b :=
+      Nat.dvd_gcd (Nat.gcd_dvd_left 20 _) (dvd_trans (Nat.gcd_dvd_right 20 _) h_dvd_gcd)
+    have hb_cases : b = 1 ∨ b = 3 ∨ b = 7 := by
+      fin_cases hb_A <;> simp
+    rcases hb_cases with rfl | rfl | rfl
+    · have h1 : Nat.gcd 20 1 = 1 := by decide
+      rw [h1] at h_gcd_dvd_b
+      exact Nat.le_of_dvd (by decide) h_gcd_dvd_b
+    · have h3 : Nat.gcd 20 3 = 1 := by decide
+      rw [h3] at h_gcd_dvd_b
+      exact Nat.le_of_dvd (by decide) h_gcd_dvd_b
+    · have h7 : Nat.gcd 20 7 = 1 := by decide
+      rw [h7] at h_gcd_dvd_b
+      exact Nat.le_of_dvd (by decide) h_gcd_dvd_b
+  h_subgroup_diverse := by
+    intro B hB hM
+    have h_le : subgroupIndex 20 B ≤ 1 := by
+      have h_nonempty : B.Nonempty := by
+        rw [Finset.nonempty_iff_ne_empty]
+        intro h_empty
+        subst h_empty
+        simp only [Finset.card_empty] at hM
+        omega
+      rcases h_nonempty with ⟨b, hb⟩
+      have hb_A := hB hb
+      dsimp [subgroupIndex]
+      have h_dvd_gcd : Finset.gcd B id ∣ b := Finset.gcd_dvd hb
+      have h_gcd_dvd_b : Nat.gcd 20 (Finset.gcd B id) ∣ Nat.gcd 20 b :=
+        Nat.dvd_gcd (Nat.gcd_dvd_left 20 _) (dvd_trans (Nat.gcd_dvd_right 20 _) h_dvd_gcd)
+      have hb_cases : b = 1 ∨ b = 3 ∨ b = 7 := by
+        fin_cases hb_A <;> simp
+      rcases hb_cases with rfl | rfl | rfl
+      · rw [show Nat.gcd 20 1 = 1 by decide] at h_gcd_dvd_b
+        exact Nat.le_of_dvd (by decide) h_gcd_dvd_b
+      · rw [show Nat.gcd 20 3 = 1 by decide] at h_gcd_dvd_b
+        exact Nat.le_of_dvd (by decide) h_gcd_dvd_b
+      · rw [show Nat.gcd 20 7 = 1 by decide] at h_gcd_dvd_b
+        exact Nat.le_of_dvd (by decide) h_gcd_dvd_b
+    omega
+  h_small_fiber_bound := by decide
+  h_growth_threshold := by decide
+  h_growth_budget := by norm_num
+
+/-- Non-vacuity theorem: FiniteConditions is non-empty and realizable. -/
+theorem finiteConditions_realizable : Nonempty FiniteConditions :=
+  ⟨concreteFiniteConditions⟩
+
+/-- Primorial W associated with a finite set of primes P: product of all primes in P. -/
+def primorialProd (P : Finset ℕ) : ℕ :=
+  ∏ p ∈ P, p
+
+/-- The canonical Conlon–Fox–Pham ratio τ(W, m) = φ(W * m) / (W * m). -/
+noncomputable def cfpTau (W m : ℕ) : ℝ :=
+  (Nat.totient (W * m) : ℝ) / ((W * m : ℕ) : ℝ)
+
+/-- Strict positivity of τ(W, m) when W and m are positive. -/
+lemma cfpTau_pos (W m : ℕ) (hW : 0 < W) (hm : 0 < m) : 0 < cfpTau W m := by
+  dsimp [cfpTau]
+  have h_prod : 0 < W * m := Nat.mul_pos hW hm
+  have h_tot : 0 < Nat.totient (W * m) := Nat.totient_pos.mpr h_prod
+  positivity
+
+/-- Number-theoretic rough candidate membership in Y(y, m, W) (CFP §5.1 / Phase P11). -/
+def inY (y m W : ℕ) (a : ℕ) : Prop :=
+  y ≤ a ∧ a < 2 * y ∧
+  ∃ q u : ℕ, a = q * u ∧ u ∣ m ∧ u ^ 16 ≤ y ∧ q.Coprime (W * m)
+
+/-- Scaled candidate membership in Y_v(y, m, W, v) (CFP §5.1 / Phase P11). -/
+def inY_v (y m W v : ℕ) (a : ℕ) : Prop :=
+  y ≤ v * a ∧ v * a < 2 * y ∧
+  ∃ q u : ℕ, a = q * u ∧ (v * u) ∣ m ∧ (v * u) ^ 16 ≤ y ∧ q.Coprime (W * m)
+
+/-- Multiplication by v maps candidates from Y_v to Y (Phase P11-A bridge). -/
+lemma mem_Y_of_mem_Y_v (y m W v a : ℕ) (ha : inY_v y m W v a) : inY y m W (v * a) := by
+  rcases ha with ⟨h_ge, h_lt, q, u, rfl, h_dvd, h_pow, h_coprime⟩
+  refine ⟨h_ge, h_lt, q, v * u, ?_, h_dvd, h_pow, h_coprime⟩
+  ring
+
+/-- Arithmetic parameter configuration for Conlon–Fox–Pham Lemma 5.6.
+    Explicitly bundles number-theoretic data (target n, scaling v, modulus t, set A)
+    and maps them to the verified discrete interface FiniteConditions. -/
+structure CFPArithParams where
+  n : ℕ                  -- Target integer (m = n for Erdős Problem 360)
+  hn : 2 ≤ n
+  t : ℕ                  -- Modulus of subset sums
+  ht_pos : 0 < t
+  A : Finset ℕ           -- Candidate subset
+  hA_pos : ∀ a ∈ A, 0 < a
+  v : ℕ                  -- Divisor scaling factor
+  hv_pos : 0 < v
+  hvn : v ∣ n            -- v divides n (since m = n)
+  K : ℕ                  -- Greedy iteration step count
+  M : ℕ                  -- Minimum remaining candidates
+  hM_pos : 0 < M
+  k_div : ℕ              -- Diversity parameter
+  U : ℕ                  -- Small-fiber threshold
+  hU_pos : 0 < U
+  D : ℕ                  -- Translation increment threshold
+  hD_pos : 0 < D
+  gMax : ℕ               -- Max subgroup index bound
+  hgMax_pos : 0 < gMax
+  xi : ℝ                 -- Linear density constant
+  hxi_pos : 0 < xi
+  ell : ℕ                -- Chromatic parameter
+  hell_pos : 0 < ell
+  B_growth : ℕ           -- Growth step budget
+  hB_le_K : B_growth ≤ K
+
+  -- Numerical and Combinatorial Conditions:
+  hK_add_M_le : K + M ≤ A.card
+  hA_diverse : IsDiverse A k_div
+  h_subgroup_le : ∀ B ⊆ A, M ≤ B.card → subgroupIndex t B ≤ gMax
+  h_subgroup_diverse : ∀ B ⊆ A, M ≤ B.card → subgroupIndex t B - 1 ≤ k_div
+  h_small_fiber_bound : U < t / (2 * gMax)
+  h_growth_threshold : 8 * D < U
+  h_growth_budget : (32 : ℝ) / (ell : ℝ) * (t : ℝ) ≤ (D * (K - B_growth) : ℝ)
+
+/-- Canonical mapping from CFPArithParams to the verified FiniteConditions structure. -/
+def CFPArithParams.toFiniteConditions (p : CFPArithParams) : FiniteConditions where
+  t := p.t
+  ht_pos := p.ht_pos
+  A := p.A
+  hA_pos := p.hA_pos
+  v := p.v
+  hv_pos := p.hv_pos
+  K := p.K
+  M := p.M
+  hM_pos := p.hM_pos
+  k_div := p.k_div
+  U := p.U
+  hU_pos := p.hU_pos
+  D := p.D
+  hD_pos := p.hD_pos
+  gMax := p.gMax
+  hgMax_pos := p.hgMax_pos
+  xi := p.xi
+  hxi_pos := p.hxi_pos
+  ell := p.ell
+  hell_pos := p.hell_pos
+  B_growth := p.B_growth
+  hB_le_K := p.hB_le_K
+  hK_add_M_le := p.hK_add_M_le
+  hA_diverse := p.hA_diverse
+  h_subgroup_le := p.h_subgroup_le
+  h_subgroup_diverse := p.h_subgroup_diverse
+  h_small_fiber_bound := p.h_small_fiber_bound
+  h_growth_threshold := p.h_growth_threshold
+  h_growth_budget := p.h_growth_budget
+
+/-- CFP Lemma 5.6 Specialized to m = n (Phase P19 Master Theorem):
+    For any valid arithmetic parameter configuration p : CFPArithParams,
+    if the growth budget bound and unsaturated step growth hold,
+    then the modular subset sums satisfy the linear density bound:
+      min(xi, 32 / ell) * t ≤ |Σ_t(A)|. -/
+theorem cfp_lemma_5_6_m_eq_n (p : CFPArithParams)
+    (h_growth_budget_bound : (growthSteps p.toFiniteConditions).card ≤ p.B_growth)
+    (h_unsaturated_step_growth : ∀ j ∈ unsaturatedSteps p.toFiniteConditions, p.D ≤ greedyDelta p.toFiniteConditions j) :
+    min p.xi ((32 : ℝ) / (p.ell : ℝ)) * (p.t : ℝ) ≤ ((subsetSumsMod p.t p.A).card : ℝ) :=
+  cfp_lemma_5_6_finite_core p.toFiniteConditions h_growth_budget_bound h_unsaturated_step_growth
+
+/-- Connection to Diverse Lower Bound Witness:
+    If subset sums achieve target hitting in the quotient under scaling factor v,
+    a CFPDiverseWitness n k guarantees the chromatic lower bound k + 1 ≤ f(n). -/
+theorem chromatic_lower_bound_of_diverse_density (n k : ℕ) (hn : 2 ≤ n)
+    (w : CFPDiverseWitness n k) :
+    k + 1 ≤ minColors n hn :=
+  minColors_ge_of_cfp_diverse_witness n k hn w
+
+
+/-!
+### 22. Diverse Subset Extraction and Subsampling (Conlon–Fox–Pham 2021, Lemma 5.4 / Phase 21)
+
+This section establishes deterministic and interface theorems for extracting diverse subsets
+from a given diverse candidate set, as required by CFP §5.1 Lemma 5.4:
+1. Exact filter difference bounds and controlled diversity loss under subset extraction.
+2. Diversity retention under element-wise and finset-wise removal (A \ E is (k - |E|)-diverse).
+3. Application to greedy iteration state machine: remaining candidates st.B retain diversity.
+4. Formal mathematical specification of CFP Lemma 5.4 subsampling interface.
+5. Deterministic realization of Lemma 5.4 under controlled loss.
+-/
+
+/-- Difference of filtered non-divisible sets is contained in the difference of sets. -/
+lemma filter_not_dvd_sdiff_subset (A B : Finset ℕ) (d : ℕ) :
+    ((A.filter (fun x => ¬ d ∣ x)) \ (B.filter (fun x => ¬ d ∣ x))) ⊆ A \ B := by
+  intro x hx
+  simp only [Finset.mem_sdiff, Finset.mem_filter] at hx ⊢
+  refine ⟨hx.1.1, ?_⟩
+  intro hxB
+  exact hx.2 ⟨hxB, hx.1.2⟩
+
+/-- Auxiliary: cardinality of difference for a subset. -/
+lemma card_sdiff_of_subset {α : Type*} [DecidableEq α] {A B : Finset α} (hBA : B ⊆ A) :
+    (A \ B).card = A.card - B.card := by
+  rw [Finset.card_sdiff, Finset.inter_eq_left.mpr hBA]
+
+/-- Upper bound on the loss of non-divisible elements when passing to a subset. -/
+lemma card_filter_not_dvd_le_card_add_sdiff (A B : Finset ℕ) (d : ℕ) :
+    (A.filter (fun x => ¬ d ∣ x)).card ≤
+      (B.filter (fun x => ¬ d ∣ x)).card + (A \ B).card := by
+  have h_sub : (A.filter (fun x => ¬ d ∣ x)) ⊆
+      (B.filter (fun x => ¬ d ∣ x)) ∪ (A \ B) := by
+    intro x hx
+    simp only [Finset.mem_filter] at hx
+    by_cases hxB : x ∈ B
+    · exact Finset.mem_union_left _ (Finset.mem_filter.mpr ⟨hxB, hx.2⟩)
+    · exact Finset.mem_union_right _ (Finset.mem_sdiff.mpr ⟨hx.1, hxB⟩)
+  have h_card := Finset.card_le_card h_sub
+  have h_union := Finset.card_union_le (B.filter (fun x => ¬ d ∣ x)) (A \ B)
+  exact h_card.trans h_union
+
+/-- Deterministic Diversity Preservation Theorem (Generalizing CFP Lemma 5.4):
+    If A is k-diverse and B ⊆ A satisfies |A| - |B| ≤ k - k', then B is k'-diverse. -/
+theorem isDiverse_subset_of_card_diff_le {A B : Finset ℕ} {k k' : ℕ}
+    (hA : IsDiverse A k) (hBA : B ⊆ A)
+    (h_loss : A.card - B.card ≤ k - k')
+    (hk' : k' ≤ k) :
+    IsDiverse B k' := by
+  intro d hd
+  have h_bound := card_filter_not_dvd_le_card_add_sdiff A B d
+  rw [card_sdiff_of_subset hBA] at h_bound
+  have h_div := hA d hd
+  omega
+
+/-- Removing a single element from a k-diverse set leaves a (k - 1)-diverse set. -/
+lemma isDiverse_sdiff_singleton {A : Finset ℕ} {k : ℕ} (x : ℕ)
+    (hA : IsDiverse A k) (hx : x ∈ A) (hk : 1 ≤ k) :
+    IsDiverse (A \ {x}) (k - 1) := by
+  have h_sub : {x} ⊆ A := Finset.singleton_subset_iff.mpr hx
+  have h_card : (A \ {x}).card = A.card - 1 := by
+    rw [card_sdiff_of_subset h_sub, Finset.card_singleton]
+  apply isDiverse_subset_of_card_diff_le hA Finset.sdiff_subset _ (by omega)
+  rw [h_card]
+  have : 1 ≤ A.card := by
+    have := Finset.card_pos.mpr ⟨x, hx⟩
+    omega
+  omega
+
+/-- Removing any subset E ⊆ A of size r ≤ k leaves a (k - r)-diverse set. -/
+theorem isDiverse_sdiff_finset {A E : Finset ℕ} {k : ℕ}
+    (hA : IsDiverse A k) (hEA : E ⊆ A) (hr : E.card ≤ k) :
+    IsDiverse (A \ E) (k - E.card) := by
+  have h_card : (A \ E).card = A.card - E.card := card_sdiff_of_subset hEA
+  apply isDiverse_subset_of_card_diff_le hA Finset.sdiff_subset _ (by omega)
+  rw [h_card]
+  have : E.card ≤ A.card := Finset.card_le_card hEA
+  omega
+
+/-- The remaining candidate set st.B in GreedyState retains diversity k_div - |E|. -/
+lemma GreedyState.isDiverse_B {fc : FiniteConditions} (st : GreedyState fc.A)
+    (h_card : st.E.card ≤ fc.k_div) :
+    IsDiverse st.B (fc.k_div - st.E.card) :=
+  isDiverse_sdiff_finset fc.hA_diverse st.hE_sub h_card
+
+/-- Existence of a diverse subset of any prescribed size s with controlled loss. -/
+theorem exists_diverse_subset_of_card_eq {A : Finset ℕ} {k k' s : ℕ}
+    (hA : IsDiverse A k) (hs_le : s ≤ A.card)
+    (h_loss : A.card - s ≤ k - k') (hk' : k' ≤ k) :
+    ∃ B ⊆ A, B.card = s ∧ IsDiverse B k' := by
+  obtain ⟨B, hBA, hB_card⟩ := Finset.exists_subset_card_eq hs_le
+  refine ⟨B, hBA, hB_card, ?_⟩
+  apply isDiverse_subset_of_card_diff_le hA hBA _ hk'
+  rw [hB_card]
+  exact h_loss
+
+/-- Formal mathematical specification of Conlon–Fox–Pham Lemma 5.4 Subsampling Interface:
+    For parameters k, h with h ≥ 2, a k-diverse set admits a subset B of size at least
+    |A| / h that retains diversity at least k / (2 * h). -/
+def CFPLemma54Statement (k h : ℕ) : Prop :=
+  ∀ (A : Finset ℕ), IsDiverse A k →
+    ∃ B ⊆ A, A.card / h ≤ B.card ∧ IsDiverse B (k / (2 * h))
+
+/-- Deterministic realization of CFP Lemma 5.4:
+    Whenever the cardinality loss condition holds, Lemma 5.4 is unconditionally satisfied. -/
+theorem cfp_lemma_5_4_of_deterministic (k h : ℕ) (_hh : 2 ≤ h)
+    (h_cond : ∀ A : Finset ℕ, IsDiverse A k → A.card - A.card / h ≤ k - k / (2 * h)) :
+    CFPLemma54Statement k h := by
+  intro A hA
+  obtain ⟨B, hBA, hB_card, hB_div⟩ := exists_diverse_subset_of_card_eq
+    hA (Nat.div_le_self A.card h) (h_cond A hA) (Nat.div_le_self k (2 * h))
+  refine ⟨B, hBA, by rw [hB_card], hB_div⟩
+
+/-- Any k-diverse set with k ≥ 1 has greatest common divisor at most 1. -/
+lemma isDiverse_gcd_le_one {A : Finset ℕ} {k : ℕ} (hA : IsDiverse A k) (hk : 1 ≤ k) :
+    A.gcd id ≤ 1 := by
+  by_contra! h
+  have hd : 2 ≤ A.gcd id := h
+  have h_div := hA (A.gcd id) hd
+  have h_empty : A.filter (fun x => ¬ A.gcd id ∣ x) = ∅ := by
+    rw [Finset.filter_eq_empty_iff]
+    intro x hxA
+    intro h_not_dvd
+    exact h_not_dvd (Finset.gcd_dvd hxA)
+  rw [h_empty, Finset.card_empty] at h_div
+  omega
+
+/-- Any k-diverse set with k ≥ 1 containing at least one positive element has gcd equal to 1. -/
+lemma isDiverse_gcd_eq_one {A : Finset ℕ} {k : ℕ} (hA : IsDiverse A k) (hk : 1 ≤ k)
+    (h_pos : ∃ x ∈ A, 0 < x) :
+    A.gcd id = 1 := by
+  have h_le := isDiverse_gcd_le_one hA hk
+  obtain ⟨x, hx, hx_pos⟩ := h_pos
+  have h_dvd : A.gcd id ∣ x := Finset.gcd_dvd hx
+  have h_ne_zero : A.gcd id ≠ 0 := by
+    intro h0
+    rw [h0] at h_dvd
+    have : x = 0 := Nat.eq_zero_of_zero_dvd h_dvd
+    omega
+  omega
+
+/-- The subgroup index of a k-diverse set with k ≥ 1 containing a positive element is 1. -/
+lemma subgroupIndex_eq_one_of_isDiverse (t : ℕ) {B : Finset ℕ} {k : ℕ}
+    (hB : IsDiverse B k) (hk : 1 ≤ k) (h_pos : ∃ x ∈ B, 0 < x) :
+    subgroupIndex t B = 1 := by
+  dsimp [subgroupIndex]
+  rw [isDiverse_gcd_eq_one hB hk h_pos, Nat.gcd_one_right]
+
+
+/-- Two-stage disjoint diverse subset extraction:
+    From a k-diverse set A, we can extract two disjoint subsets A₁ and A₂ of prescribed
+    sizes s₁ and s₂ that retain k₁- and k₂-diversity respectively, provided the loss is controlled. -/
+theorem exists_disjoint_diverse_subsets {A : Finset ℕ} {k k₁ k₂ s₁ s₂ : ℕ}
+    (hA : IsDiverse A k)
+    (hs_sum : s₁ + s₂ ≤ A.card)
+    (h_loss₁ : A.card - s₁ ≤ k - k₁)
+    (h_loss₂ : A.card - s₂ ≤ k - k₂)
+    (hk₁ : k₁ ≤ k) (hk₂ : k₂ ≤ k) :
+    ∃ A₁ A₂ : Finset ℕ,
+      A₁ ⊆ A ∧ A₂ ⊆ A ∧
+      Disjoint A₁ A₂ ∧
+      A₁.card = s₁ ∧ A₂.card = s₂ ∧
+      IsDiverse A₁ k₁ ∧ IsDiverse A₂ k₂ := by
+  obtain ⟨U, hUA, hU_card⟩ := Finset.exists_subset_card_eq hs_sum
+  have hs1_le_U : s₁ ≤ U.card := by omega
+  obtain ⟨A₁, hA1_U, hA1_card⟩ := Finset.exists_subset_card_eq hs1_le_U
+  let A₂ := U \ A₁
+  have hA2_sub : A₂ ⊆ A := Finset.sdiff_subset.trans hUA
+  have hA1_A : A₁ ⊆ A := hA1_U.trans hUA
+  have h_disj : Disjoint A₁ A₂ := by
+    rw [Finset.disjoint_left]
+    intro x hx1 hx2
+    simp only [A₂, Finset.mem_sdiff] at hx2
+    exact hx2.2 hx1
+  have hA2_card : A₂.card = s₂ := by
+    dsimp [A₂]
+    rw [card_sdiff_of_subset hA1_U, hU_card, hA1_card]
+    omega
+  refine ⟨A₁, A₂, hA1_A, hA2_sub, h_disj, hA1_card, hA2_card, ?_, ?_⟩
+  · apply isDiverse_subset_of_card_diff_le hA hA1_A _ hk₁
+    rw [hA1_card]
+    exact h_loss₁
+  · apply isDiverse_subset_of_card_diff_le hA hA2_sub _ hk₂
+    rw [hA2_card]
+    exact h_loss₂
+
+/-- End-to-end Divisor-Extraction and Diversity Preservation Pipeline:
+    Given a scaling factor v > 0 and a t-diverse set Q with v * Q ⊆ A₀,
+    subsampling via Lemma 5.4 extracts a diverse candidate set A ⊆ Q
+    of prescribed target size s retaining k'-diversity, with v * A ⊆ A₀. -/
+theorem exists_scaled_diverse_candidate (A₀ : Finset ℕ) (B t s k' : ℕ)
+    (hk' : k' ≤ t)
+    (v : ℕ) (Q : Finset ℕ)
+    (_hv : 0 < v)
+    (hQ_bnd : ∀ x ∈ Q, 1 ≤ x ∧ v * x ≤ B)
+    (hQ_img : Q.image (fun x => v * x) ⊆ A₀)
+    (hQ_div : IsDiverse Q t)
+    (hs_le : s ≤ Q.card)
+    (h_loss : Q.card - s ≤ t - k') :
+    ∃ (A : Finset ℕ),
+      (∀ x ∈ A, 1 ≤ x ∧ v * x ≤ B) ∧
+      A.image (fun x => v * x) ⊆ A₀ ∧
+      A.card = s ∧
+      IsDiverse A k' := by
+  obtain ⟨A, hAQ, hA_card, hA_div⟩ :=
+    exists_diverse_subset_of_card_eq hQ_div hs_le h_loss hk'
+  refine ⟨A, ?_, ?_, hA_card, hA_div⟩
+  · intro x hx
+    exact hQ_bnd x (hAQ hx)
+  · have h_img_sub : A.image (fun x => v * x) ⊆ Q.image (fun x => v * x) :=
+      Finset.image_subset_image hAQ
+    exact h_img_sub.trans hQ_img
+
+/-- Candidate set from diverse extraction satisfies the FiniteConditions diversity and capacity requirements:
+    If Q is t-diverse and A ⊆ Q of size K + M has loss at most t - k_div,
+    then A satisfies K + M ≤ |A| and IsDiverse A k_div. -/
+lemma diverse_candidate_satisfies_finiteConditions {Q : Finset ℕ} {t K M k_div : ℕ}
+    (hQ : IsDiverse Q t)
+    (hs_le : K + M ≤ Q.card)
+    (h_loss : Q.card - (K + M) ≤ t - k_div)
+    (hk_div : k_div ≤ t) :
+    ∃ A ⊆ Q, K + M ≤ A.card ∧ IsDiverse A k_div := by
+  obtain ⟨A, hAQ, hA_card, hA_div⟩ :=
+    exists_diverse_subset_of_card_eq hQ hs_le h_loss hk_div
+  exact ⟨A, hAQ, by omega, hA_div⟩
+
+/-- Full mathematical specification of Conlon–Fox–Pham Lemma 5.4 Subsampling Interface:
+    For parameters k, h with h ≥ 2 and range bound N, any k-diverse subset of [1, N]
+    contains a subset B of size |A| / h that retains k / (2 * h) diversity. -/
+def CFPLemma54FullStatement (k h N : ℕ) : Prop :=
+  ∀ (A : Finset ℕ), A ⊆ Finset.Icc 1 N → IsDiverse A k →
+    ∃ B ⊆ A, B.card = A.card / h ∧ IsDiverse B (k / (2 * h))
+
+/-- Realization of full CFP Lemma 5.4 under deterministic loss budget:
+    Whenever the loss budget holds, every k-diverse subset admits a diverse subsample of exact size |A| / h. -/
+theorem cfp_lemma_5_4_full_of_deterministic (k h N : ℕ) (_hh : 2 ≤ h)
+    (h_cond : ∀ A : Finset ℕ, A ⊆ Finset.Icc 1 N → IsDiverse A k → A.card - A.card / h ≤ k - k / (2 * h)) :
+    CFPLemma54FullStatement k h N := by
+  intro A hAN hA
+  obtain ⟨B, hBA, hB_card, hB_div⟩ := exists_diverse_subset_of_card_eq
+    hA (Nat.div_le_self A.card h) (h_cond A hAN hA) (Nat.div_le_self k (2 * h))
+  exact ⟨B, hBA, hB_card, hB_div⟩
+
+/-- Subsets of size s that retain k'-diversity. -/
+noncomputable def CFPLemma54Subsets (A : Finset ℕ) (s k' : ℕ) : Finset (Finset ℕ) :=
+  (A.powersetCard s).filter (fun B => IsDiverse B k')
+
+/-- When the loss condition holds, EVERY subset of size s is k'-diverse. -/
+theorem cfp_lemma_5_4_all_subsets_diverse {A : Finset ℕ} {s k k' : ℕ}
+    (hA : IsDiverse A k)
+    (h_loss : A.card - s ≤ k - k')
+    (hk' : k' ≤ k) :
+    CFPLemma54Subsets A s k' = A.powersetCard s := by
+  ext B
+  simp only [CFPLemma54Subsets, Finset.mem_filter, Finset.mem_powersetCard, and_iff_left_iff_imp]
+  rintro ⟨hBA, hB_card⟩
+  apply isDiverse_subset_of_card_diff_le hA hBA _ hk'
+  rw [hB_card]
+  exact h_loss
+
+/-- Exact count of diverse subsets when loss is controlled:
+    all (Nat.choose |A| s) subsets are diverse. -/
+theorem card_CFPLemma54Subsets_eq {A : Finset ℕ} {s k k' : ℕ}
+    (hA : IsDiverse A k)
+    (h_loss : A.card - s ≤ k - k')
+    (hk' : k' ≤ k) :
+    (CFPLemma54Subsets A s k').card = Nat.choose A.card s := by
+  rw [cfp_lemma_5_4_all_subsets_diverse hA h_loss hk', Finset.card_powersetCard]
+
+
+
 
 /-- Unconditional Two-Sided Master Theorem for Erdős Problem JSP-000298:
     For all n ≥ 3, the chromatic number f(n) is unconditionally non-trivial (f(n) ≥ 2)
@@ -4064,3 +5977,96 @@ end Erdos298
 #print axioms Erdos298.subsetSumsMod_image_zmodProj
 #print axioms Erdos298.card_subsetSumsMod_dvd_mul_card_le
 #print axioms Erdos298.card_mul_card_subsetSumsMod_dvd_le_of_isDiverse
+
+#print axioms Erdos298.delta_add_le
+#print axioms Erdos298.delta_sum_le_mul_of_forall_le
+#print axioms Erdos298.delta_sum_le_mul_of_forall_le_real
+#print axioms Erdos298.card_smallGrowth_mul_le
+#print axioms Erdos298.card_smallGrowth_le_div
+#print axioms Erdos298.card_smallGrowthR_mul_le
+#print axioms Erdos298.card_smallGrowthR_le_div
+#print axioms Erdos298.exists_mem_large_growth
+#print axioms Erdos298.exists_mem_large_growth_real
+#print axioms Erdos298.card_subsetSumsMod_insert_eq
+#print axioms Erdos298.natCast_zmod_injOn_Ico
+#print axioms Erdos298.card_image_natCast_zmod_of_Ico
+
+#print axioms Erdos298.cochrane_ostergaard_spencer_arith_le
+#print axioms Erdos298.iterSum_growth_bound_of_kneser_data
+#print axioms Erdos298.iterSum_card_ge_of_kneser_hyp
+#print axioms Erdos298.iterSum_card_ge_of_kneser_hyp_real
+#print axioms Erdos298.subgroupIndex_pos
+#print axioms Erdos298.subgroupIndex_dvd_modulus
+#print axioms Erdos298.subgroupIndex_dvd_mem
+#print axioms Erdos298.subgroupIndex_mono
+#print axioms Erdos298.subgroupIndex_doubles_of_lt
+#print axioms Erdos298.subgroupIndex_le_of_mem
+#print axioms Erdos298.subgroupIndex_le_modulus
+#print axioms Erdos298.subgroupIndex_scaled_coprime
+#print axioms Erdos298.natCast_zmod_div_injOn_Ico
+#print axioms Erdos298.card_image_natCast_zmod_div_of_Ico
+#print axioms Erdos298.card_eq_sum_image_fibers
+#print axioms Erdos298.delta_fiber_le_delta
+#print axioms Erdos298.card_centerFiber
+#print axioms Erdos298.centerFiber_subset_kernel
+#print axioms Erdos298.delta_centerFiber_eq
+
+#print axioms Erdos298.IntAP.card_toFinset
+#print axioms Erdos298.cosetAPLift_card
+#print axioms Erdos298.coset_family_length_sum_eq
+#print axioms Erdos298.coset_family_length_sum_le_three_mul
+#print axioms Erdos298.GreedyState.card_B
+#print axioms Erdos298.GreedyState.B_card_ge
+#print axioms Erdos298.GreedyState.B_nonempty
+#print axioms Erdos298.exists_greedy_element
+#print axioms Erdos298.nextState_card
+#print axioms Erdos298.nextState_S_mono
+#print axioms Erdos298.nextState_g_dvd
+#print axioms Erdos298.subsetSumsMod_eq_of_compl_dvd
+#print axioms Erdos298.card_ge_of_fibers_ge
+#print axioms Erdos298.mul_div_cancel_of_pos
+#print axioms Erdos298.card_subsetSumsMod_ge_of_saturated
+
+#print axioms Erdos298.card_smallGrowth_half_le
+#print axioms Erdos298.exists_large_growth_of_two_mul_lt
+#print axioms Erdos298.floor_mul_succ_gt
+#print axioms Erdos298.range2_arith_contradiction
+#print axioms Erdos298.card_greedySeq_E
+#print axioms Erdos298.greedySeq_S_subset
+#print axioms Erdos298.card_greedySeq_S_succ
+#print axioms Erdos298.sum_delta_le_card_final
+#print axioms Erdos298.sum_delta_le_total
+#print axioms Erdos298.disjoint_growth_unsaturated
+#print axioms Erdos298.steps_partition
+#print axioms Erdos298.card_unsaturatedSteps_ge
+#print axioms Erdos298.cfp_lemma_5_6_finite_core
+
+#print axioms Erdos298.concreteFiniteConditions
+#print axioms Erdos298.finiteConditions_realizable
+#print axioms Erdos298.primorialProd
+#print axioms Erdos298.cfpTau
+#print axioms Erdos298.cfpTau_pos
+#print axioms Erdos298.mem_Y_of_mem_Y_v
+#print axioms Erdos298.CFPArithParams.toFiniteConditions
+#print axioms Erdos298.cfp_lemma_5_6_m_eq_n
+#print axioms Erdos298.chromatic_lower_bound_of_diverse_density
+
+#print axioms Erdos298.filter_not_dvd_sdiff_subset
+#print axioms Erdos298.card_sdiff_of_subset
+#print axioms Erdos298.card_filter_not_dvd_le_card_add_sdiff
+#print axioms Erdos298.isDiverse_subset_of_card_diff_le
+#print axioms Erdos298.isDiverse_sdiff_singleton
+#print axioms Erdos298.isDiverse_sdiff_finset
+#print axioms Erdos298.GreedyState.isDiverse_B
+#print axioms Erdos298.exists_diverse_subset_of_card_eq
+#print axioms Erdos298.cfp_lemma_5_4_of_deterministic
+#print axioms Erdos298.isDiverse_gcd_le_one
+#print axioms Erdos298.isDiverse_gcd_eq_one
+#print axioms Erdos298.subgroupIndex_eq_one_of_isDiverse
+#print axioms Erdos298.exists_disjoint_diverse_subsets
+#print axioms Erdos298.exists_scaled_diverse_candidate
+#print axioms Erdos298.diverse_candidate_satisfies_finiteConditions
+#print axioms Erdos298.cfp_lemma_5_4_full_of_deterministic
+#print axioms Erdos298.cfp_lemma_5_4_all_subsets_diverse
+#print axioms Erdos298.card_CFPLemma54Subsets_eq
+
