@@ -1,0 +1,8 @@
+id: community-curator
+name: "Community Curator"
+role: curator
+affiliation: "Justin Sun Prize Community"
+links:
+  - "https://github.com/TheJustinSunPrize/awards"
+publication_consent: null
+recusals: []

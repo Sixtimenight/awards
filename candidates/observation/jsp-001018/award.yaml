@@ -12,14 +12,23 @@ problem:
     year: 1986
 decision: null
 recipients:
-  - id: RECIPIENT-JSP-001018-A
+  - id: RECIPIENT-JSP-001018-HEGYVARI
     affiliation: ""
-    contribution_en: Mathematical solution and Lean 4 formalization evidence.
+    contribution_en: Original mathematical proof of Erdős Problem 1213 in sequences with bounded gaps (1986).
+    confirmation: null
+  - id: RECIPIENT-JSP-001018-CODEX
+    affiliation: ""
+    contribution_en: Machine-checked Lean 4 formalization of Erdős Problem 1213 with explicit threshold bound.
     confirmation: null
 verification:
-  peer_review: null
-  formal: null
+  peer_review:
+    venue: "Acta Mathematica Hungarica"
+    identifier: "https://doi.org/10.1007/BF01949112"
+    checked_via: "zbMATH 0612.10009 / MathSciNet MR0874391"
+  formal:
+    record: verification/record.yaml
+    statement: verification/statement.yaml
   independent_review: null
 conflicts: []
-status: draft
+status: under-verification
 revocation: null
