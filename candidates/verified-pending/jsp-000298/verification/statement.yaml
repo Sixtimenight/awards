@@ -23,6 +23,15 @@ statement:
     - name: "Erdos298.sieveBlock"
       from_library: false
       review: "Partitions remainder R into blocks of size at most s by enumerated index: C_j = ((R.toList.drop (j*s)).take s).toFinset."
+    - name: "Erdos298.sievePrimes"
+      from_library: false
+      review: "Specializes the prime set P = {p ≤ s | p.Prime ∧ ¬ p ∣ n}."
+    - name: "Erdos298.erdosBoundingSieve"
+      from_library: false
+      review: "Instantiates Mathlib's BoundingSieve with support Icc 1 ⌊(n-1)/(s+1)⌋ and unit density nu."
+    - name: "Erdos298.unitDensity"
+      from_library: false
+      review: "Multiplicative density function nu(d) = 1/d on positive integers."
   library:
     name: "mathlib"
     commit: "db584cd6d46c92f209a44c0f1c829460d327499d"

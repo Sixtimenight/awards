@@ -6,6 +6,11 @@ import Mathlib.Data.Finset.Card
 import Mathlib.Data.List.Basic
 import Mathlib.Order.Interval.Finset.Nat
 import Mathlib.Tactic.Ring
+import Mathlib.NumberTheory.SelbergSieve
+import Mathlib.Data.Nat.Squarefree
+import Mathlib.Data.Nat.GCD.BigOperators
+import Mathlib.Data.Real.Basic
+import Mathlib.Data.Nat.Factorization.Basic
 
 /-!
 # Erdős Problem 360 / JSP-000298: Monochromatic Subset Sums
@@ -30,6 +35,7 @@ Alon and Erdős (1996, *Acta Arithmetica* 74(3), pp. 269-272) studied this probl
 namespace Erdos298
 
 open scoped Classical
+open Finset Nat ArithmeticFunction
 
 /-- A set of natural numbers S has subset sum n if there exists T ⊆ S with sum n. -/
 def HasSubsetSum (S : Finset ℕ) (n : ℕ) : Prop :=
@@ -615,6 +621,228 @@ theorem minColors_le_sieve (n s : ℕ) (P : Finset ℕ) (hn : 2 ≤ n) (hs : 1 �
   obtain ⟨c, hc⟩ := exists_coloring_sieve n s P hn hs hP
   exact minColors_le n hn ⟨c, hc⟩
 
+/-!
+### Section 3: Prime Set Specialization and Selberg Bounding Sieve
+
+We specialize the general sieve-remainder theorem by taking the prime set
+  P = {p ≤ s | p.Prime ∧ ¬ p ∣ n}.
+This satisfies:
+1. ∀ p ∈ P, ¬ p ∣ n, and |P| ≤ s.
+2. Hence f(n) ≤ 2s + ⌈|R| / s⌉.
+3. The remainder set R is exactly the set of x ∈ {1, ..., ⌊(n-1)/(s+1)⌋} coprime to D = ∏_{p ∈ P} p.
+4. We instantiate Mathlib's standard `BoundingSieve` framework, connecting R.card to `siftedSum`,
+   deriving the general upper Moebius bound with main and error terms,
+   and proving that the divisor counting error |rem(d)| ≤ 1 for all d ∈ D.divisors.
+-/
+
+/-- The specialized set of primes p ≤ s that do not divide n. -/
+def sievePrimes (n s : ℕ) : Finset ℕ :=
+  (Finset.Icc 2 s).filter (fun p => Nat.Prime p ∧ ¬ p ∣ n)
+
+lemma sieve_primes_card_le (n s : ℕ) :
+    (sievePrimes n s).card ≤ s := by
+  have h_sub : sievePrimes n s ⊆ Finset.Icc 2 s := Finset.filter_subset _ _
+  have h_le := Finset.card_le_card h_sub
+  rw [Nat.card_Icc] at h_le
+  omega
+
+lemma sieve_primes_not_dvd (n s : ℕ) :
+    ∀ p ∈ sievePrimes n s, ¬ p ∣ n := by
+  intro p hp
+  simp only [sievePrimes, Finset.mem_filter] at hp
+  exact hp.2.2
+
+/-- Specialized sieve upper bound: f(n) ≤ 2s + ⌈|R| / s⌉ where P = sievePrimes n s. -/
+theorem minColors_le_two_s_add_remainder (n s : ℕ) (hn : 2 ≤ n) (hs : 1 ≤ s) :
+    minColors n hn ≤ 2 * s + ((sieveRemainder n s (sievePrimes n s)).card + s - 1) / s := by
+  have h_sieve := minColors_le_sieve n s (sievePrimes n s) hn hs (sieve_primes_not_dvd n s)
+  have h_card := sieve_primes_card_le n s
+  omega
+
+lemma coprime_prod_primes_iff (n s x : ℕ) :
+    (∏ p ∈ sievePrimes n s, p).Coprime x ↔ ∀ p ∈ sievePrimes n s, ¬ p ∣ x := by
+  rw [Nat.coprime_prod_left_iff]
+  refine forall₂_congr (fun p hp => ?_)
+  simp only [sievePrimes, Finset.mem_filter] at hp
+  exact hp.2.1.coprime_iff_not_dvd
+
+lemma sieve_remainder_eq_coprime_filter (n s : ℕ) (hn : 2 ≤ n) (hs : 1 ≤ s) :
+    sieveRemainder n s (sievePrimes n s) =
+      (Finset.Icc 1 ((n - 1) / (s + 1))).filter (fun x => (∏ p ∈ sievePrimes n s, p).Coprime x) := by
+  let P := sievePrimes n s
+  let m := (n - 1) / (s + 1)
+  let D := ∏ p ∈ P, p
+  ext x
+  simp only [sieveRemainder, Finset.mem_filter, Finset.mem_Ico, Finset.mem_Icc]
+  rw [coprime_prod_primes_iff]
+  constructor
+  · rintro ⟨⟨h1, h2⟩, h_small, h_coprime⟩
+    refine ⟨⟨h1, ?_⟩, h_coprime⟩
+    have : x * (s + 1) ≤ n - 1 := by
+      rw [Nat.mul_comm]
+      omega
+    exact (Nat.le_div_iff_mul_le (by omega)).mpr this
+  · rintro ⟨⟨h1, h2⟩, h_coprime⟩
+    have h_le_mul := (Nat.le_div_iff_mul_le (by omega)).mp h2
+    have h_small : (s + 1) * x < n := by
+      rw [Nat.mul_comm]
+      omega
+    have h_x_lt_n : x < n := by
+      have : x ≤ (s + 1) * x := Nat.le_mul_of_pos_left x (by omega)
+      omega
+    exact ⟨⟨h1, h_x_lt_n⟩, h_small, h_coprime⟩
+
+lemma squarefree_prod_of_primes {s : Finset ℕ} (hs : ∀ p ∈ s, p.Prime) :
+    Squarefree (∏ p ∈ s, p) := by
+  have hne : ∏ p ∈ s, p ≠ 0 := prod_ne_zero_iff.mpr (fun p hp => (hs p hp).ne_zero)
+  apply squarefree_of_factorization_le_one hne
+  intro q
+  rw [factorization_prod (fun p hp => (hs p hp).ne_zero)]
+  simp only [Finsupp.coe_finsetSum, sum_apply]
+  have h_term : ∀ p ∈ s, (p.factorization) q = if p = q then 1 else 0 := by
+    intro p hp
+    rw [(hs p hp).factorization]
+    simp only [Finsupp.single_apply]
+  have h_sum : (∑ p ∈ s, p.factorization q) = ∑ p ∈ s, if p = q then 1 else 0 := by
+    apply sum_congr rfl h_term
+  rw [h_sum]
+  by_cases hq : q ∈ s
+  · rw [sum_ite_eq' s q (fun _ => 1)]
+    simp only [hq, ↓reduceIte, le_refl]
+  · rw [sum_ite_eq' s q (fun _ => 1)]
+    simp only [hq, ↓reduceIte, zero_le_one]
+
+noncomputable def unitDensity : ArithmeticFunction ℝ where
+  toFun n := if n = 0 then 0 else 1 / (n : ℝ)
+  map_zero' := by simp
+
+lemma unitDensity_isMultiplicative : unitDensity.IsMultiplicative := by
+  refine ⟨by simp [unitDensity], ?_⟩
+  intro m n hmn
+  dsimp [unitDensity]
+  by_cases hm : m = 0
+  · subst hm; simp
+  · by_cases hn : n = 0
+    · subst hn; simp
+    · have hmn0 : m * n ≠ 0 := mul_ne_zero hm hn
+      rw [if_neg hmn0, if_neg hm, if_neg hn]
+      push_cast
+      rw [one_div_mul_one_div]
+
+lemma unitDensity_pos_of_prime (p : ℕ) (hp : Nat.Prime p) :
+    0 < unitDensity p := by
+  dsimp [unitDensity]
+  rw [if_neg hp.ne_zero]
+  have : (0 : ℝ) < (p : ℝ) := Nat.cast_pos.mpr hp.pos
+  exact one_div_pos.mpr this
+
+lemma unitDensity_lt_one_of_prime (p : ℕ) (hp : Nat.Prime p) :
+    unitDensity p < 1 := by
+  dsimp [unitDensity]
+  rw [if_neg hp.ne_zero]
+  have hp2 : (1 : ℝ) < (p : ℝ) := by
+    norm_cast
+    have := hp.two_le
+    omega
+  rw [one_div]
+  exact inv_lt_one_of_one_lt₀ hp2
+
+/-- Instantiation of Mathlib's BoundingSieve for the Erdős remainder set. -/
+noncomputable def erdosBoundingSieve (n s : ℕ) : BoundingSieve where
+  support := Finset.Icc 1 ((n - 1) / (s + 1))
+  prodPrimes := ∏ p ∈ sievePrimes n s, p
+  prodPrimes_squarefree := by
+    apply squarefree_prod_of_primes
+    intro p hp
+    simp only [sievePrimes, Finset.mem_filter] at hp
+    exact hp.2.1
+  weights := fun _ => 1
+  weights_nonneg := fun _ => by positivity
+  totalMass := (((n - 1) / (s + 1) : ℕ) : ℝ)
+  nu := unitDensity
+  nu_mult := unitDensity_isMultiplicative
+  nu_pos_of_prime := fun p hp _ => unitDensity_pos_of_prime p hp
+  nu_lt_one_of_prime := fun p hp _ => unitDensity_lt_one_of_prime p hp
+
+theorem siftedSum_eq_card_remainder (n s : ℕ) (hn : 2 ≤ n) (hs : 1 ≤ s) :
+    (erdosBoundingSieve n s).siftedSum = ((sieveRemainder n s (sievePrimes n s)).card : ℝ) := by
+  dsimp [BoundingSieve.siftedSum, erdosBoundingSieve]
+  rw [sum_boole]
+  rw [← sieve_remainder_eq_coprime_filter n s hn hs]
+
+theorem card_remainder_le_mainSum_errSum (n s : ℕ) (hn : 2 ≤ n) (hs : 1 ≤ s)
+    (muPlus : ℕ → ℝ) (hmu : BoundingSieve.IsUpperMoebius muPlus) :
+    ((sieveRemainder n s (sievePrimes n s)).card : ℝ) ≤
+      (erdosBoundingSieve n s).totalMass * @BoundingSieve.mainSum (erdosBoundingSieve n s) muPlus +
+        @BoundingSieve.errSum (erdosBoundingSieve n s) muPlus := by
+  rw [← siftedSum_eq_card_remainder n s hn hs]
+  exact BoundingSieve.siftedSum_le_mainSum_errSum_of_upperMoebius muPlus hmu
+
+lemma Icc_one_eq_Ioc_zero (m : ℕ) : Finset.Icc 1 m = Finset.Ioc 0 m := by
+  ext x
+  simp only [Finset.mem_Icc, Finset.mem_Ioc]
+  omega
+
+lemma card_Icc_filter_dvd (m d : ℕ) :
+    ((Finset.Icc 1 m).filter (fun x => d ∣ x)).card = m / d := by
+  rw [Icc_one_eq_Ioc_zero]
+  exact Ioc_filter_dvd_card_eq_div m d
+
+lemma erdos_multSum_eq (n s d : ℕ) :
+    (erdosBoundingSieve n s).multSum d = ((((n - 1) / (s + 1)) / d : ℕ) : ℝ) := by
+  dsimp [BoundingSieve.multSum, erdosBoundingSieve]
+  rw [sum_boole]
+  rw [card_Icc_filter_dvd]
+
+lemma erdos_rem_eq (n s d : ℕ) (hd : 1 ≤ d) :
+    (erdosBoundingSieve n s).rem d =
+      ((((n - 1) / (s + 1)) / d : ℕ) : ℝ) - ((((n - 1) / (s + 1) : ℕ) : ℝ) / (d : ℝ)) := by
+  rw [BoundingSieve.rem, erdos_multSum_eq]
+  dsimp [erdosBoundingSieve, unitDensity]
+  rw [if_neg (by omega)]
+  ring
+
+lemma abs_nat_div_sub_div_le_one (m d : ℕ) (hd : 1 ≤ d) :
+    |(((m / d : ℕ) : ℝ) - (m : ℝ) / (d : ℝ))| ≤ 1 := by
+  have hd_pos : (0 : ℝ) < (d : ℝ) := by positivity
+  have h_div_mod : m = d * (m / d) + m % d := (Nat.div_add_mod m d).symm
+  have h_cast : (m : ℝ) = (d : ℝ) * ((m / d : ℕ) : ℝ) + ((m % d : ℕ) : ℝ) := by
+    exact_mod_cast h_div_mod
+  have hd_ne : (d : ℝ) ≠ 0 := ne_of_gt hd_pos
+  have h_sub : ((m / d : ℕ) : ℝ) - (m : ℝ) / (d : ℝ) = - (((m % d : ℕ) : ℝ) / (d : ℝ)) := by
+    calc
+      ((m / d : ℕ) : ℝ) - (m : ℝ) / (d : ℝ)
+        = ((m / d : ℕ) : ℝ) - ((d : ℝ) * ((m / d : ℕ) : ℝ) + ((m % d : ℕ) : ℝ)) / (d : ℝ) := by rw [h_cast]
+      _ = ((m / d : ℕ) : ℝ) - (((d : ℝ) * ((m / d : ℕ) : ℝ) / (d : ℝ)) + ((m % d : ℕ) : ℝ) / (d : ℝ)) := by rw [add_div]
+      _ = ((m / d : ℕ) : ℝ) - (((m / d : ℕ) : ℝ) + ((m % d : ℕ) : ℝ) / (d : ℝ)) := by rw [mul_div_cancel_left₀ _ hd_ne]
+      _ = - (((m % d : ℕ) : ℝ) / (d : ℝ)) := by ring
+  rw [h_sub, abs_neg, abs_of_nonneg (by positivity)]
+  have h_mod_lt : m % d < d := Nat.mod_lt m (by omega)
+  have h_mod_lt_cast : ((m % d : ℕ) : ℝ) < (d : ℝ) := by exact_mod_cast h_mod_lt
+  have : ((m % d : ℕ) : ℝ) / (d : ℝ) < 1 := (div_lt_one hd_pos).mpr h_mod_lt_cast
+  linarith
+
+theorem erdos_rem_bound (n s d : ℕ) (hd : 1 ≤ d) :
+    |(erdosBoundingSieve n s).rem d| ≤ 1 := by
+  rw [erdos_rem_eq n s d hd]
+  exact abs_nat_div_sub_div_le_one ((n - 1) / (s + 1)) d hd
+
+theorem erdos_rem_bound_of_mem_divisors (n s d : ℕ)
+    (hd : d ∈ (erdosBoundingSieve n s).prodPrimes.divisors) :
+    |(erdosBoundingSieve n s).rem d| ≤ 1 := by
+  have hd_pos : 1 ≤ d := by
+    rcases Nat.eq_zero_or_pos d with rfl | hpos
+    · have h_dvd := (Nat.mem_divisors.mp hd).1
+      have h_zero : (erdosBoundingSieve n s).prodPrimes = 0 := Nat.eq_zero_of_zero_dvd h_dvd
+      have h_sq := (erdosBoundingSieve n s).prodPrimes_squarefree
+      exact False.elim (Squarefree.ne_zero h_sq h_zero)
+    · exact hpos
+  exact erdos_rem_bound n s d hd_pos
+
+/-!
+### Section 4: Non-Trivial Lower Bound
+-/
+
 /-- Non-trivial lower bound: for all n ≥ 3, f(n) ≥ 2. -/
 theorem minColors_ge_two (n : ℕ) (hn : 3 ≤ n) :
     2 ≤ minColors n (by omega) := by
@@ -640,4 +868,8 @@ end Erdos298
 #print axioms Erdos298.minColors_le_two_mul_s
 #print axioms Erdos298.exists_coloring_sieve
 #print axioms Erdos298.minColors_le_sieve
+#print axioms Erdos298.minColors_le_two_s_add_remainder
+#print axioms Erdos298.siftedSum_eq_card_remainder
+#print axioms Erdos298.card_remainder_le_mainSum_errSum
+#print axioms Erdos298.erdos_rem_bound_of_mem_divisors
 #print axioms Erdos298.minColors_ge_two
