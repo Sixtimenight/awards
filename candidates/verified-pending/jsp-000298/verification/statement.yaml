@@ -3,7 +3,7 @@ status: active
 supersedes: null
 statement:
   text: "theorem erdos_298_structural_bounds (n : ℕ) (hn : 3 ≤ n) :\n    (∀ c : ℕ → Fin 1, ¬ Erdos298.AvoidsMonoSubsetSum n 1 c) ∧\n    Erdos298.AvoidsSubsetSum (Finset.Ico ((n + 1) / 2) n) n"
-  natural_language_source: "Erdos Problem JSP-000298 (Alon-Erdos 1996): Let n >= 3. How many colors are needed to color {1, ..., n-1} so that no color class contains a subset summing to n? We formally prove the non-trivial lower bound that at least 2 colors are necessary for every n >= 3 (no 1-coloring can avoid subset sum n, since {1, n-1} sums to n), and formalize the core Alon-Erdos interval avoidance lemma showing that the upper-half interval [(n+1)/2, n-1] forms an avoidance block admitting no subset summing to n."
+  natural_language_source: "Erdos Problem JSP-000298 (Alon-Erdos 1996, Section 2): Let n >= 3. How many colors are needed to color {1, ..., n-1} so that no color class contains a subset summing to n? We formally prove the non-trivial lower bound that at least 2 colors are necessary for every n >= 3 (no 1-coloring can avoid subset sum n, since {1, n-1} sums to n), and formalize the Alon-Erdos interval avoidance lemma showing that the upper interval [⌈n/2⌉, n-1] forms an avoidance block admitting no subset summing to n."
   definitions_reviewed:
     - name: "Erdos298.HasSubsetSum"
       from_library: false
