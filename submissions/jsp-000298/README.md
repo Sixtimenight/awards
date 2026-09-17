@@ -121,6 +121,21 @@ lake build
 - `Erdos298.minColors_ge_two_via_cfp`: Non-trivial lower bound $f(n) \ge 2$ for $n \ge 3$ derived from the general Section 8 witness framework.
 - `Erdos298.cfpScale`: Canonical Conlon–Fox–Pham asymptotic growth scale $F(n) = \frac{n^{1/3}\,(n/\varphi(n))}{(\log n)^{1/3}(\log\log n)^{2/3}}$.
 - `Erdos298.cfpScale_pos_of_hyp`: Machine-checked strict positivity of $\mathrm{cfpScale}(n)$ for $\log n > 1$ and $\varphi(n) > 0$.
+- `Erdos298.subsetSums_Icc_zero`: Continuous subset sum coverage $[0, m(m+1)/2] \subseteq \Sigma(\{1, \dots, m\})$.
+- `Erdos298.mem_subsetSums_Icc_of_le`: $n \le m(m+1)/2 \implies n \in \Sigma(\{1, \dots, m\})$.
+- `Erdos298.mem_subsetSums_scaled_Icc_of_le`: $v \mid n \wedge (n/v) \le m(m+1)/2 \implies n \in \Sigma(v \cdot \{1, \dots, m\})$.
+- `Erdos298.cfpLowerBoundSet`: Canonical scaled arithmetic progression $v \cdot \{1, \dots, m\}$.
+- `Erdos298.cfpLowerBoundSet_subset`, `Erdos298.cfpLowerBoundSet_card`, `Erdos298.mem_subsetSums_cfpLowerBoundSet`: Inclusion, cardinality, and divisor hitting for CFP key subsets.
+- `Erdos298.cfpWitness_scaled`: Constructive scaled arithmetic progression witness instantiation of `CFPLowerBoundWitness n 1`.
+- `Erdos298.minColors_ge_two_via_cfp_scaled`: Lower bound $f(n) \ge 2$ derived from any scaled arithmetic progression witness.
+- `Erdos298.IsDiverse`: Conlon–Fox–Pham §5.1 $k$-diversity predicate on finite sets.
+- `Erdos298.isDiverse_of_le`, `Erdos298.isDiverse_of_subset`: Diversity monotonicity under scalar parameter and subset inclusion.
+- `Erdos298.quotient_scale_subset`: Re-scaling lemma $v \cdot ((A \cap v\mathbb{N}) / v) \subseteq A$.
+- `Erdos298.mem_subsetSums_of_quotient_hit`: Quotient divisor hitting theorem: $v \mid n \wedge (n/v) \in \Sigma((A \cap v\mathbb{N}) / v) \implies n \in \Sigma(A)$.
+- `Erdos298.mem_subsetSums_of_quotient_Icc_subset`, `Erdos298.mem_subsetSums_of_scaled_Icc_subset`: Scaled continuous interval hitting theorems.
+- `Erdos298.CFPDiverseWitness`: Conlon–Fox–Pham diverse lower bound witness structure representing the core combinatorial data of Section 5.1.
+- `Erdos298.CFPLowerBoundWitness.ofDiverse`: Bridge theorem from `CFPDiverseWitness` to `CFPLowerBoundWitness`.
+- `Erdos298.minColors_ge_of_cfp_diverse_witness`: Chromatic lower bound theorem $k + 1 \le f(n)$ from any diverse lower bound witness.
 
 ### 11. Final Master Theorems (Unified Synthesis)
 - `Erdos298.erdos_problem_360_finite_master`:

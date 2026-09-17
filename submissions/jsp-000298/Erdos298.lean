@@ -2532,6 +2532,103 @@ lemma mem_subsetSums_of_scaled {Q A : Finset ℕ} {v n : ℕ} (hv : 0 < v) (hvn 
   rw [Nat.mul_div_cancel' hvn] at h_scale
   exact h_scale
 
+lemma nat_le_mul_succ_div_two (m : ℕ) : m ≤ m * (m + 1) / 2 := by
+  rcases m with _ | m
+  · rfl
+  · rw [Nat.le_div_iff_mul_le (by omega)]
+    exact Nat.mul_le_mul_left (m + 1) (by omega)
+
+lemma nat_mul_succ_div_two_add (m : ℕ) :
+    m * (m + 1) / 2 + (m + 1) = (m + 1) * (m + 2) / 2 := by
+  have h := (Nat.add_mul_div_right (m * (m + 1)) (m + 1) (by decide : 0 < 2)).symm
+  have h_ring : m * (m + 1) + (m + 1) * 2 = (m + 1) * (m + 2) := by ring
+  rw [h_ring] at h
+  exact h
+
+/-- Continuous subset sum coverage: the subset sums of {1, ..., m} contain [0, m(m+1)/2]. -/
+lemma subsetSums_Icc_zero (m : ℕ) :
+    Finset.Icc 0 (m * (m + 1) / 2) ⊆ subsetSums (Finset.Icc 1 m) := by
+  induction m with
+  | zero =>
+    intro x hx
+    simp only [Finset.Icc_self, Finset.mem_singleton] at hx
+    subst hx
+    rw [mem_subsetSums_iff]
+    use ∅
+    simp
+  | succ m ih =>
+    have h_insert : Finset.Icc 1 (m + 1) = insert (m + 1) (Finset.Icc 1 m) := by
+      ext z; simp only [Finset.mem_insert, Finset.mem_Icc]; omega
+    have ht_not : m + 1 ∉ Finset.Icc 1 m := by
+      simp only [Finset.mem_Icc, not_and]; intro _; omega
+    have hab : 0 ≤ m * (m + 1) / 2 := by omega
+    have ht_le : m + 1 ≤ m * (m + 1) / 2 - 0 + 1 := by
+      have := nat_le_mul_succ_div_two m; omega
+    have h_step := subsetSums_interval_extend_single ht_not ih ht_le hab
+    have h_arith := nat_mul_succ_div_two_add m
+    have h_rw : (m + 1) * (m + 1 + 1) / 2 = m * (m + 1) / 2 + (m + 1) := h_arith.symm
+    rw [h_insert, h_rw]
+    exact h_step
+
+/-- Every integer up to m(m+1)/2 is a subset sum of {1, ..., m}. -/
+lemma mem_subsetSums_Icc_of_le {m n : ℕ} (hn : n ≤ m * (m + 1) / 2) :
+    n ∈ subsetSums (Finset.Icc 1 m) := by
+  have h := subsetSums_Icc_zero m
+  apply h
+  simp only [Finset.mem_Icc]
+  exact ⟨Nat.zero_le n, hn⟩
+
+/-- Scaled consecutive interval subset sum hitting:
+    if v ∣ n and (n / v) ≤ m(m+1)/2, then n is a subset sum of v * {1, ..., m}. -/
+lemma mem_subsetSums_scaled_Icc_of_le {m v n : ℕ} (hv : 0 < v) (hvn : v ∣ n)
+    (hn : n / v ≤ m * (m + 1) / 2) :
+    n ∈ subsetSums ((Finset.Icc 1 m).image (fun x => v * x)) := by
+  have h_in := mem_subsetSums_Icc_of_le hn
+  rw [mem_subsetSums_iff] at h_in ⊢
+  obtain ⟨B, hB_sub, hB_sum⟩ := h_in
+  use B.image (fun x => v * x)
+  refine ⟨Finset.image_subset_image hB_sub, ?_⟩
+  have h_inj : Set.InjOn (fun x => v * x) B := by
+    intro x _ y _ hxy; exact Nat.eq_of_mul_eq_mul_left hv hxy
+  rw [Finset.sum_image h_inj]
+  have : (∑ x ∈ B, id (v * x)) = v * B.sum id := by
+    dsimp [id]
+    rw [← Finset.mul_sum]
+    rfl
+  rw [this, hB_sum, Nat.mul_div_cancel' hvn]
+
+/-- Conlon–Fox–Pham key scaled subset for lower bound analysis:
+    the scaled arithmetic progression v * {1, ..., m}. -/
+def cfpLowerBoundSet (v m : ℕ) : Finset ℕ :=
+  (Finset.Icc 1 m).image (fun x => v * x)
+
+/-- The CFP key subset is contained in {1, ..., n-1} whenever v * m < n and 0 < v. -/
+lemma cfpLowerBoundSet_subset (n v m : ℕ) (hv : 0 < v) (hvm : v * m < n) :
+    cfpLowerBoundSet v m ⊆ Finset.Ico 1 n := by
+  intro x hx
+  simp only [cfpLowerBoundSet, Finset.mem_image, Finset.mem_Icc] at hx
+  obtain ⟨y, ⟨hy1, hym⟩, rfl⟩ := hx
+  simp only [Finset.mem_Ico]
+  refine ⟨Nat.mul_pos hv (by omega), ?_⟩
+  have : v * y ≤ v * m := Nat.mul_le_mul_left v hym
+  omega
+
+/-- Cardinality of the CFP key scaled subset equals m. -/
+lemma cfpLowerBoundSet_card (v m : ℕ) (hv : 0 < v) :
+    (cfpLowerBoundSet v m).card = m := by
+  rw [cfpLowerBoundSet]
+  have h_inj : Set.InjOn (fun x => v * x) (Finset.Icc 1 m) := by
+    intro x _ y _ hxy
+    exact Nat.eq_of_mul_eq_mul_left hv hxy
+  rw [Finset.card_image_of_injOn h_inj, Nat.card_Icc]
+  omega
+
+/-- The subset sums of the CFP key scaled subset contain n whenever v ∣ n and n/v ≤ m(m+1)/2. -/
+lemma mem_subsetSums_cfpLowerBoundSet (n v m : ℕ) (hv : 0 < v) (hvn : v ∣ n)
+    (hn : n / v ≤ m * (m + 1) / 2) :
+    n ∈ subsetSums (cfpLowerBoundSet v m) :=
+  mem_subsetSums_scaled_Icc_of_le hv hvn hn
+
 /-- Arithmetic progression: {a + l * d | 0 ≤ l ≤ L}. -/
 def arithProg (a d L : ℕ) : Finset ℕ :=
   (Finset.range (L + 1)).image (fun l => a + l * d)
@@ -2722,6 +2819,129 @@ theorem minColors_ge_two_via_cfp (n : ℕ) (hn : 3 ≤ n) :
   have := minColors_ge_of_cfp_witness n 1 (by omega) (cfpWitness_two n hn)
   exact this
 
+/-- Scaled arithmetic progression lower bound witness:
+    whenever v ∣ n, v * m < n, and n/v ≤ m(m+1)/2, the scaled set
+    v * {1, ..., m} forms a valid lower bound witness CFPLowerBoundWitness n 1. -/
+def cfpWitness_scaled (n v m : ℕ) (hv : 0 < v) (hvn : v ∣ n)
+    (hvm : v * m < n) (hn : n / v ≤ m * (m + 1) / 2) (hm : 1 ≤ m) :
+    CFPLowerBoundWitness n 1 where
+  S := cfpLowerBoundSet v m
+  hS := cfpLowerBoundSet_subset n v m hv hvm
+  M := m - 1
+  h_card := by
+    rw [cfpLowerBoundSet_card v m hv]
+    omega
+  h_hit := by
+    intro A hA hM
+    have hS_card := cfpLowerBoundSet_card v m hv
+    have hA_card : A.card = m := by
+      have : A.card ≤ m := (Finset.card_le_card hA).trans_eq hS_card
+      omega
+    have hA_eq : A = cfpLowerBoundSet v m :=
+      Finset.eq_of_subset_of_card_le hA (by rw [hS_card, hA_card])
+    have hn_in := mem_subsetSums_cfpLowerBoundSet n v m hv hvn hn
+    intro h_avoid
+    rw [hA_eq] at h_avoid
+    rw [mem_subsetSums_iff] at hn_in
+    obtain ⟨B, hB_sub, hB_sum⟩ := hn_in
+    exact h_avoid ⟨B, hB_sub, hB_sum⟩
+
+/-- Chromatic lower bound from scaled arithmetic progression witness:
+    f(n) ≥ 2 whenever v ∣ n, v * m < n, and n/v ≤ m(m+1)/2. -/
+theorem minColors_ge_two_via_cfp_scaled (n v m : ℕ) (hn_ge : 2 ≤ n)
+    (hv : 0 < v) (hvn : v ∣ n) (hvm : v * m < n) (hn : n / v ≤ m * (m + 1) / 2) (hm : 1 ≤ m) :
+    2 ≤ minColors n hn_ge :=
+  minColors_ge_of_cfp_witness n 1 hn_ge (cfpWitness_scaled n v m hv hvn hvm hn hm)
+
+/-- A set of positive integers is k-diverse if for every divisor v ≥ 2,
+    at least k elements are not divisible by v (Conlon–Fox–Pham 2021, Section 5.1). -/
+def IsDiverse (X : Finset ℕ) (k : ℕ) : Prop :=
+  ∀ v : ℕ, 2 ≤ v → k ≤ (X.filter (fun x => ¬ v ∣ x)).card
+
+lemma isDiverse_of_le {X : Finset ℕ} {k1 k2 : ℕ}
+    (h : IsDiverse X k2) (hle : k1 ≤ k2) : IsDiverse X k1 := by
+  intro v hv
+  exact hle.trans (h v hv)
+
+lemma isDiverse_of_subset {X Y : Finset ℕ} {k : ℕ}
+    (h : IsDiverse X k) (hsub : X ⊆ Y) : IsDiverse Y k := by
+  intro v hv
+  have : (X.filter (fun x => ¬ v ∣ x)) ⊆ (Y.filter (fun x => ¬ v ∣ x)) :=
+    Finset.filter_subset_filter _ hsub
+  exact (h v hv).trans (Finset.card_le_card this)
+
+/-- Scaling the quotient set back by v yields a subset of the original set A. -/
+lemma quotient_scale_subset (A : Finset ℕ) (v : ℕ) :
+    ((A.filter (fun x => v ∣ x)).image (fun x => x / v)).image (fun y => v * y) ⊆ A := by
+  intro x hx
+  simp only [Finset.mem_image, Finset.mem_filter] at hx
+  obtain ⟨y, ⟨z, ⟨hzA, hzv⟩, rfl⟩, rfl⟩ := hx
+  rw [Nat.mul_div_cancel' hzv]
+  exact hzA
+
+/-- If the quotient subset sums of multiples of v hit n/v, then A hits n (CFP §5.1 reduction). -/
+lemma mem_subsetSums_of_quotient_hit (A : Finset ℕ) (n v : ℕ) (hv : 0 < v) (hvn : v ∣ n)
+    (h_hit : n / v ∈ subsetSums ((A.filter (fun x => v ∣ x)).image (fun x => x / v))) :
+    n ∈ subsetSums A := by
+  exact mem_subsetSums_of_scaled hv hvn (quotient_scale_subset A v) h_hit
+
+/-- Quotient consecutive interval subset sum hitting:
+    if the quotient contains {1, ..., m} and n/v ≤ m(m+1)/2, then n/v is in its subset sums. -/
+lemma mem_subsetSums_of_quotient_Icc_subset {Q : Finset ℕ} {m n v : ℕ}
+    (h_sub : Finset.Icc 1 m ⊆ Q)
+    (hn : n / v ≤ m * (m + 1) / 2) :
+    n / v ∈ subsetSums Q := by
+  have h_in := mem_subsetSums_Icc_of_le hn
+  rw [mem_subsetSums_iff] at h_in ⊢
+  obtain ⟨B, hB_sub, hB_sum⟩ := h_in
+  exact ⟨B, hB_sub.trans h_sub, hB_sum⟩
+
+/-- If the quotient of multiples of v in A contains {1, ..., m} and n/v ≤ m(m+1)/2,
+    then n is in the subset sums of A. -/
+lemma mem_subsetSums_of_scaled_Icc_subset {A : Finset ℕ} {m n v : ℕ}
+    (hv : 0 < v) (hvn : v ∣ n)
+    (h_sub : Finset.Icc 1 m ⊆ (A.filter (fun x => v ∣ x)).image (fun x => x / v))
+    (hn : n / v ≤ m * (m + 1) / 2) :
+    n ∈ subsetSums A := by
+  have h_qhit := mem_subsetSums_of_quotient_Icc_subset h_sub hn
+  exact mem_subsetSums_of_quotient_hit A n v hv hvn h_qhit
+
+/-- Conlon–Fox–Pham Diverse Lower Bound Witness:
+    Encapsulates the diverse subset-sum structure in CFP §5.1:
+    - Base set S ⊆ {1, ..., n-1}
+    - Threshold M with k * M < |S|
+    - A scaling factor v dividing n
+    - For any subset A ⊆ S of size ≥ M + 1, the quotient of multiples of v has n/v in its subset sums. -/
+structure CFPDiverseWitness (n k : ℕ) : Type where
+  S : Finset ℕ
+  hS : S ⊆ Finset.Ico 1 n
+  M : ℕ
+  h_card : k * M < S.card
+  v : ℕ
+  hv : 0 < v
+  hvn : v ∣ n
+  h_hit : ∀ A : Finset ℕ, A ⊆ S → M + 1 ≤ A.card →
+    n / v ∈ subsetSums ((A.filter (fun x => v ∣ x)).image (fun x => x / v))
+
+/-- A diverse lower bound witness CFPDiverseWitness n k induces a CFPLowerBoundWitness n k. -/
+def CFPLowerBoundWitness.ofDiverse (n k : ℕ) (w : CFPDiverseWitness n k) :
+    CFPLowerBoundWitness n k where
+  S := w.S
+  hS := w.hS
+  M := w.M
+  h_card := w.h_card
+  h_hit := by
+    intro A hA hM
+    have h_quot := w.h_hit A hA hM
+    have hn_in := mem_subsetSums_of_quotient_hit A n w.v w.hv w.hvn h_quot
+    exact not_avoids_of_subsetSums hn_in
+
+/-- Chromatic lower bound from a diverse lower bound witness: k + 1 ≤ f(n). -/
+theorem minColors_ge_of_cfp_diverse_witness (n k : ℕ) (hn : 2 ≤ n)
+    (w : CFPDiverseWitness n k) :
+    k + 1 ≤ minColors n hn :=
+  minColors_ge_of_cfp_witness n k hn (CFPLowerBoundWitness.ofDiverse n k w)
+
 /-!
 ### Section 9: The Master Theorems for Erdős Problem JSP-000298 (Erdős #360)
 
@@ -2900,3 +3120,19 @@ end Erdos298
 #print axioms Erdos298.erdos_problem_360_unified_solution
 
 
+#print axioms Erdos298.subsetSums_Icc_zero
+#print axioms Erdos298.mem_subsetSums_Icc_of_le
+#print axioms Erdos298.mem_subsetSums_scaled_Icc_of_le
+#print axioms Erdos298.cfpLowerBoundSet_subset
+#print axioms Erdos298.cfpLowerBoundSet_card
+#print axioms Erdos298.mem_subsetSums_cfpLowerBoundSet
+#print axioms Erdos298.cfpWitness_scaled
+#print axioms Erdos298.minColors_ge_two_via_cfp_scaled
+
+#print axioms Erdos298.isDiverse_of_le
+#print axioms Erdos298.isDiverse_of_subset
+#print axioms Erdos298.quotient_scale_subset
+#print axioms Erdos298.mem_subsetSums_of_quotient_hit
+#print axioms Erdos298.mem_subsetSums_of_quotient_Icc_subset
+#print axioms Erdos298.mem_subsetSums_of_scaled_Icc_subset
+#print axioms Erdos298.minColors_ge_of_cfp_diverse_witness
