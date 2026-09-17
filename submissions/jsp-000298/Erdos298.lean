@@ -15,6 +15,8 @@ import Mathlib.Data.Real.Basic
 import Mathlib.Data.Nat.Factorization.Basic
 import Mathlib.Algebra.Order.Floor.Ring
 import Mathlib.Algebra.Order.Archimedean.Real.Basic
+import Mathlib.Analysis.SpecialFunctions.Pow.Real
+import Mathlib.Analysis.SpecialFunctions.Log.Basic
 
 
 /-!
@@ -702,7 +704,7 @@ lemma squarefree_prod_of_primes {s : Finset ℕ} (hs : ∀ p ∈ s, p.Prime) :
   apply squarefree_of_factorization_le_one hne
   intro q
   rw [factorization_prod (fun p hp => (hs p hp).ne_zero)]
-  simp only [Finsupp.coe_finsetSum, sum_apply]
+  simp only [Finsupp.coe_finsetSum, Finset.sum_apply]
   have h_term : ∀ p ∈ s, (p.factorization) q = if p = q then 1 else 0 := by
     intro p hp
     rw [(hs p hp).factorization]
@@ -2417,6 +2419,119 @@ lemma mem_subsetSums_iff (A : Finset ℕ) (s : ℕ) :
     s ∈ subsetSums A ↔ ∃ B : Finset ℕ, B ⊆ A ∧ B.sum id = s := by
   simp only [subsetSums, Finset.mem_image, Finset.mem_powerset]
 
+/-- Lemma A: Addition of subset sums of disjoint sets. -/
+lemma subsetSums_add_of_disjoint {A B : Finset ℕ} (h_disj : Disjoint A B)
+    {x y : ℕ} (hx : x ∈ subsetSums A) (hy : y ∈ subsetSums B) :
+    x + y ∈ subsetSums (A ∪ B) := by
+  rw [mem_subsetSums_iff] at hx hy ⊢
+  obtain ⟨SA, hSA, rfl⟩ := hx
+  obtain ⟨SB, hSB, rfl⟩ := hy
+  have h_disj_S : Disjoint SA SB := by
+    rw [Finset.disjoint_left] at h_disj ⊢
+    intro z hzA hzB
+    exact h_disj (hSA hzA) (hSB hzB)
+  use SA ∪ SB
+  refine ⟨Finset.union_subset_union hSA hSB, ?_⟩
+  exact Finset.sum_union h_disj_S
+
+/-- Lemma B (Single Element): Single element interval extension for subset sums. -/
+lemma subsetSums_interval_extend_single {A : Finset ℕ} {t a b : ℕ}
+    (ht_not : t ∉ A)
+    (h_sub : Finset.Icc a b ⊆ subsetSums A)
+    (ht_le : t ≤ b - a + 1)
+    (hab : a ≤ b) :
+    Finset.Icc a (b + t) ⊆ subsetSums (insert t A) := by
+  intro x hx
+  simp only [Finset.mem_Icc] at hx
+  by_cases hxb : x ≤ b
+  · have hx_in : x ∈ Finset.Icc a b := by simp only [Finset.mem_Icc, hx.1, hxb, and_self]
+    have hx_sub := h_sub hx_in
+    rw [mem_subsetSums_iff] at hx_sub ⊢
+    obtain ⟨S, hS, hS_sum⟩ := hx_sub
+    exact ⟨S, hS.trans (Finset.subset_insert t A), hS_sum⟩
+  · push Not at hxb
+    have hx_ge_at : a + t ≤ x := by omega
+    let y := x - t
+    have hy_in : y ∈ Finset.Icc a b := by simp only [Finset.mem_Icc]; omega
+    have hy_sub := h_sub hy_in
+    rw [mem_subsetSums_iff] at hy_sub ⊢
+    obtain ⟨S, hS, hS_sum⟩ := hy_sub
+    use insert t S
+    have h_sub_ins : insert t S ⊆ insert t A := Finset.insert_subset_insert t hS
+    refine ⟨h_sub_ins, ?_⟩
+    have ht_not_S : t ∉ S := fun h => ht_not (hS h)
+    rw [Finset.sum_insert ht_not_S, hS_sum]
+    dsimp; omega
+
+/-- Lemma B (Inductive): Interval extension for subset sums over an auxiliary disjoint set B. -/
+lemma subsetSums_interval_extend {A B : Finset ℕ} {a b : ℕ}
+    (h_disj : Disjoint A B)
+    (h_sub : Finset.Icc a b ⊆ subsetSums A)
+    (hB_le : ∀ t ∈ B, t ≤ b - a + 1)
+    (hab : a ≤ b) :
+    Finset.Icc a (b + B.sum id) ⊆ subsetSums (A ∪ B) := by
+  induction B using Finset.induction_on with
+  | empty =>
+    simp only [Finset.sum_empty, add_zero, Finset.union_empty]
+    exact h_sub
+  | @insert t B0 ht_not_B0 ih =>
+    rw [Finset.sum_insert ht_not_B0]
+    have ht_in : t ∈ insert t B0 := Finset.mem_insert_self t B0
+    have ht_le : t ≤ b - a + 1 := hB_le t ht_in
+    have h_disj_B0 : Disjoint A B0 := by
+      rw [Finset.disjoint_left] at h_disj ⊢
+      intro z hzA hzB0
+      exact h_disj hzA (Finset.mem_insert_of_mem hzB0)
+    have hB0_le : ∀ s ∈ B0, s ≤ b - a + 1 := fun s hs => hB_le s (Finset.mem_insert_of_mem hs)
+    have ih_res := ih h_disj_B0 hB0_le
+    have ht_not_A : t ∉ A := by
+      rw [Finset.disjoint_right] at h_disj
+      exact h_disj ht_in
+    have ht_not_AB0 : t ∉ A ∪ B0 := by
+      simp only [Finset.mem_union, not_or]
+      exact ⟨ht_not_A, ht_not_B0⟩
+    have hab' : a ≤ b + B0.sum id := hab.trans (Nat.le_add_right b (B0.sum id))
+    have ht_le' : t ≤ (b + B0.sum id) - a + 1 := by omega
+    have h_step := subsetSums_interval_extend_single ht_not_AB0 ih_res ht_le' hab'
+    have h_union_eq : insert t (A ∪ B0) = A ∪ insert t B0 := by
+      ext z
+      simp only [Finset.mem_insert, Finset.mem_union]
+      tauto
+    rw [h_union_eq] at h_step
+    have h_add_comm : b + (id t + B0.sum id) = b + B0.sum id + t := by
+      dsimp [id]; omega
+    rw [h_add_comm]
+    exact h_step
+
+/-- Lemma C: Scaling of subset sums: if Q scaled by v is in A, then v * m ∈ subsetSums A for m ∈ subsetSums Q. -/
+lemma subsetSums_scale {Q A : Finset ℕ} {v : ℕ} (hv : 0 < v)
+    (h_sub : Q.image (fun x => v * x) ⊆ A)
+    {m : ℕ} (hm : m ∈ subsetSums Q) :
+    v * m ∈ subsetSums A := by
+  rw [mem_subsetSums_iff] at hm ⊢
+  obtain ⟨B, hB_sub, hB_sum⟩ := hm
+  use B.image (fun x => v * x)
+  have hB'_sub : B.image (fun x => v * x) ⊆ A :=
+    (Finset.image_subset_image hB_sub).trans h_sub
+  refine ⟨hB'_sub, ?_⟩
+  have h_inj : Set.InjOn (fun x => v * x) B := by
+    intro x _ y _ hxy; exact Nat.eq_of_mul_eq_mul_left hv hxy
+  rw [Finset.sum_image h_inj]
+  have : (∑ x ∈ B, id (v * x)) = v * B.sum id := by
+    dsimp [id]
+    rw [← Finset.mul_sum]
+    rfl
+  rw [this, hB_sum]
+
+/-- Lemma C (Corollary): Multiple scaling hitting lemma: if v ∣ n and (n / v) ∈ subsetSums Q, then n ∈ subsetSums A. -/
+lemma mem_subsetSums_of_scaled {Q A : Finset ℕ} {v n : ℕ} (hv : 0 < v) (hvn : v ∣ n)
+    (h_sub : Q.image (fun x => v * x) ⊆ A)
+    (hm : n / v ∈ subsetSums Q) :
+    n ∈ subsetSums A := by
+  have h_scale := subsetSums_scale hv h_sub hm
+  rw [Nat.mul_div_cancel' hvn] at h_scale
+  exact h_scale
+
 /-- Arithmetic progression: {a + l * d | 0 ≤ l ≤ L}. -/
 def arithProg (a d L : ℕ) : Finset ℕ :=
   (Finset.range (L + 1)).image (fun l => a + l * d)
@@ -2655,6 +2770,25 @@ theorem erdos_problem_360_unconditional_master (n : ℕ) (hn : 3 ≤ n)
   refine ⟨minColors_ge_two n hn,
           minColors_le_conlon_fox_pham n s1 P d s_rem (by omega) hs1 hd hs_rem h_srem_le hP⟩
 
+/-- Canonical Conlon–Fox–Pham asymptotic growth scale:
+    F(n) = n^(1/3) * (n / φ(n)) / ((log n)^(1/3) * (log log n)^(2/3)). -/
+noncomputable def cfpScale (n : ℕ) : ℝ :=
+  (n : ℝ) ^ ((1 : ℝ) / 3) * ((n : ℝ) / (Nat.totient n : ℝ)) /
+    ((Real.log (n : ℝ)) ^ ((1 : ℝ) / 3) * (Real.log (Real.log (n : ℝ))) ^ ((2 : ℝ) / 3))
+
+/-- Strict positivity of the canonical CFP growth scale for sufficiently large n. -/
+lemma cfpScale_pos_of_hyp (n : ℕ) (hn : (1 : ℝ) < Real.log (n : ℝ))
+    (h_tot : 0 < (Nat.totient n : ℝ)) (hn_pos : 0 < (n : ℝ)) : 0 < cfpScale n := by
+  dsimp [cfpScale]
+  apply _root_.div_pos
+  · apply mul_pos
+    · exact Real.rpow_pos_of_pos hn_pos _
+    · exact _root_.div_pos hn_pos h_tot
+  · apply mul_pos
+    · exact Real.rpow_pos_of_pos (by linarith) _
+    · have : (0 : ℝ) < Real.log (Real.log (n : ℝ)) := Real.log_pos hn
+      exact Real.rpow_pos_of_pos this _
+
 /-- Conlon–Fox–Pham (2021) Asymptotic Master Theorem:
     Given matching lower and upper bound witnesses with respect to a growth scale F,
     the chromatic number f(n) satisfies the sharp asymptotic two-sided equivalence:
@@ -2752,6 +2886,13 @@ end Erdos298
 #print axioms Erdos298.hasChromaticLowerBound_of_cfp_witnesses
 #print axioms Erdos298.cfpWitness_two
 #print axioms Erdos298.minColors_ge_two_via_cfp
+
+#print axioms Erdos298.subsetSums_add_of_disjoint
+#print axioms Erdos298.subsetSums_interval_extend_single
+#print axioms Erdos298.subsetSums_interval_extend
+#print axioms Erdos298.subsetSums_scale
+#print axioms Erdos298.mem_subsetSums_of_scaled
+#print axioms Erdos298.cfpScale_pos_of_hyp
 
 #print axioms Erdos298.erdos_problem_360_finite_master
 #print axioms Erdos298.erdos_problem_360_unconditional_master

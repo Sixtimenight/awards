@@ -112,8 +112,15 @@ lake build
 - `Erdos298.minColors_ge_of_cfp_witness`: Conlon–Fox–Pham lower bound theorem from structured witness `CFPLowerBoundWitness n k`.
 - `Erdos298.minColors_ge_of_cfp_ap_witness`: Arithmetic progression form of the lower bound theorem from `CFPAPWitness n k`.
 - `Erdos298.hasChromaticLowerBound_of_cfp_witnesses`: Formal deduction of global asymptotic lower bound $\mathrm{HasChromaticLowerBound}(F, c)$.
+- `Erdos298.subsetSums_add_of_disjoint` (Lemma A): Addition of subset sums on disjoint sets: $x \in \Sigma(A) \wedge y \in \Sigma(B) \implies x + y \in \Sigma(A \cup B)$.
+- `Erdos298.subsetSums_interval_extend_single` (Lemma B, single step): If $[a, b] \subseteq \Sigma(A)$ and $t \le b - a + 1$, then $[a, b + t] \subseteq \Sigma(A \cup \{t\})$.
+- `Erdos298.subsetSums_interval_extend` (Lemma B, inductive): If $[a, b] \subseteq \Sigma(A)$ and $\forall t \in B, t \le b - a + 1$, then $[a, b + \sum B] \subseteq \Sigma(A \cup B)$.
+- `Erdos298.subsetSums_scale` (Lemma C): Scaling lemma: $v \cdot Q \subseteq A \wedge m \in \Sigma(Q) \implies v \cdot m \in \Sigma(A)$.
+- `Erdos298.mem_subsetSums_of_scaled` (Lemma C Corollary): If $v \mid n$, $v \cdot Q \subseteq A$, and $(n / v) \in \Sigma(Q)$, then $n \in \Sigma(A)$.
 - `Erdos298.cfpWitness_two`: Explicit machine-checked witness for $k = 1$ using $\{1, n-1\}$ for any $n \ge 3$.
 - `Erdos298.minColors_ge_two_via_cfp`: Non-trivial lower bound $f(n) \ge 2$ for $n \ge 3$ derived from the general Section 8 witness framework.
+- `Erdos298.cfpScale`: Canonical Conlon–Fox–Pham asymptotic growth scale $F(n) = \frac{n^{1/3}\,(n/\varphi(n))}{(\log n)^{1/3}(\log\log n)^{2/3}}$.
+- `Erdos298.cfpScale_pos_of_hyp`: Machine-checked strict positivity of $\mathrm{cfpScale}(n)$ for $\log n > 1$ and $\varphi(n) > 0$.
 
 ### 11. Final Master Theorems (Unified Synthesis)
 - `Erdos298.erdos_problem_360_finite_master`:
