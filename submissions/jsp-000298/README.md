@@ -66,7 +66,16 @@ lake build
 - `Erdos298.no_one_coloring_of_ge_three`: No 1-coloring avoids monochromatic subset sums for $n \ge 3$ (since $\{1, n-1\}$ sums to $n$).
 - `Erdos298.minColors_ge_two`: Chromatic number lower bound $f(n) \ge 2$ for all $n \ge 3$.
 
-### 8. Asymptotic Reductions & Conlon–Fox–Pham (2021)
+### 8. Conlon–Fox–Pham (2021) 4-Layer Upper Bound Construction
+- `Erdos298.congruence_block_high_avoids`: Proof that high congruence blocks $\{a \in [1, n-1] \mid a \equiv t \pmod d \wedge x_t a > n\}$ avoid subset sums to $n$.
+- `Erdos298.congruence_block_mid_avoids`: Proof that mid congruence blocks $\{a \in [1, n-1] \mid a \equiv t \pmod d \wedge (d+x_t)a > n \wedge x_t a < n\}$ avoid subset sums to $n$.
+- `Erdos298.exists_coloring_conlon_fox_pham`: Constructive 4-layer coloring (interval blocks, prime multiples, reduced congruence classes modulo $d$, and small remainder blocks) using $s_1 + |P| + 2|\text{reducedResidues } d| + \lceil |R_{cfp}| / s_{rem} \rceil$ colors avoiding monochromatic subset sums to $n$.
+- `Erdos298.minColors_le_conlon_fox_pham`: Chromatic number bound:
+  $$f(n) \le s_1 + |P| + 2|\text{reducedResidues } d| + \left\lceil \frac{|R_{cfp}|}{s_{rem}} \right\rceil.$$
+- `Erdos298.minColors_le_conlon_fox_pham_coarse`: Coarser bound bounding $|\text{reducedResidues } d| \le d$:
+  $$f(n) \le s_1 + |P| + 2d + \left\lceil \frac{|R_{cfp}|}{s_{rem}} \right\rceil.$$
+
+### 9. Asymptotic Reductions & Conlon–Fox–Pham (2021)
 - `Erdos298.HasChromaticUpperBound`: Formal witness predicate for upper bounds relative to growth scale $F(n)$.
 - `Erdos298.HasChromaticLowerBound`: Formal witness predicate for lower bounds relative to growth scale $F(n)$.
 - `Erdos298.conlon_fox_pham_bounds`: The Conlon–Fox–Pham two-sided asymptotic growth theorem $c F(n) \le f(n) \le C F(n)$.

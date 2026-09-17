@@ -1,3 +1,5 @@
+import Mathlib.Data.Nat.ModEq
+import Mathlib.Data.Fintype.Card
 import Mathlib.Algebra.BigOperators.Intervals
 import Mathlib.Algebra.BigOperators.Ring.Finset
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
@@ -18,21 +20,20 @@ import Mathlib.Algebra.Order.Archimedean.Real.Basic
 /-!
 # Erdős Problem 360 / JSP-000298: Monochromatic Subset Sums
 
-Let (n) denote the minimum number of colors needed to color {1, ..., n-1}
-such that no color class contains a subset whose elements sum to 
-.
+Let f(n) denote the minimum number of colors needed to color {1, ..., n-1}
+such that no color class contains a subset whose elements sum to n.
 
-Alon and Erdős (1996, *Acta Arithmetica* 74(3), pp. 269-272) studied this problem:
-1. Cubic-root baseline: partitioning into interval blocks A_k for 
- ≤ (k+1)x
-   and remainder blocks gives (n) ≤ 2⌈n^(1/3)⌉.
+Alon and Erdős (1996, *Acta Arithmetica* 74(3), pp. 269-272) and
+Conlon, Fox, and Pham (2021, arXiv:2104.14766) studied this problem:
+1. Cubic-root baseline: partitioning into interval blocks A_k for n ≤ (k+1)x
+   and remainder blocks gives f(n) ≤ 2⌈n^(1/3)⌉.
 2. Sieve-remainder bound: sieving multiples of primes p ≤ s with p ∤ n
    leaves a remainder set R. Partitioning R by element counts into blocks
    of size at most s yields:
-   (n) ≤ s + |P| + ⌈|R| / s⌉.
-3. Lower bound: (n) ≥ 2 for all 
- ≥ 3 (since {1, n-1} sums to 
-).
+   f(n) ≤ s + |P| + ⌈|R| / s⌉.
+3. Lower bound: f(n) ≥ 2 for all n ≥ 3 (since {1, n-1} sums to n).
+4. Conlon–Fox–Pham (2021) 4-layer construction:
+   f(n) ≤ s1 + |P| + 2 * |reducedResidues d| + ⌈|R_cfp| / s_rem⌉.
 -/
 
 namespace Erdos298
@@ -1751,6 +1752,538 @@ theorem conlon_fox_pham_bounds (F : ℕ → ℝ) {c C : ℝ}
 
 
 
+
+
+/-!
+### Section 7: Conlon–Fox–Pham (2021) 4-Layer Upper Bound Construction
+
+In arXiv:2104.14766 (Theorem 1.5, Theorem 1.6, and Section 1.2.1), Conlon, Fox, and Pham
+introduce a 4-layer coloring construction that achieves the optimal growth order:
+  f(n) ≍ n^(1/3) (n / φ(n)) / ((log n)^(1/3) (log log n)^(2/3)).
+
+The 4 layers consist of:
+1. Interval blocks: s1 blocks covering elements x with (s1 + 1) * x ≥ n.
+2. Prime multiples: |P| blocks for primes p ∤ n.
+3. Reduced congruence classes modulo d (for gcd(d, n) = 1):
+   For each reduced residue t mod d with gcd(t, d) = 1, there exists xt ∈ [1, d]
+   satisfying xt * t ≡ n [MOD d]. Two avoiding classes are formed:
+   - High congruence block: {a | a ≡ t [MOD d] ∧ xt * a > n}
+   - Mid congruence block:  {a | a ≡ t [MOD d] ∧ (d + xt) * a > n ∧ xt * a < n}
+   Total classes in Layer 3: 2 * |reducedResidues d| ≤ 2 * d.
+4. Remainder blocks: elements x in R_cfp satisfy (s1 + 1) * x < n.
+   Partitioned into blocks of size ≤ s_rem (for any s_rem ≤ s1),
+   using ⌈|R_cfp| / s_rem⌉ colors.
+-/
+
+/-- The reduced residues modulo d in {1, ..., d}. -/
+def reducedResidues (d : ℕ) : Finset ℕ :=
+  (Finset.Icc 1 d).filter (·.Coprime d)
+
+lemma reducedResidues_card_le (d : ℕ) : (reducedResidues d).card ≤ d := by
+  have : reducedResidues d ⊆ Finset.Icc 1 d := Finset.filter_subset _ _
+  have h := Finset.card_le_card this
+  rw [Nat.card_Icc] at h
+  omega
+
+/-- Congruence sum lemma: if every element of A is congruent to t mod d,
+    then ∑ a ∈ A, a ≡ |A| * t [MOD d]. -/
+lemma congruence_sum_modeq {d t : ℕ} (A : Finset ℕ) (hA : ∀ a ∈ A, a ≡ t [MOD d]) :
+    (∑ a ∈ A, a) ≡ A.card * t [MOD d] := by
+  induction A using Finset.induction_on with
+  | empty =>
+    simp only [sum_empty, card_empty, Nat.zero_mul]
+    exact Nat.ModEq.refl 0
+  | @insert x s hx ih =>
+    rw [Finset.sum_insert hx, Finset.card_insert_of_notMem hx]
+    have hx_mod : x ≡ t [MOD d] := hA x (Finset.mem_insert_self x s)
+    have hs_mod : (∑ a ∈ s, a) ≡ s.card * t [MOD d] :=
+      ih (fun a ha => hA a (Finset.mem_insert_of_mem ha))
+    have h_add := Nat.ModEq.add hx_mod hs_mod
+    have h_rw : (s.card + 1) * t = t + s.card * t := by ring
+    rw [h_rw]
+    exact h_add
+
+/-- Cardinality lower bound: if 1 ≤ c and c ≡ x [MOD d] with x ≤ d, then x ≤ c. -/
+lemma card_ge_of_modeq (c x d : ℕ) (hc_pos : 1 ≤ c) (hx_le : x ≤ d)
+    (h : c ≡ x [MOD d]) : x ≤ c := by
+  have hmod : c % d = x % d := h
+  by_cases hxd : x = d
+  · rw [hxd, Nat.mod_self d] at hmod
+    have hd_dvd : d ∣ c := Nat.dvd_of_mod_eq_zero hmod
+    have hd_le : d ≤ c := Nat.le_of_dvd hc_pos hd_dvd
+    omega
+  · have hx_lt : x < d := by omega
+    rw [Nat.mod_eq_of_lt hx_lt] at hmod
+    have hc_div := (Nat.div_add_mod c d).symm
+    omega
+
+/-- Cardinality dichotomy: if 1 ≤ c and c ≡ x [MOD d] with x ≤ d,
+    then either c = x or d + x ≤ c. -/
+lemma card_cases_of_modeq (c x d : ℕ) (hc_pos : 1 ≤ c) (hx_le : x ≤ d)
+    (_hd : 1 ≤ d) (h : c ≡ x [MOD d]) : c = x ∨ d + x ≤ c := by
+  have hmod : c % d = x % d := h
+  by_cases hxd : x = d
+  · rw [hxd, Nat.mod_self d] at hmod
+    have hd_dvd : d ∣ c := Nat.dvd_of_mod_eq_zero hmod
+    rcases hd_dvd with ⟨k, rfl⟩
+    have hk_pos : 1 ≤ k := by
+      by_cases hk : k = 0
+      · subst hk; omega
+      · omega
+    by_cases hk1 : k = 1
+    · left; subst hk1; omega
+    · right
+      have hk2 : 2 ≤ k := by omega
+      have : d * 2 ≤ d * k := Nat.mul_le_mul_left d hk2
+      omega
+  · have hx_lt : x < d := by omega
+    rw [Nat.mod_eq_of_lt hx_lt] at hmod
+    have hc_div := (Nat.div_add_mod c d).symm
+    by_cases hk0 : c / d = 0
+    · left
+      rw [hk0, Nat.mul_zero, Nat.zero_add] at hc_div
+      omega
+    · right
+      have hk1 : 1 ≤ c / d := Nat.pos_of_ne_zero hk0
+      have : d ≤ d * (c / d) := Nat.le_mul_of_pos_right d hk1
+      omega
+
+/-- Existence of modular multiplier: for d ≥ 1 and t coprime to d,
+    there exists xt ∈ {1, ..., d} such that xt * t ≡ n [MOD d]. -/
+lemma exists_xt_modeq (n d t : ℕ) (hd : 1 ≤ d) (ht : t.Coprime d) :
+    ∃ xt ∈ Finset.Icc 1 d, xt * t ≡ n [MOD d] := by
+  have hd_pos : 0 < d := by omega
+  let f : Fin d → Fin d := fun x => ⟨(x.val * t) % d, Nat.mod_lt _ hd_pos⟩
+  have hf_inj : Function.Injective f := by
+    intro a b hab
+    simp only [f, Fin.mk.injEq] at hab
+    have h_modeq : a.val * t ≡ b.val * t [MOD d] := hab
+    have h_cancel : a.val ≡ b.val [MOD d] :=
+      Nat.ModEq.cancel_right_of_coprime ht.symm.gcd_eq_one h_modeq
+    ext
+    have ha_lt := a.isLt
+    have hb_lt := b.isLt
+    have ha_mod : a.val % d = a.val := Nat.mod_eq_of_lt ha_lt
+    have hb_mod : b.val % d = b.val := Nat.mod_eq_of_lt hb_lt
+    change a.val % d = b.val % d at h_cancel
+    rwa [ha_mod, hb_mod] at h_cancel
+  have hf_surj : Function.Surjective f :=
+    Finite.injective_iff_surjective.mp hf_inj
+  have ⟨y, hy⟩ := hf_surj ⟨n % d, Nat.mod_lt _ hd_pos⟩
+  simp only [f, Fin.mk.injEq] at hy
+  have hy_modeq : y.val * t ≡ n [MOD d] := hy
+  by_cases hy0 : y.val = 0
+  · use d
+    refine ⟨by simp [hd], ?_⟩
+    have h_dt : d * t ≡ 0 [MOD d] :=
+      Nat.modEq_zero_iff_dvd.mpr (dvd_mul_right d t)
+    have h_0_yt : (0 : ℕ) ≡ y.val * t [MOD d] := by
+      rw [hy0, Nat.zero_mul]
+    exact h_dt.trans (h_0_yt.trans hy_modeq)
+  · use y.val
+    refine ⟨by simp only [mem_Icc]; omega, hy_modeq⟩
+
+/-- Canonical modular multiplier in {1, ..., d}. -/
+noncomputable def invXt (n d t : ℕ) : ℕ :=
+  if hd : 1 ≤ d then
+    if ht : t.Coprime d then
+      (exists_xt_modeq n d t hd ht).choose
+    else 1
+  else 1
+
+lemma invXt_mem (n d t : ℕ) (hd : 1 ≤ d) (ht : t.Coprime d) :
+    invXt n d t ∈ Finset.Icc 1 d := by
+  dsimp [invXt]
+  rw [dif_pos hd, dif_pos ht]
+  exact (exists_xt_modeq n d t hd ht).choose_spec.1
+
+lemma invXt_pos (n d t : ℕ) (hd : 1 ≤ d) (ht : t.Coprime d) : 1 ≤ invXt n d t :=
+  (Finset.mem_Icc.mp (invXt_mem n d t hd ht)).1
+
+lemma invXt_le (n d t : ℕ) (hd : 1 ≤ d) (ht : t.Coprime d) : invXt n d t ≤ d :=
+  (Finset.mem_Icc.mp (invXt_mem n d t hd ht)).2
+
+lemma invXt_modeq (n d t : ℕ) (hd : 1 ≤ d) (ht : t.Coprime d) :
+    invXt n d t * t ≡ n [MOD d] := by
+  dsimp [invXt]
+  rw [dif_pos hd, dif_pos ht]
+  exact (exists_xt_modeq n d t hd ht).choose_spec.2
+
+/-- High congruence block: {a ∈ {1, ..., n-1} | a ≡ t [MOD d] ∧ xt * a > n}. -/
+def congruenceBlockHigh (n d t xt : ℕ) : Finset ℕ :=
+  (Finset.Ico 1 n).filter (fun a => a ≡ t [MOD d] ∧ n < xt * a)
+
+/-- Mid congruence block: {a ∈ {1, ..., n-1} | a ≡ t [MOD d] ∧ (d + xt) * a > n ∧ xt * a < n}. -/
+def congruenceBlockMid (n d t xt : ℕ) : Finset ℕ :=
+  (Finset.Ico 1 n).filter (fun a => a ≡ t [MOD d] ∧ n < (d + xt) * a ∧ xt * a < n)
+
+/-- Conlon–Fox–Pham High Block Avoidance:
+    The high congruence block avoids subset sums equal to n. -/
+lemma congruence_block_high_avoids (n d t xt : ℕ) (hn : 2 ≤ n) (_hd : 1 ≤ d)
+    (hxt_pos : 1 ≤ xt) (hxt_le : xt ≤ d) (ht_coprime : t.Coprime d)
+    (hxt_eq : xt * t ≡ n [MOD d]) :
+    AvoidsSubsetSum (congruenceBlockHigh n d t xt) n := by
+  rintro ⟨A, hA, h_sum⟩
+  have hA_ne : A.Nonempty := by
+    rw [Finset.nonempty_iff_ne_empty]
+    rintro rfl
+    simp only [Finset.sum_empty, id_eq] at h_sum
+    omega
+  have hA_card_pos : 1 ≤ A.card := Finset.Nonempty.card_pos hA_ne
+  have hA_mod : ∀ a ∈ A, a ≡ t [MOD d] := by
+    intro a ha
+    have ha_mem := hA ha
+    simp only [congruenceBlockHigh, Finset.mem_filter] at ha_mem
+    exact ha_mem.2.1
+  have h_sum_mod := congruence_sum_modeq A hA_mod
+  have h_sum_val : (∑ a ∈ A, a) = n := h_sum
+  rw [h_sum_val] at h_sum_mod
+  have h_equiv : A.card * t ≡ xt * t [MOD d] := h_sum_mod.symm.trans hxt_eq.symm
+  have hd_gcd : d.gcd t = 1 := ht_coprime.symm.gcd_eq_one
+  have h_card_mod : A.card ≡ xt [MOD d] :=
+    Nat.ModEq.cancel_right_of_coprime hd_gcd h_equiv
+  have h_xt_le_card : xt ≤ A.card :=
+    card_ge_of_modeq A.card xt d hA_card_pos hxt_le h_card_mod
+  have h_each_gt : ∀ a ∈ A, n + 1 ≤ xt * a := by
+    intro a ha
+    have ha_mem := hA ha
+    simp only [congruenceBlockHigh, Finset.mem_filter] at ha_mem
+    omega
+  have h_sum_mul : xt * n = ∑ a ∈ A, (xt * a) := by
+    rw [← Finset.mul_sum, h_sum_val]
+  have h_sum_ge : ∑ a ∈ A, (n + 1) ≤ ∑ a ∈ A, (xt * a) :=
+    Finset.sum_le_sum (fun a ha => h_each_gt a ha)
+  have h_const : (∑ a ∈ A, (n + 1)) = A.card * (n + 1) := by simp
+  rw [h_const, ← h_sum_mul] at h_sum_ge
+  have h_bound : xt * (n + 1) ≤ xt * n := by
+    calc xt * (n + 1) ≤ A.card * (n + 1) := Nat.mul_le_mul_right (n + 1) h_xt_le_card
+    _ ≤ xt * n := h_sum_ge
+  have : xt * (n + 1) = xt * n + xt := by ring
+  omega
+
+/-- Conlon–Fox–Pham Mid Block Avoidance:
+    The mid congruence block avoids subset sums equal to n. -/
+lemma congruence_block_mid_avoids (n d t xt : ℕ) (hn : 2 ≤ n) (hd : 1 ≤ d)
+    (hxt_pos : 1 ≤ xt) (hxt_le : xt ≤ d) (ht_coprime : t.Coprime d)
+    (hxt_eq : xt * t ≡ n [MOD d]) :
+    AvoidsSubsetSum (congruenceBlockMid n d t xt) n := by
+  rintro ⟨A, hA, h_sum⟩
+  have hA_ne : A.Nonempty := by
+    rw [Finset.nonempty_iff_ne_empty]
+    rintro rfl
+    simp only [Finset.sum_empty, id_eq] at h_sum
+    omega
+  have hA_card_pos : 1 ≤ A.card := Finset.Nonempty.card_pos hA_ne
+  have hA_mod : ∀ a ∈ A, a ≡ t [MOD d] := by
+    intro a ha
+    have ha_mem := hA ha
+    simp only [congruenceBlockMid, Finset.mem_filter] at ha_mem
+    exact ha_mem.2.1
+  have h_sum_mod := congruence_sum_modeq A hA_mod
+  have h_sum_val : (∑ a ∈ A, a) = n := h_sum
+  rw [h_sum_val] at h_sum_mod
+  have h_equiv : A.card * t ≡ xt * t [MOD d] := h_sum_mod.symm.trans hxt_eq.symm
+  have hd_gcd : d.gcd t = 1 := ht_coprime.symm.gcd_eq_one
+  have h_card_mod : A.card ≡ xt [MOD d] :=
+    Nat.ModEq.cancel_right_of_coprime hd_gcd h_equiv
+  have h_cases := card_cases_of_modeq A.card xt d hA_card_pos hxt_le hd h_card_mod
+  rcases h_cases with h_card_eq | h_card_ge
+  · have h_each_lt : ∀ a ∈ A, xt * a ≤ n - 1 := by
+      intro a ha
+      have ha_mem := hA ha
+      simp only [congruenceBlockMid, Finset.mem_filter] at ha_mem
+      omega
+    have h_sum_mul : xt * n = ∑ a ∈ A, (xt * a) := by
+      rw [← Finset.mul_sum, h_sum_val]
+    have h_sum_le : ∑ a ∈ A, (xt * a) ≤ ∑ a ∈ A, (n - 1) :=
+      Finset.sum_le_sum (fun a ha => h_each_lt a ha)
+    have h_const : (∑ a ∈ A, (n - 1)) = A.card * (n - 1) := by simp
+    rw [h_const, ← h_sum_mul, h_card_eq] at h_sum_le
+    have h_bound : xt * n ≤ xt * (n - 1) := h_sum_le
+    have : xt * n = xt * (n - 1) + xt := by
+      rw [← Nat.mul_add_one, Nat.sub_add_cancel (by omega)]
+    omega
+  · have h_each_gt : ∀ a ∈ A, n + 1 ≤ (d + xt) * a := by
+      intro a ha
+      have ha_mem := hA ha
+      simp only [congruenceBlockMid, Finset.mem_filter] at ha_mem
+      omega
+    have h_sum_mul : (d + xt) * n = ∑ a ∈ A, ((d + xt) * a) := by
+      rw [← Finset.mul_sum, h_sum_val]
+    have h_sum_ge : ∑ a ∈ A, (n + 1) ≤ ∑ a ∈ A, ((d + xt) * a) :=
+      Finset.sum_le_sum (fun a ha => h_each_gt a ha)
+    have h_const : (∑ a ∈ A, (n + 1)) = A.card * (n + 1) := by simp
+    rw [h_const, ← h_sum_mul] at h_sum_ge
+    have h_bound : (d + xt) * (n + 1) ≤ (d + xt) * n := by
+      calc (d + xt) * (n + 1) ≤ A.card * (n + 1) := Nat.mul_le_mul_right (n + 1) h_card_ge
+      _ ≤ (d + xt) * n := h_sum_ge
+    have : (d + xt) * (n + 1) = (d + xt) * n + (d + xt) := by ring
+    omega
+
+/-- Conlon-Fox-Pham remainder set: elements x in {1, ..., n-1} not covered by:
+    1. Interval blocks: (s1 + 1) * x < n
+    2. Prime multiples: ∀ p ∈ P, ¬ p ∣ x
+    3. High congruence blocks: ¬ ∃ t ∈ reducedResidues d, x ≡ t [MOD d] ∧ n < invXt n d t * x
+    4. Mid congruence blocks: ¬ ∃ t ∈ reducedResidues d, x ≡ t [MOD d] ∧
+       n < (d + invXt n d t) * x ∧ invXt n d t * x < n -/
+noncomputable def cfpRemainder (n s1 d : ℕ) (P : Finset ℕ) : Finset ℕ :=
+  (Finset.Ico 1 n).filter (fun x =>
+    (s1 + 1) * x < n ∧
+    (∀ p ∈ P, ¬ p ∣ x) ∧
+    (∀ t ∈ reducedResidues d,
+      x ≡ t [MOD d] →
+      let xt := invXt n d t
+      ¬ (n < xt * x) ∧ ¬ (n < (d + xt) * x ∧ xt * x < n)))
+
+lemma cfp_remainder_subset_sieve_remainder (n s1 d : ℕ) (P : Finset ℕ) :
+    cfpRemainder n s1 d P ⊆ sieveRemainder n s1 P := by
+  intro x hx
+  simp only [cfpRemainder, sieveRemainder, Finset.mem_filter] at hx ⊢
+  exact ⟨hx.1, hx.2.1, hx.2.2.1⟩
+
+/-- The 4-layer family of sets in the Conlon-Fox-Pham (2021) construction. -/
+noncomputable def conlonFoxPhamFamily (n s1 : ℕ) (P : Finset ℕ) (d s_rem : ℕ) (i : ℕ) : Finset ℕ :=
+  if i < s1 then
+    intervalBlock n (i + 1)
+  else if i < s1 + P.card then
+    (Finset.Ico 1 n).filter (fun x => P.toList[i - s1]! ∣ x)
+  else if i < s1 + P.card + (reducedResidues d).card then
+    congruenceBlockHigh n d ((reducedResidues d).toList[i - (s1 + P.card)]!) (invXt n d ((reducedResidues d).toList[i - (s1 + P.card)]!))
+  else if i < s1 + P.card + 2 * (reducedResidues d).card then
+    congruenceBlockMid n d ((reducedResidues d).toList[i - (s1 + P.card + (reducedResidues d).card)]!) (invXt n d ((reducedResidues d).toList[i - (s1 + P.card + (reducedResidues d).card)]!))
+  else
+    sieveBlock (cfpRemainder n s1 d P) s_rem (i - (s1 + P.card + 2 * (reducedResidues d).card))
+
+/-- Conlon–Fox–Pham (2021) Upper Bound Theorem:
+    Given n ≥ 2, interval block count s1 ≥ 1, modulus d ≥ 1 coprime to n,
+    primes P not dividing n, and remainder partition parameter 1 ≤ s_rem ≤ s1,
+    there exists a coloring of {1, ..., n-1} with
+      s1 + |P| + 2 * |reducedResidues d| + ⌈|R_cfp| / s_rem⌉
+    colors avoiding monochromatic subset sums to n. -/
+theorem exists_coloring_conlon_fox_pham (n s1 : ℕ) (P : Finset ℕ) (d s_rem : ℕ)
+    (hn : 2 ≤ n) (hs1 : 1 ≤ s1) (hd : 1 ≤ d) (hs_rem : 1 ≤ s_rem) (h_srem_le : s_rem ≤ s1)
+    (hP : ∀ p ∈ P, ¬ p ∣ n) :
+    let T := reducedResidues d
+    let R := cfpRemainder n s1 d P
+    ∃ c : ℕ → Fin (s1 + P.card + 2 * T.card + (R.card + s_rem - 1) / s_rem),
+      AvoidsMonoSubsetSum n (s1 + P.card + 2 * T.card + (R.card + s_rem - 1) / s_rem) c := by
+  let T := reducedResidues d
+  let R := cfpRemainder n s1 d P
+  let m := s1 + P.card + 2 * T.card + (R.card + s_rem - 1) / s_rem
+  have hs1_m : s1 ≤ m :=
+    (Nat.le_add_right s1 P.card).trans
+      ((Nat.le_add_right (s1 + P.card) (2 * T.card)).trans
+        (Nat.le_add_right (s1 + P.card + 2 * T.card) ((R.card + s_rem - 1) / s_rem)))
+  have hm : 1 ≤ m := hs1.trans hs1_m
+  have h_sp_m : s1 + P.card ≤ m :=
+    (Nat.le_add_right (s1 + P.card) (2 * T.card)).trans
+      (Nat.le_add_right (s1 + P.card + 2 * T.card) ((R.card + s_rem - 1) / s_rem))
+  have h_mid_m : s1 + P.card + 2 * T.card ≤ m :=
+    Nat.le_add_right (s1 + P.card + 2 * T.card) ((R.card + s_rem - 1) / s_rem)
+  let S : Fin m → Finset ℕ := fun i => conlonFoxPhamFamily n s1 P d s_rem i.val
+  apply exists_coloring_of_avoiding_family hm S
+  · intro i
+    dsimp [S, conlonFoxPhamFamily]
+    split_ifs with h1 h2 h3 h4
+    · exact interval_block_avoids_subset_sum n (i.val + 1) hn (by omega)
+    · have h_len : i.val - s1 < P.toList.length := by
+        rw [Finset.length_toList]
+        omega
+      rw [getElem!_pos P.toList (i.val - s1) h_len]
+      apply dvd_subset_sum_free _ (P.toList[i.val - s1]) n
+      · have hp_mem : P.toList[i.val - s1] ∈ P := by
+          rw [← Finset.mem_toList]
+          apply List.mem_iff_getElem.mpr
+          exact ⟨i.val - s1, h_len, rfl⟩
+        exact hP _ hp_mem
+      · intro x hx
+        simp only [Finset.mem_filter] at hx
+        exact hx.2
+    · have h_len : i.val - (s1 + P.card) < (reducedResidues d).toList.length := by
+        rw [Finset.length_toList]
+        omega
+      rw [getElem!_pos (reducedResidues d).toList (i.val - (s1 + P.card)) h_len]
+      have ht_mem : (reducedResidues d).toList[i.val - (s1 + P.card)] ∈ reducedResidues d := by
+        rw [← Finset.mem_toList]
+        apply List.mem_iff_getElem.mpr
+        exact ⟨i.val - (s1 + P.card), h_len, rfl⟩
+      have ht_mem' := ht_mem
+      simp only [reducedResidues, Finset.mem_filter] at ht_mem'
+      have ht_cop : ((reducedResidues d).toList[i.val - (s1 + P.card)]).Coprime d := ht_mem'.2
+      exact congruence_block_high_avoids n d _ _ hn hd
+        (invXt_pos n d _ hd ht_cop) (invXt_le n d _ hd ht_cop) ht_cop
+        (invXt_modeq n d _ hd ht_cop)
+    · have h_len : i.val - (s1 + P.card + (reducedResidues d).card) < (reducedResidues d).toList.length := by
+        rw [Finset.length_toList]
+        omega
+      rw [getElem!_pos (reducedResidues d).toList (i.val - (s1 + P.card + (reducedResidues d).card)) h_len]
+      have ht_mem : (reducedResidues d).toList[i.val - (s1 + P.card + (reducedResidues d).card)] ∈ reducedResidues d := by
+        rw [← Finset.mem_toList]
+        apply List.mem_iff_getElem.mpr
+        exact ⟨i.val - (s1 + P.card + (reducedResidues d).card), h_len, rfl⟩
+      have ht_mem' := ht_mem
+      simp only [reducedResidues, Finset.mem_filter] at ht_mem'
+      have ht_cop : ((reducedResidues d).toList[i.val - (s1 + P.card + (reducedResidues d).card)]).Coprime d := ht_mem'.2
+      exact congruence_block_mid_avoids n d _ _ hn hd
+        (invXt_pos n d _ hd ht_cop) (invXt_le n d _ hd ht_cop) ht_cop
+        (invXt_modeq n d _ hd ht_cop)
+    · apply small_card_block_avoids_subset_sum (sieveBlock R s_rem (i.val - (s1 + P.card + 2 * (reducedResidues d).card))) n s_rem hn
+      · exact sieve_block_card_le R s_rem _
+      · intro x hx
+        have h_sub := sieve_block_subset R s_rem _ hx
+        simp only [R, cfpRemainder, Finset.mem_filter] at h_sub
+        have h_s1_x := h_sub.2.1
+        have : (s_rem + 1) * x ≤ (s1 + 1) * x := Nat.mul_le_mul_right x (by omega)
+        omega
+  · intro x hx
+    simp only [Finset.mem_Ico] at hx
+    by_cases h_large : n ≤ (s1 + 1) * x
+    · have hx_pos : 0 < x := by omega
+      let k := (n - 1) / x
+      have hk_ge : 1 ≤ k := by
+        apply Nat.div_pos
+        · omega
+        · exact hx_pos
+      have hk_le : k ≤ s1 := by
+        have : n - 1 < (s1 + 1) * x := by omega
+        rw [Nat.mul_comm (s1 + 1) x] at this
+        have := Nat.div_lt_of_lt_mul this
+        omega
+      let i_val := k - 1
+      have hi_s1 : i_val < s1 := by omega
+      have hi_lt : i_val < m := hi_s1.trans_le hs1_m
+      use ⟨i_val, hi_lt⟩
+      dsimp [S, conlonFoxPhamFamily]
+      rw [if_pos hi_s1]
+      have hk_eq : i_val + 1 = k := by omega
+      rw [hk_eq]
+      simp only [intervalBlock, Finset.mem_filter, Finset.mem_Ico, hx, true_and]
+      refine ⟨?_, ?_⟩
+      · have h_div_mod := Nat.div_add_mod (n - 1) x
+        have h_mod := Nat.mod_lt (n - 1) hx_pos
+        rw [Nat.mul_comm x k] at h_div_mod
+        rw [Nat.add_mul, Nat.one_mul]
+        omega
+      · have : (n - 1) / x * x ≤ n - 1 := Nat.div_mul_le_self (n - 1) x
+        have : k * x ≤ n - 1 := this
+        omega
+    · have h_small : (s1 + 1) * x < n := by omega
+      by_cases h_div : ∃ p ∈ P, p ∣ x
+      · obtain ⟨p, hpP, hpx⟩ := h_div
+        rw [← Finset.mem_toList] at hpP
+        obtain ⟨idx, h_idx, rfl⟩ := List.mem_iff_getElem.mp hpP
+        have h_idx_card : idx < P.card := by
+          have := h_idx
+          rw [Finset.length_toList] at this
+          exact this
+        let i_val := s1 + idx
+        have hi_lt_sp : i_val < s1 + P.card := by omega
+        have hi_lt : i_val < m := hi_lt_sp.trans_le h_sp_m
+        use ⟨i_val, hi_lt⟩
+        dsimp [S, conlonFoxPhamFamily]
+        have h1_not : ¬ i_val < s1 := by omega
+        rw [if_neg h1_not, if_pos hi_lt_sp]
+        have h_idx_eq : i_val - s1 = idx := by omega
+        rw [h_idx_eq]
+        rw [getElem!_pos P.toList idx h_idx]
+        simp only [Finset.mem_filter, Finset.mem_Ico, hx, hpx, and_self]
+      · push Not at h_div
+        by_cases h_high : ∃ t ∈ reducedResidues d, x ≡ t [MOD d] ∧ n < invXt n d t * x
+        · obtain ⟨t, ht_mem, hxt_mod, hxt_high⟩ := h_high
+          have ht_in_list := ht_mem
+          rw [← Finset.mem_toList] at ht_in_list
+          obtain ⟨idx, h_idx, rfl⟩ := List.mem_iff_getElem.mp ht_in_list
+          have h_idx_card : idx < (reducedResidues d).card := by
+            have := h_idx
+            rw [Finset.length_toList] at this
+            exact this
+          let i_val := s1 + P.card + idx
+          have hi_lt_high : i_val < s1 + P.card + (reducedResidues d).card := by omega
+          have hi_mid_le : s1 + P.card + (reducedResidues d).card ≤ s1 + P.card + 2 * (reducedResidues d).card := by omega
+          have hi_lt : i_val < m := (hi_lt_high.trans_le hi_mid_le).trans_le h_mid_m
+          use ⟨i_val, hi_lt⟩
+          dsimp [S, conlonFoxPhamFamily]
+          have h1_not : ¬ i_val < s1 := by omega
+          have h2_not : ¬ i_val < s1 + P.card := by omega
+          rw [if_neg h1_not, if_neg h2_not, if_pos hi_lt_high]
+          have h_idx_eq : i_val - (s1 + P.card) = idx := by omega
+          rw [h_idx_eq]
+          rw [getElem!_pos (reducedResidues d).toList idx h_idx]
+          simp only [congruenceBlockHigh, Finset.mem_filter, Finset.mem_Ico, hx, hxt_mod, hxt_high, and_self]
+        · push Not at h_high
+          by_cases h_mid : ∃ t ∈ reducedResidues d, x ≡ t [MOD d] ∧ n < (d + invXt n d t) * x ∧ invXt n d t * x < n
+          · obtain ⟨t, ht_mem, hxt_mod, hxt_mid1, hxt_mid2⟩ := h_mid
+            have ht_in_list := ht_mem
+            rw [← Finset.mem_toList] at ht_in_list
+            obtain ⟨idx, h_idx, rfl⟩ := List.mem_iff_getElem.mp ht_in_list
+            have h_idx_card : idx < (reducedResidues d).card := by
+              have := h_idx
+              rw [Finset.length_toList] at this
+              exact this
+            let i_val := s1 + P.card + (reducedResidues d).card + idx
+            have hi_lt_mid : i_val < s1 + P.card + 2 * (reducedResidues d).card := by omega
+            have hi_lt : i_val < m := hi_lt_mid.trans_le h_mid_m
+            use ⟨i_val, hi_lt⟩
+            dsimp [S, conlonFoxPhamFamily]
+            have h1_not : ¬ i_val < s1 := by omega
+            have h2_not : ¬ i_val < s1 + P.card := by omega
+            have h3_not : ¬ i_val < s1 + P.card + (reducedResidues d).card := by omega
+            rw [if_neg h1_not, if_neg h2_not, if_neg h3_not, if_pos hi_lt_mid]
+            have h_idx_eq : i_val - (s1 + P.card + (reducedResidues d).card) = idx := by omega
+            rw [h_idx_eq]
+            rw [getElem!_pos (reducedResidues d).toList idx h_idx]
+            simp only [congruenceBlockMid, Finset.mem_filter, Finset.mem_Ico, hx, hxt_mod, hxt_mid1, hxt_mid2, and_self]
+          · push Not at h_mid
+            have hx_R : x ∈ R := by
+              simp only [R, cfpRemainder, Finset.mem_filter, Finset.mem_Ico, hx, h_small, true_and]
+              refine ⟨h_div, fun t ht hmod => ?_⟩
+              have h1 : ¬ (n < invXt n d t * x) := by
+                have := h_high t ht hmod
+                omega
+              have h2 : ¬ (n < (d + invXt n d t) * x ∧ invXt n d t * x < n) := by
+                intro ⟨h_mid1, h_mid2⟩
+                have := h_mid t ht hmod h_mid1
+                omega
+              exact ⟨h1, h2⟩
+            obtain ⟨j, hj_lt, hj_mem⟩ := mem_sieve_block_of_mem hs_rem hx_R
+            let i_val := s1 + P.card + 2 * (reducedResidues d).card + j
+            have hi_lt : i_val < m :=
+              Nat.add_lt_add_left hj_lt (s1 + P.card + 2 * (reducedResidues d).card)
+            use ⟨i_val, hi_lt⟩
+            dsimp [S, conlonFoxPhamFamily]
+            have h1_not : ¬ i_val < s1 := by omega
+            have h2_not : ¬ i_val < s1 + P.card := by omega
+            have h3_not : ¬ i_val < s1 + P.card + (reducedResidues d).card := by omega
+            have h4_not : ¬ i_val < s1 + P.card + 2 * (reducedResidues d).card := by omega
+            rw [if_neg h1_not, if_neg h2_not, if_neg h3_not, if_neg h4_not]
+            have : i_val - (s1 + P.card + 2 * (reducedResidues d).card) = j := by omega
+            rw [this]
+            exact hj_mem
+
+/-- Conlon–Fox–Pham (2021) Chromatic Bound:
+    f(n) ≤ s1 + |P| + 2 * |reducedResidues d| + ⌈|R_cfp| / s_rem⌉. -/
+theorem minColors_le_conlon_fox_pham (n s1 : ℕ) (P : Finset ℕ) (d s_rem : ℕ)
+    (hn : 2 ≤ n) (hs1 : 1 ≤ s1) (hd : 1 ≤ d) (hs_rem : 1 ≤ s_rem) (h_srem_le : s_rem ≤ s1)
+    (hP : ∀ p ∈ P, ¬ p ∣ n) :
+    let T := reducedResidues d
+    let R := cfpRemainder n s1 d P
+    minColors n hn ≤ s1 + P.card + 2 * T.card + (R.card + s_rem - 1) / s_rem := by
+  let T := reducedResidues d
+  let R := cfpRemainder n s1 d P
+  obtain ⟨c, hc⟩ := exists_coloring_conlon_fox_pham n s1 P d s_rem hn hs1 hd hs_rem h_srem_le hP
+  exact minColors_le n hn ⟨c, hc⟩
+
+/-- Coarser bound with 2*d:
+    f(n) ≤ s1 + |P| + 2 * d + ⌈|R_cfp| / s_rem⌉. -/
+theorem minColors_le_conlon_fox_pham_coarse (n s1 : ℕ) (P : Finset ℕ) (d s_rem : ℕ)
+    (hn : 2 ≤ n) (hs1 : 1 ≤ s1) (hd : 1 ≤ d) (hs_rem : 1 ≤ s_rem) (h_srem_le : s_rem ≤ s1)
+    (hP : ∀ p ∈ P, ¬ p ∣ n) :
+    let R := cfpRemainder n s1 d P
+    minColors n hn ≤ s1 + P.card + 2 * d + (R.card + s_rem - 1) / s_rem := by
+  have h_main := minColors_le_conlon_fox_pham n s1 P d s_rem hn hs1 hd hs_rem h_srem_le hP
+  have h_T := reducedResidues_card_le d
+  omega
+
 end Erdos298
 
 #print axioms Erdos298.exists_coloring_of_le_cube
@@ -1774,3 +2307,7 @@ end Erdos298
 #print axioms Erdos298.minColors_le_of_prime_subset
 #print axioms Erdos298.minColors_ge_two
 #print axioms Erdos298.conlon_fox_pham_bounds
+
+#print axioms Erdos298.exists_coloring_conlon_fox_pham
+#print axioms Erdos298.minColors_le_conlon_fox_pham
+#print axioms Erdos298.minColors_le_conlon_fox_pham_coarse

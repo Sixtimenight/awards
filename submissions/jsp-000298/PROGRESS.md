@@ -35,7 +35,12 @@
 | **Phase 2: Generic Sieve Bound** | `Erdos298.minColors_le_of_sieveG_lower_bound` | $f(n) \le 2s + \lceil \frac{n - 1}{s(s+1) g_0} + \frac{z^4}{s} \rceil$ for any $g_0 \le G$ | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
 | **Phase 2: Sieve by Primes** | `Erdos298.minColors_le_of_sum_primes` | $f(n) \le 2s + \lceil \frac{n - 1}{s(s+1)(1 + \sum_{p \le z, p \nmid n} 1/(p - 1))} + \frac{z^4}{s} \rceil$ | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
 | **Phase 2: Sieve by Prime Subset**| `Erdos298.minColors_le_of_prime_subset` | $f(n) \le 2s + \lceil \frac{n - 1}{s(s+1)(1 + \sum_{p \in Q} 1/(p - 1))} + \frac{z^4}{s} \rceil$ for $Q \subseteq P$ | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
-| **Phase 3-5: Asymptotic Reduction** | `Erdos298.conlon_fox_pham_bounds` | Two-sided asymptotic growth reduction $c F(n) \le f(n) \le C F(n)$ | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
+| **Phase 3: CFP Congruence High** | `Erdos298.congruence_block_high_avoids` | High congruence block avoids subset sums to $n$ | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
+| **Phase 3: CFP Congruence Mid** | `Erdos298.congruence_block_mid_avoids` | Mid congruence block avoids subset sums to $n$ | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
+| **Phase 3: CFP 4-Layer Coloring** | `Erdos298.exists_coloring_conlon_fox_pham` | Explicit 4-layer coloring avoiding monochromatic subset sum $n$ | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
+| **Phase 3: CFP Upper Bound** | `Erdos298.minColors_le_conlon_fox_pham` | $f(n) \le s_1 + \|P\| + 2\|\text{reducedResidues } d\| + \lceil \|R_{cfp}\| / s_{rem} \rceil$ | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
+| **Phase 3: CFP Coarse Bound** | `Erdos298.minColors_le_conlon_fox_pham_coarse` | $f(n) \le s_1 + \|P\| + 2d + \lceil \|R_{cfp}\| / s_{rem} \rceil$ | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
+| **Phase 4-5: Asymptotic Reduction** | `Erdos298.conlon_fox_pham_bounds` | Two-sided asymptotic growth reduction $c F(n) \le f(n) \le C F(n)$ | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
 
 
 ---
