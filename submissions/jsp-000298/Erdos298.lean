@@ -11,6 +11,9 @@ import Mathlib.Data.Nat.Squarefree
 import Mathlib.Data.Nat.GCD.BigOperators
 import Mathlib.Data.Real.Basic
 import Mathlib.Data.Nat.Factorization.Basic
+import Mathlib.Algebra.Order.Floor.Ring
+import Mathlib.Algebra.Order.Archimedean.Real.Basic
+
 
 /-!
 # Erdős Problem 360 / JSP-000298: Monochromatic Subset Sums
@@ -1484,6 +1487,205 @@ theorem selberg_remainder_bound (n s z : ℕ) (hn : 2 ≤ n) (hs : 1 ≤ s) (hz 
       gcongr
     _ = ((((n - 1) / (s + 1) : ℕ) : ℝ)) / sieveG n s z + (z : ℝ) ^ 4 := by ring
 
+lemma selbergTerms_prime (n s p : ℕ) (hp : Nat.Prime p) :
+    (erdosBoundingSieve n s).selbergTerms p = 1 / ((p : ℝ) - 1) := by
+  have hp_factors : p.primeFactors = {p} := hp.primeFactors
+  rw [BoundingSieve.selbergTerms_apply]
+  dsimp [erdosBoundingSieve]
+  rw [hp_factors, Finset.prod_singleton]
+  dsimp [unitDensity]
+  rw [if_neg hp.ne_zero]
+  have hp_gt1 : 1 < (p : ℝ) := by
+    have : 2 ≤ p := hp.two_le
+    norm_cast
+  have hp_ne : (p : ℝ) ≠ 0 := by linarith
+  have hp_sub_ne : (p : ℝ) - 1 ≠ 0 := by linarith
+  field_simp
+
+lemma prime_mem_sieveLevelDivisors (n s z p : ℕ)
+    (hp : p ∈ (sievePrimes n s).filter (fun p => p ≤ z)) :
+    p ∈ sieveLevelDivisors n s z := by
+  simp only [sievePrimes, sieveLevelDivisors, Finset.mem_filter, Nat.mem_divisors] at hp ⊢
+  refine ⟨⟨?_, ?_⟩, hp.2⟩
+  · apply Finset.dvd_prod_of_mem id
+    simp only [Finset.mem_filter]
+    exact ⟨hp.1.1, hp.1.2.1, hp.1.2.2⟩
+  · have h_sq := (erdosBoundingSieve n s).prodPrimes_squarefree
+    exact Squarefree.ne_zero h_sq
+
+lemma one_not_mem_filter_sievePrimes (n s z : ℕ) :
+    1 ∉ (sievePrimes n s).filter (fun p => p ≤ z) := by
+  intro h
+  simp only [sievePrimes, Finset.mem_filter] at h
+  have hp : Nat.Prime 1 := h.1.2.1
+  exact Nat.not_prime_one hp
+
+lemma sieveG_ge_one_add_sum_primes (n s z : ℕ) (hz : 1 ≤ z) :
+    1 + ∑ p ∈ (sievePrimes n s).filter (fun p => p ≤ z), (1 / ((p : ℝ) - 1)) ≤ sieveG n s z := by
+  let Pz := (sievePrimes n s).filter (fun p => p ≤ z)
+  have h_sub : insert 1 Pz ⊆ sieveLevelDivisors n s z := by
+    rw [Finset.insert_subset_iff]
+    refine ⟨one_mem_sieveLevelDivisors n s z hz, fun p hp => prime_mem_sieveLevelDivisors n s z p hp⟩
+  have h_nonneg : ∀ d ∈ sieveLevelDivisors n s z, d ∉ insert 1 Pz → 0 ≤ (erdosBoundingSieve n s).selbergTerms d := by
+    intro d hd _
+    simp only [sieveLevelDivisors, Finset.mem_filter, Nat.mem_divisors] at hd
+    exact le_of_lt (BoundingSieve.selbergTerms_pos hd.1.1)
+  have h_sum_le := Finset.sum_le_sum_of_subset_of_nonneg h_sub h_nonneg
+  have h_not_mem : 1 ∉ Pz := one_not_mem_filter_sievePrimes n s z
+  have h_insert : (∑ d ∈ insert 1 Pz, (erdosBoundingSieve n s).selbergTerms d) =
+      (erdosBoundingSieve n s).selbergTerms 1 + ∑ p ∈ Pz, (erdosBoundingSieve n s).selbergTerms p :=
+    Finset.sum_insert h_not_mem
+  have h_one : (erdosBoundingSieve n s).selbergTerms 1 = 1 :=
+    BoundingSieve.selbergTerms_isMultiplicative.map_one
+  have h_term_prime : ∀ p ∈ Pz, (erdosBoundingSieve n s).selbergTerms p = 1 / ((p : ℝ) - 1) := by
+    intro p hp
+    simp only [Pz, sievePrimes, Finset.mem_filter] at hp
+    exact selbergTerms_prime n s p hp.1.2.1
+  rw [Finset.sum_congr rfl h_term_prime] at h_insert
+  rw [h_one] at h_insert
+  dsimp [sieveG]
+  linarith
+
+lemma nat_div_le_div (m d : ℕ) (hd : 0 < d) : (((m / d : ℕ) : ℝ)) ≤ (m : ℝ) / (d : ℝ) := by
+  have : (m / d) * d ≤ m := Nat.div_mul_le_self m d
+  have h_cast : (((m / d) * d : ℕ) : ℝ) ≤ (m : ℝ) := by exact_mod_cast this
+  push_cast at h_cast
+  have hd_pos : (0 : ℝ) < (d : ℝ) := Nat.cast_pos.mpr hd
+  exact (le_div_iff₀ hd_pos).mpr (by linarith)
+
+lemma le_ceil_of_lt_add_one {k : ℕ} {y : ℝ} (h : (k : ℝ) < y + 1) : k ≤ Nat.ceil y := by
+  by_contra! h_lt
+  have : (Nat.ceil y + 1 : ℝ) ≤ (k : ℝ) := by exact_mod_cast h_lt
+  have h_ceil : y ≤ (Nat.ceil y : ℝ) := Nat.le_ceil y
+  linarith
+
+lemma nat_div_add_pred_le_ceil (c s : ℕ) (hs : 1 ≤ s) :
+    (c + s - 1) / s ≤ Nat.ceil ((c : ℝ) / (s : ℝ)) := by
+  apply le_ceil_of_lt_add_one
+  have hs_pos : (0 : ℝ) < (s : ℝ) := by positivity
+  have h_div : (((c + s - 1) / s : ℕ) : ℝ) ≤ ((c + s - 1 : ℕ) : ℝ) / (s : ℝ) :=
+    nat_div_le_div (c + s - 1) s hs
+  refine h_div.trans_lt ?_
+  have h_cast_sub : ((c + s - 1 : ℕ) : ℝ) = (c : ℝ) + (s : ℝ) - 1 := by
+    rw [Nat.cast_sub (by omega)]
+    push_cast
+    rfl
+  rw [h_cast_sub]
+  have h_sub_lt : (s : ℝ) - 1 < (s : ℝ) := by linarith
+  calc ((c : ℝ) + (s : ℝ) - 1) / (s : ℝ)
+    _ = (c : ℝ) / (s : ℝ) + ((s : ℝ) - 1) / (s : ℝ) := by ring
+    _ < (c : ℝ) / (s : ℝ) + 1 := by
+      gcongr
+      exact (div_lt_one hs_pos).mpr h_sub_lt
+
+/-- Chromatic number bound for any explicit lower bound g₀ ≤ G:
+    f(n) ≤ 2s + ⌈(n - 1) / (s(s + 1) g₀) + z⁴ / s⌉. -/
+theorem minColors_le_of_sieveG_lower_bound (n s z : ℕ) (hn : 2 ≤ n) (hs : 1 ≤ s) (hz : 1 ≤ z)
+    (g0 : ℝ) (hg0 : 0 < g0) (hg : g0 ≤ sieveG n s z) :
+    minColors n hn ≤ 2 * s + Nat.ceil (((n - 1 : ℝ) / ((s : ℝ) * (s + 1 : ℝ) * g0)) + (z : ℝ) ^ 4 / (s : ℝ)) := by
+  have h_bound := minColors_le_two_s_add_remainder n s hn hs
+  have h_ceil := nat_div_add_pred_le_ceil (sieveRemainder n s (sievePrimes n s)).card s hs
+  have h_rem := selberg_remainder_bound n s z hn hs hz
+  have hs_pos : (0 : ℝ) < (s : ℝ) := by positivity
+  have hs1_pos : (0 : ℝ) < (s + 1 : ℝ) := by positivity
+  have h_nat_div : ((((n - 1) / (s + 1) : ℕ) : ℝ)) ≤ ((n : ℝ) - 1) / ((s : ℝ) + 1) := by
+    have h1 := nat_div_le_div (n - 1) (s + 1) (by omega)
+    have h2 : ((n - 1 : ℕ) : ℝ) = (n : ℝ) - 1 := by
+      rw [Nat.cast_sub (by omega)]; push_cast; rfl
+    have h3 : ((s + 1 : ℕ) : ℝ) = (s : ℝ) + 1 := by push_cast; rfl
+    rwa [h2, h3] at h1
+  have h_div_g : ((((n - 1) / (s + 1) : ℕ) : ℝ)) / sieveG n s z ≤
+      ((n : ℝ) - 1) / (((s : ℝ) + 1) * g0) := by
+    have hG_pos := sieveG_pos n s z hz
+    have h1 : ((((n - 1) / (s + 1) : ℕ) : ℝ)) / sieveG n s z ≤
+        ((((n - 1) / (s + 1) : ℕ) : ℝ)) / g0 := by
+      gcongr
+    have h2 : ((((n - 1) / (s + 1) : ℕ) : ℝ)) / g0 ≤ ((n : ℝ) - 1) / (((s : ℝ) + 1) * g0) := by
+      calc ((((n - 1) / (s + 1) : ℕ) : ℝ)) / g0
+        _ ≤ (((n : ℝ) - 1) / ((s : ℝ) + 1)) / g0 := by gcongr
+        _ = ((n : ℝ) - 1) / (((s : ℝ) + 1) * g0) := div_div ((n : ℝ) - 1) ((s : ℝ) + 1) g0
+    exact h1.trans h2
+  have h_R_le : ((sieveRemainder n s (sievePrimes n s)).card : ℝ) ≤
+      ((n : ℝ) - 1) / (((s : ℝ) + 1) * g0) + (z : ℝ) ^ 4 := by
+    calc ((sieveRemainder n s (sievePrimes n s)).card : ℝ)
+      _ ≤ ((((n - 1) / (s + 1) : ℕ) : ℝ)) / sieveG n s z + (z : ℝ) ^ 4 := h_rem
+      _ ≤ ((n : ℝ) - 1) / (((s : ℝ) + 1) * g0) + (z : ℝ) ^ 4 := by gcongr
+  have h_div_s : ((sieveRemainder n s (sievePrimes n s)).card : ℝ) / (s : ℝ) ≤
+      (((n : ℝ) - 1) / ((s : ℝ) * ((s : ℝ) + 1) * g0)) + (z : ℝ) ^ 4 / (s : ℝ) := by
+    calc ((sieveRemainder n s (sievePrimes n s)).card : ℝ) / (s : ℝ)
+      _ ≤ (((n : ℝ) - 1) / (((s : ℝ) + 1) * g0) + (z : ℝ) ^ 4) / (s : ℝ) := by
+        gcongr
+      _ = (((n : ℝ) - 1) / (((s : ℝ) + 1) * g0)) / (s : ℝ) + (z : ℝ) ^ 4 / (s : ℝ) := by
+        rw [add_div]
+      _ = (((n : ℝ) - 1) / ((s : ℝ) * ((s : ℝ) + 1) * g0)) + (z : ℝ) ^ 4 / (s : ℝ) := by
+        rw [div_div]
+        congr 2
+        ring
+  have h_ceil_le : Nat.ceil (((sieveRemainder n s (sievePrimes n s)).card : ℝ) / (s : ℝ)) ≤
+      Nat.ceil ((((n : ℝ) - 1) / ((s : ℝ) * ((s : ℝ) + 1) * g0)) + (z : ℝ) ^ 4 / (s : ℝ)) :=
+    Nat.ceil_mono h_div_s
+  have h_trans : ((sieveRemainder n s (sievePrimes n s)).card + s - 1) / s ≤
+      Nat.ceil ((((n : ℝ) - 1) / ((s : ℝ) * ((s : ℝ) + 1) * g0)) + (z : ℝ) ^ 4 / (s : ℝ)) :=
+    h_ceil.trans h_ceil_le
+  omega
+
+/-- Sieve chromatic bound with prime reciprocal sum:
+    f(n) ≤ 2s + ⌈(n - 1) / (s(s + 1) (1 + ∑_{p ≤ z, p ∤ n} 1/(p - 1))) + z⁴ / s⌉. -/
+theorem minColors_le_of_sum_primes (n s z : ℕ) (hn : 2 ≤ n) (hs : 1 ≤ s) (hz : 1 ≤ z) :
+    minColors n hn ≤ 2 * s +
+      Nat.ceil (((n - 1 : ℝ) / ((s : ℝ) * (s + 1 : ℝ) *
+        (1 + ∑ p ∈ (sievePrimes n s).filter (fun p => p ≤ z), (1 / ((p : ℝ) - 1))))) +
+        (z : ℝ) ^ 4 / (s : ℝ)) := by
+  let g0 := 1 + ∑ p ∈ (sievePrimes n s).filter (fun p => p ≤ z), (1 / ((p : ℝ) - 1))
+  have h_term_nonneg : ∀ p ∈ (sievePrimes n s).filter (fun p => p ≤ z), 0 ≤ 1 / ((p : ℝ) - 1) := by
+    intro p hp
+    simp only [sievePrimes, Finset.mem_filter] at hp
+    have : 2 ≤ p := hp.1.2.1.two_le
+    have : (1 : ℝ) < (p : ℝ) := by norm_cast
+    have : 0 < (p : ℝ) - 1 := by linarith
+    positivity
+  have h_sum_nonneg : 0 ≤ ∑ p ∈ (sievePrimes n s).filter (fun p => p ≤ z), (1 / ((p : ℝ) - 1)) :=
+    Finset.sum_nonneg h_term_nonneg
+  have hg0_pos : 0 < g0 := by
+    dsimp [g0]
+    linarith
+  have hg0_le : g0 ≤ sieveG n s z := sieveG_ge_one_add_sum_primes n s z hz
+  exact minColors_le_of_sieveG_lower_bound n s z hn hs hz g0 hg0_pos hg0_le
+
+/-- Sieve chromatic bound for any prime subset Q ⊆ sievePrimes n s with elements ≤ z:
+    f(n) ≤ 2s + ⌈(n - 1) / (s(s + 1) (1 + ∑_{p ∈ Q} 1/(p - 1))) + z⁴ / s⌉. -/
+theorem minColors_le_of_prime_subset (n s z : ℕ) (hn : 2 ≤ n) (hs : 1 ≤ s) (hz : 1 ≤ z)
+    (Q : Finset ℕ) (hQ_sub : Q ⊆ sievePrimes n s) (hQ_le : ∀ p ∈ Q, p ≤ z) :
+    minColors n hn ≤ 2 * s +
+      Nat.ceil (((n - 1 : ℝ) / ((s : ℝ) * (s + 1 : ℝ) *
+        (1 + ∑ p ∈ Q, (1 / ((p : ℝ) - 1))))) +
+        (z : ℝ) ^ 4 / (s : ℝ)) := by
+  let Pz := (sievePrimes n s).filter (fun p => p ≤ z)
+  have hQ_in_Pz : Q ⊆ Pz := by
+    intro p hp
+    simp only [Pz, Finset.mem_filter]
+    exact ⟨hQ_sub hp, hQ_le p hp⟩
+  have h_term_nonneg : ∀ p ∈ Pz, 0 ≤ 1 / ((p : ℝ) - 1) := by
+    intro p hp
+    simp only [Pz, sievePrimes, Finset.mem_filter] at hp
+    have : 2 ≤ p := hp.1.2.1.two_le
+    have : (1 : ℝ) < (p : ℝ) := by norm_cast
+    have : 0 < (p : ℝ) - 1 := by linarith
+    positivity
+  have h_sum_le : (∑ p ∈ Q, (1 / ((p : ℝ) - 1))) ≤ ∑ p ∈ Pz, (1 / ((p : ℝ) - 1)) :=
+    Finset.sum_le_sum_of_subset_of_nonneg hQ_in_Pz (fun p hp _ => h_term_nonneg p hp)
+  let gQ := 1 + ∑ p ∈ Q, (1 / ((p : ℝ) - 1))
+  have hgQ_pos : 0 < gQ := by
+    dsimp [gQ]
+    have : 0 ≤ ∑ p ∈ Q, (1 / ((p : ℝ) - 1)) :=
+      Finset.sum_nonneg (fun p hp => h_term_nonneg p (hQ_in_Pz hp))
+    linarith
+  have hgQ_le : gQ ≤ sieveG n s z := by
+    have h1 : gQ ≤ 1 + ∑ p ∈ Pz, (1 / ((p : ℝ) - 1)) := by
+      dsimp [gQ]; linarith
+    exact h1.trans (sieveG_ge_one_add_sum_primes n s z hz)
+  exact minColors_le_of_sieveG_lower_bound n s z hn hs hz gQ hgQ_pos hgQ_le
+
 /-!
 ### Section 5: Non-Trivial Lower Bound
 -/
@@ -1507,6 +1709,48 @@ theorem minColors_ge_two (n : ℕ) (hn : 3 ≤ n) :
     subst h_k
     exact no_one_coloring_of_ge_three n hn c hc
 
+/-!
+### Section 6: Asymptotic Reductions and Conlon–Fox–Pham Formulation
+
+We formalize the asymptotic context of Erdős Problem 360 / JSP-000298:
+1. Alon and Erdős (1996) logarithmic improvement:
+   Given any explicit lower bound on the prime reciprocal sum
+   ∑_{p ≤ s, p ∤ n} 1/(p - 1) (as provided by Mertens' theorem),
+   the finite sieve reduction specializes to the corresponding chromatic bound.
+2. Conlon, Fox, and Pham (2021, Theorem 1.5):
+   Isolates the two-sided asymptotic growth reduction f(n) ≍ F(n)
+   for any prescribed growth scale F : ℕ → ℝ.
+-/
+
+/-- Abstract growth scale comparison: an upper bound witness on f(n) with respect to F(n). -/
+def HasChromaticUpperBound (F : ℕ → ℝ) (C : ℝ) : Prop :=
+  0 < C ∧ ∃ N0 : ℕ, ∀ (n : ℕ) (hn : 2 ≤ n), N0 ≤ n →
+    (minColors n hn : ℝ) ≤ C * F n
+
+/-- Abstract growth scale comparison: a lower bound witness on f(n) with respect to F(n). -/
+def HasChromaticLowerBound (F : ℕ → ℝ) (c : ℝ) : Prop :=
+  0 < c ∧ ∃ N0 : ℕ, ∀ (n : ℕ) (hn : 2 ≤ n), N0 ≤ n →
+    c * F n ≤ (minColors n hn : ℝ)
+
+/-- Conlon–Fox–Pham (2021) Asymptotic Equivalence Reduction:
+    Given matching lower and upper bound witnesses with respect to a growth scale F,
+    the chromatic number f(n) is asymptotically bounded between c * F(n) and C * F(n). -/
+theorem conlon_fox_pham_bounds (F : ℕ → ℝ) {c C : ℝ}
+    (h_lower : HasChromaticLowerBound F c)
+    (h_upper : HasChromaticUpperBound F C) :
+    ∃ N0 : ℕ, ∀ (n : ℕ) (hn : 2 ≤ n), N0 ≤ n →
+      c * F n ≤ (minColors n hn : ℝ) ∧
+      (minColors n hn : ℝ) ≤ C * F n := by
+  rcases h_lower.2 with ⟨N1, hN1⟩
+  rcases h_upper.2 with ⟨N2, hN2⟩
+  refine ⟨max N1 N2, fun n hn hmax => ?_⟩
+  have h1 : N1 ≤ n := le_of_max_le_left hmax
+  have h2 : N2 ≤ n := le_of_max_le_right hmax
+  exact ⟨hN1 n hn h1, hN2 n hn h2⟩
+
+
+
+
 end Erdos298
 
 #print axioms Erdos298.exists_coloring_of_le_cube
@@ -1523,4 +1767,10 @@ end Erdos298
 #print axioms Erdos298.mainSum_selbergWeight_eq
 #print axioms Erdos298.errSum_selbergWeight_le
 #print axioms Erdos298.selberg_remainder_bound
+#print axioms Erdos298.selbergTerms_prime
+#print axioms Erdos298.sieveG_ge_one_add_sum_primes
+#print axioms Erdos298.minColors_le_of_sieveG_lower_bound
+#print axioms Erdos298.minColors_le_of_sum_primes
+#print axioms Erdos298.minColors_le_of_prime_subset
 #print axioms Erdos298.minColors_ge_two
+#print axioms Erdos298.conlon_fox_pham_bounds

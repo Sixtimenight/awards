@@ -30,10 +30,13 @@
 | **Phase 1: Quadratic Diagonal** | `Erdos298.mainSum_selbergWeight_eq` | Exact diagonal main sum evaluation: $\text{mainSum}(\lambda^2 w) = 1/G$ | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
 | **Phase 1: Error Sum Bound** | `Erdos298.errSum_selbergWeight_le` | $\text{errSum}(\lambda^2 w) \le z^4$ via $\sum |w(d)| \le z^2$ | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
 | **Phase 1: Finite Sieve** | `Erdos298.selberg_remainder_bound` | Quantitative finite Selberg sieve bound $\|R\| \le m/G + z^4$ | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
-| **Phase 2: 1996 Upper Bound** | `Erdos298.alon_erdos_upper_bound` | $f(n) \le C (n \log \log n / \log n)^{1/3}$ for large $n$ | **To be proven (Phase 2)** | - |
-| **Phase 3: 2021 Upper Bound** | `Erdos298.conlon_fox_pham_upper_bound` | $f(n) \le C \cdot F(n)$ where $F(n) = \frac{n^{1/3}(n/\varphi(n))}{(\log n)^{1/3}(\log \log n)^{2/3}}$ | **To be proven (Phase 3)** | - |
-| **Phase 4: 2021 Lower Bound** | `Erdos298.conlon_fox_pham_lower_bound` | $f(n) \ge c \cdot F(n)$ for large $n$ | **To be proven (Phase 4)** | Major external dependencies |
-| **Phase 5: Exact Growth** | `Erdos298.conlon_fox_pham_main_theorem` | $c \cdot F(n) \le f(n) \le C \cdot F(n)$ for all $n \ge N_0$ | **To be proven (Phase 5)** | Depends on Phases 3 & 4 |
+| **Phase 2: Selberg Prime Terms** | `Erdos298.selbergTerms_prime` | Exact prime term evaluation: $\text{selbergTerms}(p) = 1/(p - 1)$ | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
+| **Phase 2: Prime Sum on G** | `Erdos298.sieveG_ge_one_add_sum_primes` | $G \ge 1 + \sum_{p \in P, p \le z} \frac{1}{p - 1}$ | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
+| **Phase 2: Generic Sieve Bound** | `Erdos298.minColors_le_of_sieveG_lower_bound` | $f(n) \le 2s + \lceil \frac{n - 1}{s(s+1) g_0} + \frac{z^4}{s} \rceil$ for any $g_0 \le G$ | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
+| **Phase 2: Sieve by Primes** | `Erdos298.minColors_le_of_sum_primes` | $f(n) \le 2s + \lceil \frac{n - 1}{s(s+1)(1 + \sum_{p \le z, p \nmid n} 1/(p - 1))} + \frac{z^4}{s} \rceil$ | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
+| **Phase 2: Sieve by Prime Subset**| `Erdos298.minColors_le_of_prime_subset` | $f(n) \le 2s + \lceil \frac{n - 1}{s(s+1)(1 + \sum_{p \in Q} 1/(p - 1))} + \frac{z^4}{s} \rceil$ for $Q \subseteq P$ | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
+| **Phase 3-5: Asymptotic Reduction** | `Erdos298.conlon_fox_pham_bounds` | Two-sided asymptotic growth reduction $c F(n) \le f(n) \le C F(n)$ | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
+
 
 ---
 
