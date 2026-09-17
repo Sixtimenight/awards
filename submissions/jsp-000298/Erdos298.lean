@@ -3,8 +3,29 @@ import Mathlib.Algebra.BigOperators.Ring.Finset
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.Data.Finset.Basic
 import Mathlib.Data.Finset.Card
+import Mathlib.Data.List.Basic
 import Mathlib.Order.Interval.Finset.Nat
 import Mathlib.Tactic.Ring
+
+/-!
+# Erdős Problem 360 / JSP-000298: Monochromatic Subset Sums
+
+Let (n) denote the minimum number of colors needed to color {1, ..., n-1}
+such that no color class contains a subset whose elements sum to 
+.
+
+Alon and Erdős (1996, *Acta Arithmetica* 74(3), pp. 269-272) studied this problem:
+1. Cubic-root baseline: partitioning into interval blocks A_k for 
+ ≤ (k+1)x
+   and remainder blocks gives (n) ≤ 2⌈n^(1/3)⌉.
+2. Sieve-remainder bound: sieving multiples of primes p ≤ s with p ∤ n
+   leaves a remainder set R. Partitioning R by element counts into blocks
+   of size at most s yields:
+   (n) ≤ s + |P| + ⌈|R| / s⌉.
+3. Lower bound: (n) ≥ 2 for all 
+ ≥ 3 (since {1, n-1} sums to 
+).
+-/
 
 namespace Erdos298
 
@@ -151,7 +172,7 @@ theorem upper_half_subset_sum_free (n : ℕ) (hn : 2 ≤ n) :
   rw [h_eq]
   exact interval_block_avoids_subset_sum n 1 hn (by omega)
 
-/-- Small remainder set R: elements x with (s + 1) * x < n. -/
+/-- Small remainder set: elements x with (s + 1) * x < n. -/
 def smallRemainder (n s : ℕ) : Finset ℕ :=
   (Finset.Ico 1 n).filter (fun x => (s + 1) * x < n)
 
@@ -174,7 +195,7 @@ lemma small_remainder_lt_square (n s x : ℕ) (hs : 1 ≤ s) (hns : n ≤ s ^ 3)
     omega
   omega
 
-/-- Small block C_j: subset of R in the interval [j*s, (j+1)*s - 1]. -/
+/-- Small block C_j: subset of smallRemainder in the interval [j*s, (j+1)*s - 1]. -/
 def smallBlock (n s j : ℕ) : Finset ℕ :=
   (smallRemainder n s).filter (fun x => j * s ≤ x ∧ x < (j + 1) * s)
 
@@ -191,24 +212,26 @@ lemma small_block_card_le (n s j : ℕ) : (smallBlock n s j).card ≤ s := by
   rw [this] at h_card
   exact h_card
 
-lemma small_block_avoids_subset_sum (n s j : ℕ) (hn : 2 ≤ n) :
-    AvoidsSubsetSum (smallBlock n s j) n := by
+/-- General lemma: any block C with cardinality ≤ s whose elements satisfy (s+1)*x < n
+    avoids subset sums to n. -/
+lemma small_card_block_avoids_subset_sum (C : Finset ℕ) (n s : ℕ) (hn : 2 ≤ n)
+    (hC : C.card ≤ s) (h_elem : ∀ x ∈ C, (s + 1) * x < n) :
+    AvoidsSubsetSum C n := by
   intro ⟨T, hTsub, hTsum⟩
   by_cases h0 : T.card = 0
   · rw [Finset.card_eq_zero] at h0
     subst h0
     simp at hTsum
     omega
-  · have h_elem : ∀ x ∈ T, (s + 1) * x ≤ n - 1 := by
+  · have h_bound : ∀ x ∈ T, (s + 1) * x ≤ n - 1 := by
       intro x hx
-      have := hTsub hx
-      simp only [smallBlock, smallRemainder, Finset.mem_filter, Finset.mem_Ico] at this
+      have := h_elem x (hTsub hx)
       omega
-    have h_card_T : T.card ≤ s := (Finset.card_le_card hTsub).trans (small_block_card_le n s j)
+    have h_card_T : T.card ≤ s := (Finset.card_le_card hTsub).trans hC
     have h_sum_le : (s + 1) * T.sum id ≤ s * (n - 1) := by
       rw [Finset.mul_sum]
       dsimp
-      have h_sum := Finset.sum_le_sum (fun x hx => h_elem x hx)
+      have h_sum := Finset.sum_le_sum (fun x hx => h_bound x hx)
       have h_const : (∑ x ∈ T, (n - 1)) = T.card * (n - 1) := by simp
       rw [h_const] at h_sum
       have h_card_mul : T.card * (n - 1) ≤ s * (n - 1) := Nat.mul_le_mul_right (n - 1) h_card_T
@@ -221,6 +244,13 @@ lemma small_block_avoids_subset_sum (n s j : ℕ) (hn : 2 ≤ n) :
           rw [add_mul, one_mul]
           omega
     omega
+
+lemma small_block_avoids_subset_sum (n s j : ℕ) (hn : 2 ≤ n) :
+    AvoidsSubsetSum (smallBlock n s j) n := by
+  apply small_card_block_avoids_subset_sum (smallBlock n s j) n s hn (small_block_card_le n s j)
+  intro x hx
+  simp only [smallBlock, smallRemainder, Finset.mem_filter, Finset.mem_Ico] at hx
+  exact hx.1.2
 
 /-- Explicit coloring for n ≤ s^3 into 2*s colors. -/
 def explicitColoring (n s : ℕ) (hn : 2 ≤ n) (hs : 1 ≤ s) (hns : n ≤ s ^ 3) (x : ℕ) : Fin (2 * s) :=
@@ -248,7 +278,7 @@ def explicitColoring (n s : ℕ) (hn : 2 ≤ n) (hs : 1 ≤ s) (hns : n ≤ s ^ 
   else
     ⟨0, by omega⟩
 
-/-- Main theorem: For any n ≥ 2 and s ≥ 1 with n ≤ s^3,
+/-- Cubic root theorem: For any n ≥ 2 and s ≥ 1 with n ≤ s^3,
     there exists a coloring of {1, ..., n-1} with 2*s colors avoiding monochromatic subset sum n. -/
 theorem exists_coloring_of_le_cube (n s : ℕ) (hn : 2 ≤ n) (hs : 1 ≤ s) (hns : n ≤ s ^ 3) :
     ∃ c : ℕ → Fin (2 * s), AvoidsMonoSubsetSum n (2 * s) c := by
@@ -256,8 +286,7 @@ theorem exists_coloring_of_le_cube (n s : ℕ) (hn : 2 ≤ n) (hs : 1 ≤ s) (hn
   intro color
   let class_set := (Finset.Ico 1 n).filter (fun x => explicitColoring n s hn hs hns x = color)
   by_cases h_col : color.val < s
-  · -- Case: color in [0, s - 1], belongs to intervalBlock
-    let k := color.val + 1
+  · let k := color.val + 1
     have hk_ge : 1 ≤ k := by omega
     have hk_le : k ≤ s := by omega
     have h_sub : class_set ⊆ intervalBlock n k := by
@@ -288,8 +317,7 @@ theorem exists_coloring_of_le_cube (n s : ℕ) (hn : 2 ≤ n) (hs : 1 ≤ s) (hn
         rw [Nat.add_mul, Nat.one_mul]
         omega
     exact avoids_subset_sum_of_subset h_sub (interval_block_avoids_subset_sum n k hn hk_ge)
-  · -- Case: color in [s, 2s - 1], belongs to smallBlock
-    have h_col_ge : s ≤ color.val := by omega
+  · have h_col_ge : s ≤ color.val := by omega
     let j := color.val - s
     have hj_lt : j < s := by
       have := color.isLt
@@ -324,6 +352,229 @@ theorem exists_coloring_of_le_cube (n s : ℕ) (hn : 2 ≤ n) (hs : 1 ≤ s) (hn
         omega
     exact avoids_subset_sum_of_subset h_sub (small_block_avoids_subset_sum n s j hn)
 
+/-!
+### Section 2: General Sieve-Remainder Upper Bound
+
+Given any finite set P with elements not dividing n (e.g. primes p ≤ s with p ∤ n),
+the remaining elements R = {x ∈ {1, ..., n-1} | (s+1)*x < n ∧ ∀ p ∈ P, ¬ p ∣ x}
+can be partitioned into ⌈|R|/s⌉ blocks of size at most s.
+Together with s interval blocks and |P| divisibility blocks, this yields a valid coloring
+using s + |P| + ⌈|R|/s⌉ colors, WITHOUT requiring n ≤ s^3.
+-/
+
+/-- Covering principle: any family of m ≥ 1 subset-sum-avoiding sets covering {1, ..., n-1}
+    induces an m-coloring avoiding monochromatic subset sums. -/
+lemma exists_coloring_of_avoiding_family {n m : ℕ} (hm : 1 ≤ m)
+    (S : Fin m → Finset ℕ)
+    (hS_avoid : ∀ i : Fin m, AvoidsSubsetSum (S i) n)
+    (hS_cover : ∀ x ∈ Finset.Ico 1 n, ∃ i : Fin m, x ∈ S i) :
+    ∃ c : ℕ → Fin m, AvoidsMonoSubsetSum n m c := by
+  let c : ℕ → Fin m := fun x =>
+    if hx : x ∈ Finset.Ico 1 n then
+      Classical.choose (hS_cover x hx)
+    else
+      ⟨0, by omega⟩
+  use c
+  intro col
+  have h_sub : (Finset.Ico 1 n).filter (fun x => c x = col) ⊆ S col := by
+    intro x hx
+    simp only [Finset.mem_filter] at hx
+    have hx_mem := hx.1
+    have hc := hx.2
+    dsimp [c] at hc
+    rw [dif_pos hx_mem] at hc
+    have h_spec := Classical.choose_spec (hS_cover x hx_mem)
+    rw [hc] at h_spec
+    exact h_spec
+  exact avoids_subset_sum_of_subset h_sub (hS_avoid col)
+
+lemma div_lt_div_ceil {i K s : ℕ} (hs : 1 ≤ s) (hi : i < K) :
+    i / s < (K + s - 1) / s := by
+  have hs_pos : 0 < s := by omega
+  have h1 : i ≤ K - 1 := by omega
+  have h2 : i + s ≤ K + s - 1 := by omega
+  have h3 : (i + s) / s ≤ (K + s - 1) / s := Nat.div_le_div_right h2
+  have h4 : (i + s) / s = i / s + 1 := Nat.add_div_right i hs_pos
+  omega
+
+/-- Remainder set R after sieving: elements x ∈ {1, ..., n-1} with (s+1)*x < n
+    and not divisible by any element of P. -/
+def sieveRemainder (n s : ℕ) (P : Finset ℕ) : Finset ℕ :=
+  (Finset.Ico 1 n).filter (fun x => (s + 1) * x < n ∧ ∀ p ∈ P, ¬ p ∣ x)
+
+/-- Sieve block C_j: the j-th block of at most s elements from the enumerated remainder R. -/
+noncomputable def sieveBlock (R : Finset ℕ) (s j : ℕ) : Finset ℕ :=
+  ((R.toList.drop (j * s)).take s).toFinset
+
+lemma sieve_block_card_le (R : Finset ℕ) (s j : ℕ) :
+    (sieveBlock R s j).card ≤ s :=
+  (List.toFinset_card_le _).trans (List.length_take_le _ _)
+
+lemma sieve_block_subset (R : Finset ℕ) (s j : ℕ) :
+    sieveBlock R s j ⊆ R := by
+  intro x hx
+  simp only [sieveBlock, List.mem_toFinset] at hx
+  have h_drop := List.mem_of_mem_take hx
+  have h_l := List.mem_of_mem_drop h_drop
+  rw [Finset.mem_toList] at h_l
+  exact h_l
+
+lemma mem_sieve_block_of_mem {R : Finset ℕ} {s : ℕ} (hs : 1 ≤ s) {x : ℕ} (hx : x ∈ R) :
+    ∃ j < (R.card + s - 1) / s, x ∈ sieveBlock R s j := by
+  rw [← Finset.mem_toList] at hx
+  obtain ⟨i, hi, rfl⟩ := List.mem_iff_getElem.mp hx
+  let j := i / s
+  let r := i % s
+  have hj_lt : j < (R.card + s - 1) / s := by
+    rw [Finset.length_toList] at hi
+    exact div_lt_div_ceil hs hi
+  use j, hj_lt
+  simp only [sieveBlock, List.mem_toFinset]
+  apply List.mem_iff_getElem.mpr
+  have hr_lt_s : r < s := Nat.mod_lt i (by omega)
+  have hr_lt_drop : r < (R.toList.drop (j * s)).length := by
+    rw [List.length_drop]
+    have h_div_mod : s * (i / s) + i % s = i := Nat.div_add_mod i s
+    have : j * s + r = i := by
+      dsimp [j, r]
+      rw [Nat.mul_comm]
+      exact h_div_mod
+    omega
+  have hr_lt : r < ((R.toList.drop (j * s)).take s).length := by
+    rw [List.length_take]
+    omega
+  use r, hr_lt
+  rw [List.getElem_take, List.getElem_drop]
+  congr 1
+  have h_div_mod : s * (i / s) + i % s = i := Nat.div_add_mod i s
+  have : j * s + r = i := by
+    dsimp [j, r]
+    rw [Nat.mul_comm]
+    exact h_div_mod
+  exact this
+
+lemma sieve_block_avoids_subset_sum (n s : ℕ) (P : Finset ℕ) (j : ℕ) (hn : 2 ≤ n) :
+    AvoidsSubsetSum (sieveBlock (sieveRemainder n s P) s j) n := by
+  apply small_card_block_avoids_subset_sum (sieveBlock (sieveRemainder n s P) s j) n s hn
+  · exact sieve_block_card_le _ s j
+  · intro x hx
+    have h_sub := sieve_block_subset (sieveRemainder n s P) s j hx
+    simp only [sieveRemainder, Finset.mem_filter] at h_sub
+    exact h_sub.2.1
+
+/-- The combined family of sets indexing interval blocks, divisibility blocks, and sieve blocks. -/
+noncomputable def sieveFamily (n s : ℕ) (P : Finset ℕ) (i : ℕ) : Finset ℕ :=
+  if i < s then
+    intervalBlock n (i + 1)
+  else if i < s + P.card then
+    (Finset.Ico 1 n).filter (fun x => P.toList[i - s]! ∣ x)
+  else
+    sieveBlock (sieveRemainder n s P) s (i - (s + P.card))
+
+/-- Sieve Remainder Theorem (Alon–Erdős 1996, Section 2):
+    Given n ≥ 2, s ≥ 1, and a finite set P of elements not dividing n,
+    there exists a coloring of {1, ..., n-1} with
+    s + |P| + ⌈|R| / s⌉ colors avoiding monochromatic subset sums to n,
+    where R = {x ∈ {1, ..., n-1} | (s+1)*x < n ∧ ∀ p ∈ P, ¬ p ∣ x}.
+    This combinatorial theorem does NOT require n ≤ s^3. -/
+theorem exists_coloring_sieve (n s : ℕ) (P : Finset ℕ) (hn : 2 ≤ n) (hs : 1 ≤ s)
+    (hP : ∀ p ∈ P, ¬ p ∣ n) :
+    ∃ c : ℕ → Fin (s + P.card + ((sieveRemainder n s P).card + s - 1) / s),
+      AvoidsMonoSubsetSum n (s + P.card + ((sieveRemainder n s P).card + s - 1) / s) c := by
+  have hm : 1 ≤ s + P.card + ((sieveRemainder n s P).card + s - 1) / s :=
+    hs.trans ((Nat.le_add_right s P.card).trans (Nat.le_add_right (s + P.card) _))
+  let S : Fin (s + P.card + ((sieveRemainder n s P).card + s - 1) / s) → Finset ℕ :=
+    fun i => sieveFamily n s P i.val
+  apply exists_coloring_of_avoiding_family hm S
+  · intro i
+    dsimp [S, sieveFamily]
+    split_ifs with h1 h2
+    · exact interval_block_avoids_subset_sum n (i.val + 1) hn (by omega)
+    · have h_len : i.val - s < P.toList.length := by
+        rw [Finset.length_toList]
+        omega
+      rw [getElem!_pos P.toList (i.val - s) h_len]
+      apply dvd_subset_sum_free _ (P.toList[i.val - s]) n
+      · have hp_mem : P.toList[i.val - s] ∈ P := by
+          rw [← Finset.mem_toList]
+          apply List.mem_iff_getElem.mpr
+          exact ⟨i.val - s, h_len, rfl⟩
+        exact hP _ hp_mem
+      · intro x hx
+        simp only [Finset.mem_filter] at hx
+        exact hx.2
+    · exact sieve_block_avoids_subset_sum n s P (i.val - (s + P.card)) hn
+  · intro x hx
+    simp only [Finset.mem_Ico] at hx
+    by_cases h_large : n ≤ (s + 1) * x
+    · have hx_pos : 0 < x := by omega
+      let k := (n - 1) / x
+      have hk_ge : 1 ≤ k := by
+        apply Nat.div_pos
+        · omega
+        · exact hx_pos
+      have hk_le : k ≤ s := by
+        have : n - 1 < (s + 1) * x := by omega
+        rw [Nat.mul_comm (s + 1) x] at this
+        have := Nat.div_lt_of_lt_mul this
+        omega
+      let i_val := k - 1
+      have hi_s : i_val < s := by omega
+      have hi_lt : i_val < s + P.card + ((sieveRemainder n s P).card + s - 1) / s :=
+        hi_s.trans_le ((Nat.le_add_right s P.card).trans (Nat.le_add_right (s + P.card) _))
+      use ⟨i_val, hi_lt⟩
+      dsimp [S, sieveFamily]
+      rw [if_pos hi_s]
+      have hk_eq : i_val + 1 = k := by omega
+      rw [hk_eq]
+      simp only [intervalBlock, Finset.mem_filter, Finset.mem_Ico, hx, true_and]
+      refine ⟨?_, ?_⟩
+      · have h_div_mod := Nat.div_add_mod (n - 1) x
+        have h_mod := Nat.mod_lt (n - 1) hx_pos
+        rw [Nat.mul_comm x k] at h_div_mod
+        rw [Nat.add_mul, Nat.one_mul]
+        omega
+      · have : (n - 1) / x * x ≤ n - 1 := Nat.div_mul_le_self (n - 1) x
+        have : k * x ≤ n - 1 := this
+        omega
+    · have h_small : (s + 1) * x < n := by omega
+      by_cases h_div : ∃ p ∈ P, p ∣ x
+      · obtain ⟨p, hpP, hpx⟩ := h_div
+        rw [← Finset.mem_toList] at hpP
+        obtain ⟨idx, h_idx, rfl⟩ := List.mem_iff_getElem.mp hpP
+        have h_idx_card : idx < P.card := by
+          have := h_idx
+          rw [Finset.length_toList] at this
+          exact this
+        let i_val := s + idx
+        have hi_lt_sp : i_val < s + P.card := by omega
+        have hi_lt : i_val < s + P.card + ((sieveRemainder n s P).card + s - 1) / s :=
+          hi_lt_sp.trans_le (Nat.le_add_right (s + P.card) _)
+        use ⟨i_val, hi_lt⟩
+        dsimp [S, sieveFamily]
+        have h1_not : ¬ i_val < s := by omega
+        rw [if_neg h1_not, if_pos hi_lt_sp]
+        have h_idx_eq : i_val - s = idx := by omega
+        rw [h_idx_eq]
+        rw [getElem!_pos P.toList idx h_idx]
+        simp only [Finset.mem_filter, Finset.mem_Ico, hx, hpx, and_self]
+      · push Not at h_div
+        have hxR : x ∈ sieveRemainder n s P := by
+          simp only [sieveRemainder, Finset.mem_filter, Finset.mem_Ico]
+          exact ⟨hx, h_small, h_div⟩
+        obtain ⟨j, hj_lt, hxj⟩ := mem_sieve_block_of_mem hs hxR
+        let i_val := s + P.card + j
+        have hi_lt : i_val < s + P.card + ((sieveRemainder n s P).card + s - 1) / s :=
+          Nat.add_lt_add_left hj_lt (s + P.card)
+        use ⟨i_val, hi_lt⟩
+        dsimp [S, sieveFamily]
+        have h1_not : ¬ i_val < s := by omega
+        have h2_not : ¬ i_val < s + P.card := by omega
+        rw [if_neg h1_not, if_neg h2_not]
+        have hj_eq : i_val - (s + P.card) = j := by omega
+        rw [hj_eq]
+        exact hxj
+
 def HasValidColoring (n k : ℕ) : Prop :=
   ∃ c : ℕ → Fin k, AvoidsMonoSubsetSum n k c
 
@@ -356,6 +607,14 @@ theorem minColors_le_two_mul_s (n s : ℕ) (hn : 2 ≤ n) (hs : 1 ≤ s) (hns : 
   obtain ⟨c, hc⟩ := exists_coloring_of_le_cube n s hn hs hns
   exact minColors_le n hn ⟨c, hc⟩
 
+/-- Upper bound on the chromatic number f(n) from the sieve-remainder theorem:
+    f(n) ≤ s + |P| + ⌈|R| / s⌉ for any s ≥ 1 and finite set P not dividing n. -/
+theorem minColors_le_sieve (n s : ℕ) (P : Finset ℕ) (hn : 2 ≤ n) (hs : 1 ≤ s)
+    (hP : ∀ p ∈ P, ¬ p ∣ n) :
+    minColors n hn ≤ s + P.card + ((sieveRemainder n s P).card + s - 1) / s := by
+  obtain ⟨c, hc⟩ := exists_coloring_sieve n s P hn hs hP
+  exact minColors_le n hn ⟨c, hc⟩
+
 /-- Non-trivial lower bound: for all n ≥ 3, f(n) ≥ 2. -/
 theorem minColors_ge_two (n : ℕ) (hn : 3 ≤ n) :
     2 ≤ minColors n (by omega) := by
@@ -379,4 +638,6 @@ end Erdos298
 
 #print axioms Erdos298.exists_coloring_of_le_cube
 #print axioms Erdos298.minColors_le_two_mul_s
+#print axioms Erdos298.exists_coloring_sieve
+#print axioms Erdos298.minColors_le_sieve
 #print axioms Erdos298.minColors_ge_two

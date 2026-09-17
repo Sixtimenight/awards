@@ -56,7 +56,7 @@
         "revocation": null
       },
       "source_path": "candidates/verified-pending/jsp-000298",
-      "citation": "# Citation\n\nCandidate under formal verification; review pending.\n\n## English\n\nErdős Problem JSP-000298 (Erdős Problem #360) investigates the minimum number of colors $f(n)$ required to color the integers $\\{1, \\dots, n-1\\}$ such that no monochromatic subset sums to $n$. Originally posed by Erdős and Graham (1980), bounds of order $n^{1/3 \\pm o(1)}$ were established by Noga Alon and Paul Erdős (*Acta Arithmetica* 74(3), 1996, pp. 269–272), with further sharp order bounds established by Conlon, Fox, and Pham (2021). This machine-checked Lean 4 candidate submission formalizes an elementary, constructive cubic-root upper bound: for all $n \\ge 2, s \\ge 1$ with $n \\le s^3$, there exists an explicit coloring with $2s$ colors avoiding monochromatic subset sum $n$ (`exists_coloring_of_le_cube`), establishing $f(n) \\le 2\\lceil n^{1/3}\\rceil$. The submission also formalizes the general interval avoidance theorem for any $k \\ge 1$ (`interval_block_avoids_subset_sum`), modular divisibility avoidance (`dvd_subset_sum_free`), and the non-trivial lower bound $f(n) \\ge 2$ for all $n \\ge 3$ (`minColors_ge_two`).",
+      "citation": "# Citation\n\nCandidate under formal verification; review pending.\n\n## English\n\nErdős Problem JSP-000298 (Erdős Problem #360) investigates the minimum number of colors $f(n)$ required to color the integers $\\{1, \\dots, n-1\\}$ such that no monochromatic subset sums to $n$. Originally posed by Erdős and Graham (1980), bounds of order $n^{1/3 \\pm o(1)}$ were established by Noga Alon and Paul Erdős (*Acta Arithmetica* 74(3), 1996, pp. 269–272), with further sharp order bounds established by Conlon, Fox, and Pham (2021).\n\nThis machine-checked Lean 4 formalization proves both the elementary cubic-root bound and the general sieve-remainder upper bound theorem from Alon–Erdős (1996, Section 2):\n1. **Sieve-Remainder Bound**: For any $n \\ge 2, s \\ge 1$, and finite set $P$ with elements not dividing $n$, there exists an explicit monochromatic subset-sum-avoiding coloring using $s + |P| + \\lceil |R| / s \\rceil$ colors (`exists_coloring_sieve`, `minColors_le_sieve`), where $R = \\{x \\in \\{1, \\dots, n-1\\} \\mid (s+1)x < n \\wedge \\forall p \\in P, p \\nmid x\\}$. Crucially, this combinatorial theorem does not require $n \\le s^3$.\n2. **Cubic-Root Baseline**: For any $n \\le s^3$, an explicit $2s$-coloring avoids monochromatic subset sums (`exists_coloring_of_le_cube`, `minColors_le_two_mul_s`), yielding $f(n) \\le 2\\lceil n^{1/3}\\rceil$.\n3. **Covering Principle & Avoidance Blocks**: General covering theorem (`exists_coloring_of_avoiding_family`), interval blocks for any $k \\ge 1$ (`interval_block_avoids_subset_sum`), modular divisibility avoidance (`dvd_subset_sum_free`), and small-cardinality blocks (`small_card_block_avoids_subset_sum`).\n4. **Lower Bound**: $f(n) \\ge 2$ for all $n \\ge 3$ (`minColors_ge_two`).",
       "recipients": "# Recipients\n\n## English\n\nAttribution for this formal candidate distinguishes the original mathematical proof from the machine-checked Lean 4 formalization:\n\n1. RECIPIENT-JSP-000298-ALON: Noga Alon, co-author of the original mathematical proof establishing upper and lower bounds for monochromatic subset sum colorings (*Acta Arith.* 74 (1996), 269–272).\n2. RECIPIENT-JSP-000298-ERDOS: Paul Erdős, who originally posed the problem and co-authored the 1996 resolution.\n3. RECIPIENT-JSP-000298-SIXTIMENIGHT: Sixtimenight, author of the original machine-checked Lean 4 formalization, definitions, and verification package.\n\nFormal proof authored by Sixtimenight. Candidate packaging and verification recorded by community curators and verifiers.\n",
       "verification_record": null,
       "statement": {
@@ -64,8 +64,8 @@
         "status": "active",
         "supersedes": null,
         "statement": {
-          "text": "theorem exists_coloring_of_le_cube (n s : ℕ) (hn : 2 ≤ n) (hs : 1 ≤ s) (hns : n ≤ s ^ 3) :\n    ∃ c : ℕ → Fin (2 * s), Erdos298.AvoidsMonoSubsetSum n (2 * s) c",
-          "natural_language_source": "Erdos Problem JSP-000298 (Erdos #360, Alon-Erdos 1996, Conlon-Fox-Pham 2021): Let n >= 2, s >= 1 with n <= s^3. There exists a coloring of {1, ..., n-1} with 2*s colors such that no monochromatic subset sums to n. This constructively establishes the elementary cubic-root chromatic upper bound f(n) <= 2*ceil(n^(1/3)) on subset-sum avoidance, alongside the non-trivial lower bound f(n) >= 2 for all n >= 3.",
+          "text": "theorem exists_coloring_sieve (n s : ℕ) (P : Finset ℕ) (hn : 2 ≤ n) (hs : 1 ≤ s) (hP : ∀ p ∈ P, ¬ p ∣ n) :\n    ∃ c : ℕ → Fin (s + P.card + ((Erdos298.sieveRemainder n s P).card + s - 1) / s),\n      Erdos298.AvoidsMonoSubsetSum n (s + P.card + ((Erdos298.sieveRemainder n s P).card + s - 1) / s) c",
+          "natural_language_source": "Erdos Problem JSP-000298 (Erdos #360, Alon-Erdos 1996, Section 2): Let n >= 2, s >= 1. For any finite set P of elements not dividing n (e.g. primes p <= s with p ∤ n), there exists a coloring of {1, ..., n-1} with s + |P| + ceil(|R|/s) colors avoiding monochromatic subset sums to n, where R = {x in {1, ..., n-1} | (s+1)x < n and for all p in P, p ∤ x}. This combinatorial theorem does not require n <= s^3 and provides the foundation for the logarithmic improvement via prime sieving.",
           "definitions_reviewed": [
             {
               "name": "Erdos298.HasSubsetSum",
@@ -88,14 +88,14 @@
               "review": "Defines the large interval blocks A_k = {x ∈ {1, ..., n-1} | n ≤ (k+1)*x ∧ k*x < n}."
             },
             {
-              "name": "Erdos298.smallRemainder",
+              "name": "Erdos298.sieveRemainder",
               "from_library": false,
-              "review": "Defines the small remainder set R = {x ∈ {1, ..., n-1} | (s+1)*x < n}."
+              "review": "Defines the sieved remainder set R = {x ∈ {1, ..., n-1} | (s+1)*x < n ∧ ∀ p ∈ P, ¬ p ∣ x}."
             },
             {
-              "name": "Erdos298.smallBlock",
+              "name": "Erdos298.sieveBlock",
               "from_library": false,
-              "review": "Partitions remainder R into s blocks C_j = R ∩ [j*s, (j+1)*s - 1]."
+              "review": "Partitions remainder R into blocks of size at most s by enumerated index: C_j = ((R.toList.drop (j*s)).take s).toFinset."
             }
           ],
           "library": {
