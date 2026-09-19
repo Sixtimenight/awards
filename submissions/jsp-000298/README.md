@@ -35,9 +35,9 @@ lake build
 | **CFP Lemma 5.6 Claim 1 (Growth Budget)** | **Unconditionally Proven** | Claim 1 bounded unconditionally via U1 (`Erdos298.growthSteps_card_le_p16Budget_closed`). |
 | **Phase P08 Branch A AP Lifting** ($|R.H|^3 \ge R_{\mathrm{card}}$) | **Unconditionally Proven** | Complete AP lifting geometry, 0 sorry (`Erdos298.hasIntAPCoverBranchA`). |
 | **Phase P08/P09 Master Branch Reductions** | **Unconditionally Proven** | Decoupled master theorems (`hasIntAPCover_of_branchA_and_branchB`, `cfp_lemma_5_6_m_eq_n_of_branches_and_sieve`). |
-| **Grand Unified Master Theorem** | **Unconditionally Proven** | Conjunction of all 5 generational milestones (`Erdos298.erdos_problem_360_unified_solution`). |
+| **Grand Unified Master Theorem** | **Unconditionally Proven (as a conjunction)** | Conjunction of 5 statements (`Erdos298.erdos_problem_360_unified_solution`); items 1–4 are unconditional results, item 5 is the *conditional* asymptotic reduction of the row below. |
 | **Unconditional Two-Sided Master Theorem** | **Unconditionally Proven** | $2 \le f(n) \le s_1 + \|P\| + 2\|\text{reducedResidues } d\| + \lceil \|R_{cfp}\| / s_{rem} \rceil$ (`Erdos298.erdos_problem_360_unconditional_master`). |
-| **Asymptotic Growth Equivalence** ($f(n) \asymp F(n)$) | **Unconditionally Proven** | Conlon–Fox–Pham asymptotic equivalence theorem (`Erdos298.erdos_problem_360_asymptotic_master`). |
+| **Asymptotic Growth Equivalence** ($f(n) \asymp F(n)$) | **Conditional Reduction** | `Erdos298.erdos_problem_360_asymptotic_master`: from matching witnesses `HasChromaticLowerBound F c` and `HasChromaticUpperBound F C` deduces $c F(n) \le f(n) \le C F(n)$ for large $n$. **Neither witness is proven for $F = \mathrm{cfpScale}$**: the lower one needs the open items below, the upper one needs an asymptotic evaluation of the 4-layer bound (Mertens-type estimates not in Mathlib). |
 | **Asymptotic Lower Bound Witness** | **Open Formalization Frontier** | Constructing the explicit witness family for $f(n) \ge c F_{cfp}(n)$ requires deep external theorems (Szemerédi–Vu, Brun–Titchmarsh prime concentration, quantitative Mertens) not currently in Mathlib. |
 
 > [!NOTE]
@@ -76,6 +76,12 @@ lake build
   $$f(n) \le 2s + \left\lceil \frac{n - 1}{s(s+1)\left(1 + \sum_{p \le z, p \nmid n} \frac{1}{p - 1}\right)} + \frac{z^4}{s} \right\rceil.$$
 - `Erdos298.minColors_le_of_prime_subset`: Chromatic number bound for any prime subset $Q \subseteq P$ with $\max Q \le z$:
   $$f(n) \le 2s + \left\lceil \frac{n - 1}{s(s+1)\left(1 + \sum_{p \in Q} \frac{1}{p - 1}\right)} + \frac{z^4}{s} \right\rceil.$$
+- `Erdos298.selbergTerms_of_squarefree`: Exact evaluation $\text{selbergTerms}(c) = 1 / \varphi(c)$ for any squarefree integer $c \ge 1$.
+- `Erdos298.sieveG_ge_half_totient_ratio_mul_log`: **Master Selberg sieve $G$ lower bound**:
+  $$\frac{1}{2} \frac{\varphi(n)}{n} \log z \le \mathrm{sieveG}(n, s, z)$$
+  unconditionally for all $n \ge 2, s \ge 1, 2 \le z \le s$.
+- `Erdos298.minColors_le_of_totient_log`: Totient-weighted sieve bound with totient-logarithm sieve $G$ lower bound:
+  $$f(n) \le 2s + \left\lceil \frac{n - 1}{s(s+1) ((1/2) (\varphi(n)/n) \log z)} + \frac{z^4}{s} \right\rceil.$$
 
 ### 5. Cubic-Root Bound (Elementary Baseline)
 - `Erdos298.exists_coloring_of_le_cube`: Constructive explicit coloring with $2s$ colors for any $n \le s^3$ avoiding monochromatic subset sums ($f(n) \le 2\lceil n^{1/3}\rceil$).
@@ -297,6 +303,9 @@ lake build
 ### 20. Parameter Instantiation, Arithmetic Adapter & Non-Vacuity (Phase P19)
 - `Erdos298.concreteFiniteConditions`: Constructive realization of `FiniteConditions` with concrete numbers ($t = 20, A = \{1, 3, 7\}, v = 1, K = 2, M = 1, k_{div} = 1, U = 9, D = 1, gMax = 1, \xi = 1/128, \ell = 1024, B_{growth} = 0$).
 - `Erdos298.finiteConditions_realizable`: Rigorous non-vacuity theorem proving `Nonempty FiniteConditions` with machine-checked proofs of all 10 numerical and combinatorial conditions.
+- `Erdos298.concreteCFPArithParams` & `Erdos298.concreteP17Conditions`: Explicit witness for the *arithmetic* parameter layer ($n = t = 16411$ (prime), $v = W = 1$, $y = 8192$, $A = [8192, 16383]$, $K = 32$, $M = 8160$, $k_{div} = 1$, $U = 9$, $D = 1$, $gMax = 1$, $\xi = 1/128$, $\ell = 2^{20}$, $B_{growth} = 31$, $r = 8160^5$), with machine-checked proofs of all conditions of `CFPArithParams` and `P17FiniteArithConditions` including E1, E2, E3 and $\xi \le 1/20$ (helper lemmas `witness_prime`, `witness_coprime`, `witness_subgroupIndex_le_one`, `witness_isDiverse`, `witness_log2`, `witness_E1`, `witness_loglog_le`, `witness_logr_ge`, `witness_E3`).
+- `Erdos298.concreteCFPArithParams_numeric`: The growth-step budget condition $h_{numeric}$ ($\text{p16TotalBudget} \le B_{growth}$) holds for the witness.
+- `Erdos298.cfpArithParams_realizable`, `Erdos298.p17FiniteArithConditions_realizable`, `Erdos298.lemma_5_6_parameter_hypotheses_satisfiable`: `Nonempty CFPArithParams`, `Nonempty (P17FiniteArithConditions _)`, and joint satisfiability of all parameter-side hypotheses of the Lemma 5.6 master reductions. The witness is deliberately small (for it the conclusion $\min(\xi, 32/\ell) t \le |\Sigma_t(A)|$ is trivial); its purpose is to certify that no theorem of the chain is vacuous for lack of admissible parameters.
 - `Erdos298.primorialProd`: Primorial $W(P) = \prod_{p \in P} p$.
 - `Erdos298.cfpTau`: The canonical Conlon–Fox–Pham ratio $\tau(W, m) = \varphi(W \cdot m) / (W \cdot m)$.
 - `Erdos298.cfpTau_pos`: Strict positivity $0 < \tau(W, m)$ when $W > 0$ and $m > 0$.
@@ -411,6 +420,10 @@ lake build
 - `Erdos298.unsaturated_step_growth_of_arith_conditional`: Master contradiction deriving $D \le \delta_j$ for each unsaturated step under P17 arithmetic conditions and the structural trichotomy.
 - `Erdos298.unsaturatedSteps_growth_of_arith_conditional`: Uniform unsaturated growth bound $\forall j \in \mathrm{unsaturatedSteps}, D \le \delta_j$.
 - `Erdos298.cfp_lemma_5_6_finite_core_of_arith_conditional`: Master finite core theorem with both $h_{inj}$ and $h_{unsaturated\_step\_growth}$ eliminated under $P17FiniteArithConditions$ and the explicit structural trichotomy.
+- `Erdos298.GuardedTrichotomy` & `Erdos298.GuardedAPCover`: Named interfaces for the guarded structural trichotomy and for its Branch 3 in isolation. `GuardedAPCover` carries the density window $8d < |T| < \xi N$ ($0 < \xi \le 1/20$) together with the two guards $\mathrm{closure}(\mathrm{smallGrowth}(T,d)) = \top$ and $|\mathrm{smallGrowth}(T,d)| > 20(2d)^{51/50}/|T|^{1/50}$ that exclude Branches 1 and 2.
+- `Erdos298.guardedAPCover_iff_trichotomy` (with `guardedAPCover_of_trichotomy`, `trichotomy_of_guardedAPCover`): The two interfaces are equivalent.
+- `Erdos298.not_unguarded_ap_cover` & `Erdos298.not_unguarded_ap_cover'`: The *unguarded* coset-AP cover statement (used by an earlier version of the `*_of_ap_cover` chain) is refuted by $T = \mathrm{univ}$ in $\mathbb{Z}/(128d+1)\mathbb{Z}$; the chain below is therefore stated on `GuardedAPCover`.
+- `Erdos298.unsaturated_step_growth_of_ap_cover`, `Erdos298.unsaturatedSteps_growth_of_ap_cover`, `Erdos298.cfp_lemma_5_6_finite_core_of_ap_cover`, `Erdos298.cfp_lemma_5_6_m_eq_n_of_ap_cover`, `Erdos298.cfp_lemma_5_6_finite_core_of_rough_count`, `Erdos298.cfp_lemma_5_6_m_eq_n_of_rough_count`: The Lemma 5.6 reduction chain with the structural input isolated to `GuardedAPCover` (the two guards are discharged inside `unsaturated_step_growth_of_ap_cover` from $\mathrm{closure}(Q) = \top$ and $E_1$) and the sieve input reduced to `APCoverSieveBridge` / per-AP rough counts.
 - Strict Axiom Audit: All new theorems depend strictly on standard Lean 4 axioms `[propext, Classical.choice, Quot.sound]` with zero `sorry` and zero custom axioms.
 
 ### 25. Final Master Theorems (Unified Synthesis)
@@ -431,3 +444,22 @@ lake build
   3. (Conlon–Fox–Pham 2021 Upper, Unconditional): 4-layer chromatic upper bound.
   4. (Conlon–Fox–Pham 2021 Lower, Unconditional): Inverse additive lower bound witness theorem $f(n) \ge k + 1$.
   5. (Conlon–Fox–Pham 2021 Asymptotic, Conditional): Two-sided asymptotic growth equivalence $f(n) \asymp F(n)$ under hypothesis of matching witnesses.
+
+### 26. Analytical Number Theory Foundation (`Erdos298/Mertens.lean`)
+- Dedicated independent analytical module containing 15 machine-checked, zero-sorry, standard-axiom lemmas:
+  - `Erdos298.inv_sq_le_inv_sub`: Telescoping inverse square bound $1/k^2 \le 1/(k-1) - 1/k$.
+  - `Erdos298.sum_Icc_sub_tele`: Telescoping sum identity $\sum_{k=2}^z (f(k-1) - f(k)) = f(1) - f(z)$.
+  - `Erdos298.sum_inv_sq_le_two`: Universal bound $\sum_{k=1}^z 1/k^2 \le 2$.
+  - `Erdos298.harmonic_le_two_mul_sum_squarefree_inv`: Harmonic sum domination by squarefree reciprocals $\sum_{n=1}^z 1/n \le 2 \sum_{a \le z, \text{sqfree}} 1/a$.
+  - `Erdos298.log_le_harmonic`: Logarithmic lower bound $\log z \le \sum_{n=1}^z 1/n$.
+  - `Erdos298.sum_squarefree_inv_ge_half_log`: Squarefree reciprocal sum lower bound $\frac{1}{2} \log z \le \sum_{a \le z, \text{sqfree}} 1/a$.
+  - `Erdos298.sum_squarefree_inv_totient_ge_half_log`: Squarefree totient reciprocal sum lower bound $\frac{1}{2} \log z \le \sum_{a \le z, \text{sqfree}} 1/\varphi(a)$.
+  - `Erdos298.totient_of_squarefree`: Product formula $\varphi(d) = \prod_{p \in d.\mathrm{primeFactors}} (p - 1)$ for squarefree $d$.
+  - `Erdos298.primeFactors_inj_of_squarefree`: Injectivity of prime factors on squarefree integers.
+  - `Erdos298.cast_totient_of_squarefree` & `Erdos298.inv_totient_of_squarefree`: Real cast and reciprocal product identities for squarefree totients.
+  - `Erdos298.one_add_inv_sub_one`: Algebraic identity $1 + 1/(p-1) = p/(p-1)$.
+  - `Erdos298.sum_divisors_squarefree_inv_totient_le`: Divisor totient reciprocal sum bound $\sum_{d \mid n, \text{sqfree}} 1/\varphi(d) \le n/\varphi(n)$.
+  - `Erdos298.sum_squarefree_inv_totient_le_mul`: Coprime squarefree decomposition of totient sum.
+  - `Erdos298.sum_coprime_squarefree_inv_totient_ge_half`: Fundamental coprime squarefree totient reciprocal lower bound:
+    $$\frac{1}{2} \frac{\varphi(n)}{n} \log z \le \sum_{c \le z, \text{Squarefree } c, \gcd(c, n) = 1} \frac{1}{\varphi(c)}.$$
+

@@ -64,20 +64,20 @@
 | **Phase 3: Lemma C (Divisor Hitting)** | `Erdos298.mem_subsetSums_of_scaled` | $v \mid n \wedge (n/v) \in \Sigma(Q) \wedge v \cdot Q \subseteq A \implies n \in \Sigma(A)$ | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
 | **Phase 3: CFP Canonical Scale** | `Erdos298.cfpScale` | Real-valued canonical growth scale $F(n) = \frac{n^{1/3}(n/\varphi(n))}{(\log n)^{1/3}(\log\log n)^{2/3}}$ | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
 | **Phase 3: CFP Scale Positivity** | `Erdos298.cfpScale_pos_of_hyp` | Positivity of $\mathrm{cfpScale}(n)$ for $\log n > 1$ and $\varphi(n) > 0$ | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
-| **Phase 3: Continuous Interval Sums** | Erdos298.subsetSums_Icc_zero | $[0, m(m+1)/2] \subseteq \Sigma(\{1, \dots, m\})$ continuous subset sum coverage | **Proven & Compiled** | [propext, Classical.choice, Quot.sound] |
-| **Phase 3: Consecutive Hitting** | Erdos298.mem_subsetSums_Icc_of_le |  \le m(m+1)/2 \implies n \in \Sigma(\{1, \dots, m\})$ | **Proven & Compiled** | [propext, Classical.choice, Quot.sound] |
-| **Phase 3: Scaled Consecutive Hitting** | Erdos298.mem_subsetSums_scaled_Icc_of_le |  \mid n \wedge (n/v) \le m(m+1)/2 \implies n \in \Sigma(v \cdot \{1, \dots, m\})$ | **Proven & Compiled** | [propext, Classical.choice, Quot.sound] |
-| **Phase 3: CFP Key Subset Inclusion** | Erdos298.cfpLowerBoundSet_subset |  \cdot m < n \wedge 0 < v \implies v \cdot \{1, \dots, m\} \subseteq \{1, \dots, n-1\}$ | **Proven & Compiled** | [propext, Classical.choice, Quot.sound] |
-| **Phase 3: CFP Key Subset Cardinality**| Erdos298.cfpLowerBoundSet_card | $|v \cdot \{1, \dots, m\}| = m$ | **Proven & Compiled** | [propext, Classical.choice, Quot.sound]` |
-| **Phase 3: CFP Key Subset Hitting** | Erdos298.mem_subsetSums_cfpLowerBoundSet |  \mid n \wedge (n/v) \le m(m+1)/2 \implies n \in \Sigma(\mathrm{cfpLowerBoundSet}(v, m))$ | **Proven & Compiled** | [propext, Classical.choice, Quot.sound]` |
-| **Phase 3: Scaled CFP Witness** | Erdos298.cfpWitness_scaled | Instantiation of CFPLowerBoundWitness n 1 on scaled progression  \cdot \{1, \dots, m\}$ | **Proven & Compiled** | [propext, Classical.choice, Quot.sound]` |
-| **Phase 3: Scaled Lower Bound** | Erdos298.minColors_ge_two_via_cfp_scaled | (n) \ge 2$ via scaled arithmetic progression witness | **Proven & Compiled** | [propext, Classical.choice, Quot.sound]` |
-| **Phase 3: CFP §5.1 Diversity Monotonicity** | Erdos298.isDiverse_of_le |  \le k_2 \wedge \mathrm{IsDiverse}(X, k_2) \implies \mathrm{IsDiverse}(X, k_1)$ | **Proven & Compiled** | [propext, Quot.sound] |
-| **Phase 3: CFP §5.1 Diversity Monotonicity** | Erdos298.isDiverse_of_subset |  \subseteq Y \wedge \mathrm{IsDiverse}(X, k) \implies \mathrm{IsDiverse}(Y, k)$ | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
-| **Phase 3: Quotient Scaling Subset** | Erdos298.quotient_scale_subset |  \cdot ((A \cap v\mathbb{N}) / v) \subseteq A$ | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
-| **Phase 3: Quotient Divisor Hitting** | Erdos298.mem_subsetSums_of_quotient_hit |  \mid n \wedge (n/v) \in \Sigma((A \cap v\mathbb{N}) / v) \implies n \in \Sigma(A)$ | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
-| **Phase 3: Quotient Interval Hitting** | Erdos298.mem_subsetSums_of_quotient_Icc_subset | $\{1, \dots, m\} \subseteq Q \wedge n/v \le m(m+1)/2 \implies n/v \in \Sigma(Q)$ | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
-| **Phase 3: Scaled Interval Hitting** | Erdos298.mem_subsetSums_of_scaled_Icc_subset | $\{1, \dots, m\} \subseteq (A \cap v\mathbb{N})/v \wedge n/v \le m(m+1)/2 \implies n \in \Sigma(A)$ | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
+| **Phase 3: Continuous Interval Sums** | `Erdos298.subsetSums_Icc_zero` | $[0, m(m+1)/2] \subseteq \Sigma(\{1, \dots, m\})$ continuous subset sum coverage | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
+| **Phase 3: Consecutive Hitting** | `Erdos298.mem_subsetSums_Icc_of_le` | $n \le m(m+1)/2 \implies n \in \Sigma(\{1, \dots, m\})$ | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
+| **Phase 3: Scaled Consecutive Hitting** | `Erdos298.mem_subsetSums_scaled_Icc_of_le` | $v \mid n \wedge (n/v) \le m(m+1)/2 \implies n \in \Sigma(v \cdot \{1, \dots, m\})$ | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
+| **Phase 3: CFP Key Subset Inclusion** | `Erdos298.cfpLowerBoundSet_subset` | $v \cdot m < n \wedge 0 < v \implies v \cdot \{1, \dots, m\} \subseteq \{1, \dots, n-1\}$ | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
+| **Phase 3: CFP Key Subset Cardinality**| `Erdos298.cfpLowerBoundSet_card` | $|v \cdot \{1, \dots, m\}| = m$ | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
+| **Phase 3: CFP Key Subset Hitting** | `Erdos298.mem_subsetSums_cfpLowerBoundSet` | $v \mid n \wedge (n/v) \le m(m+1)/2 \implies n \in \Sigma(\mathrm{cfpLowerBoundSet}(v, m))$ | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
+| **Phase 3: Scaled CFP Witness** | `Erdos298.cfpWitness_scaled` | Instantiation of `CFPLowerBoundWitness n 1` on scaled progression $v \cdot \{1, \dots, m\}$ | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
+| **Phase 3: Scaled Lower Bound** | `Erdos298.minColors_ge_two_via_cfp_scaled` | $f(n) \ge 2$ via scaled arithmetic progression witness | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
+| **Phase 3: CFP §5.1 Diversity Monotonicity** | `Erdos298.isDiverse_of_le` | $k_1 \le k_2 \wedge \mathrm{IsDiverse}(X, k_2) \implies \mathrm{IsDiverse}(X, k_1)$ | **Proven & Compiled** | `[propext, Quot.sound]` |
+| **Phase 3: CFP §5.1 Diversity Monotonicity** | `Erdos298.isDiverse_of_subset` | $X \subseteq Y \wedge \mathrm{IsDiverse}(X, k) \implies \mathrm{IsDiverse}(Y, k)$ | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
+| **Phase 3: Quotient Scaling Subset** | `Erdos298.quotient_scale_subset` | $v \cdot ((A \cap v\mathbb{N}) / v) \subseteq A$ | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
+| **Phase 3: Quotient Divisor Hitting** | `Erdos298.mem_subsetSums_of_quotient_hit` | $v \mid n \wedge (n/v) \in \Sigma((A \cap v\mathbb{N}) / v) \implies n \in \Sigma(A)$ | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
+| **Phase 3: Quotient Interval Hitting** | `Erdos298.mem_subsetSums_of_quotient_Icc_subset` | $\{1, \dots, m\} \subseteq Q \wedge n/v \le m(m+1)/2 \implies n/v \in \Sigma(Q)$ | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
+| **Phase 3: Scaled Interval Hitting** | `Erdos298.mem_subsetSums_of_scaled_Icc_subset` | $\{1, \dots, m\} \subseteq (A \cap v\mathbb{N})/v \wedge n/v \le m(m+1)/2 \implies n \in \Sigma(A)$ | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
 | **Phase 3: CFP Diverse Witness Structure** | Erdos298.CFPDiverseWitness | Exact CFP §5.1 witness structure over diverse quotient subset sums | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
 | **Phase 3: CFP §5.1 Diverse Chromatic Lower Bound** | `Erdos298.minColors_ge_of_cfp_diverse_witness` | $k + 1 \le f(n)$ from any `CFPDiverseWitness n k` | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
 | **Phase 3: CFP §5.1 Non-diversity Characterization** | `Erdos298.not_isDiverse_iff` | $\neg \mathrm{IsDiverse}(A, t) \iff \exists d \ge 2, |A \setminus d\mathbb{N}| < t$ | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
@@ -162,6 +162,9 @@
 | **Phase 3: CFP §5.1 Combinatorial Core F1**| `Erdos298.cfp_lemma_5_6_finite_core` | CFP Lemma 5.6 Combinatorial Core F1 Master Theorem: $\min(\xi, 32 / \ell) \cdot t \le |\Sigma_t(A)|$ | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
 | **Phase 3: CFP §5.1 Concrete Realization** | `Erdos298.concreteFiniteConditions` | Constructive realization of `FiniteConditions` with concrete numbers ($t=20, A=\{1,3,7\}, \dots$) | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
 | **Phase 3: CFP §5.1 Non-Vacuity Theorem** | `Erdos298.finiteConditions_realizable` | Machine-checked non-vacuity theorem: `Nonempty FiniteConditions` | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
+| **Phase P17/P19: Arithmetic Witness** | `Erdos298.concreteCFPArithParams`, `Erdos298.concreteP17Conditions` | Explicit witness for `CFPArithParams` and `P17FiniteArithConditions` ($n = t = 16411$ (prime), $v = W = 1$, $y = 8192$, $A = [8192, 16383]$, $K = 32$, $M = 8160$, $k_{div} = 1$, $U = 9$, $D = 1$, $gMax = 1$, $\xi = 1/128$, $\ell = 2^{20}$, $B_{growth} = 31$, $r = 8160^5$) with all conditions incl. E1–E3 machine-checked | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
+| **Phase P17/P19: Budget Condition on Witness** | `Erdos298.concreteCFPArithParams_numeric` | $\text{p16TotalBudget}(t, gMax, U, M) = 31 \le B_{growth}$ for the witness (uses `witness_log2`: $\lfloor\log_2 16411\rfloor = 14$) | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
+| **Phase P17/P19: Parameter Non-Vacuity** | `Erdos298.cfpArithParams_realizable`, `Erdos298.p17FiniteArithConditions_realizable`, `Erdos298.lemma_5_6_parameter_hypotheses_satisfiable` | `Nonempty CFPArithParams`, `Nonempty (P17FiniteArithConditions _)`, and joint satisfiability of $(p_{cf}, p, h_{numeric})$ | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
 | **Phase 3: CFP §5.1 Primorial Product** | `Erdos298.primorialProd` | Primorial product $W(P) = \prod_{p \in P} p$ | **Proven & Compiled** | `[propext, Quot.sound]` |
 | **Phase 3: CFP §5.1 CFP Tau Ratio** | `Erdos298.cfpTau` | Canonical CFP ratio $\tau(W, m) = \varphi(W \cdot m) / (W \cdot m)$ | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
 | **Phase 3: CFP §5.1 CFP Tau Positivity** | `Erdos298.cfpTau_pos` | Strict positivity $0 < \tau(W, m)$ when $W > 0, m > 0$ | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
@@ -311,12 +314,17 @@
 | **Phase P17: Small Growth Subgroup Containment** | `Erdos298.smallGrowth_subset_subgroup` | Small growth preserves subgroup containment: $T \subseteq H \land d < |T| \implies \mathrm{smallGrowth}(T, d) \subseteq H$ | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
 | **Phase P17: 3-Coset smallGrowth Absorption** | `Erdos298.proper_subgroup_smallGrowth_of_three_coset_absorption` | 3-coset cover yields $\mathrm{smallGrowth}(T, d) \subseteq H < \top$, absorbing 3-coset branch | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
 | **Phase P17: Closure Non-Top Proper Subgroup** | `Erdos298.smallGrowth_proper_subgroup_of_closure_ne_top` | $\mathrm{closure}(\mathrm{smallGrowth}(T, d)) \ne \top \implies \exists H < \top, \mathrm{smallGrowth}(T, d) \subseteq H$ | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
-| **Phase P17: Unsaturated Step Growth (AP Cover)** | `Erdos298.unsaturated_step_growth_of_ap_cover` | Contradiction $D \le \delta_j$ with $h_{trichotomy}$ completely eliminated in favor of pure coset AP cover $h_{ap\_cover}$ | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
-| **Phase P17: Unsaturated Steps Growth (AP Cover)** | `Erdos298.unsaturatedSteps_growth_of_ap_cover` | Uniform unsaturated growth bound $\forall j \in \mathrm{unsaturatedSteps}, D \le \delta_j$ under $h_{ap\_cover}$ | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
-| **Phase P17: Master Finite Core (AP Cover)** | `Erdos298.cfp_lemma_5_6_finite_core_of_ap_cover` | Master finite core with $h_{trichotomy}$ eliminated, reducing cleanly to $h_{ap\_cover}$ and $h_{sieve}$ | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
-| **Phase P17: Lemma 5.6 (m = n) (AP Cover)** | `Erdos298.cfp_lemma_5_6_m_eq_n_of_ap_cover` | Master $m = n$ theorem with $h_{trichotomy}$ eliminated, reducing cleanly to $h_{ap\_cover}$ and $h_{sieve}$ | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
-| **Phase P17: Finite Core (Rough Count)** | `Erdos298.cfp_lemma_5_6_finite_core_of_rough_count` | Master finite core with $h_{trichotomy}$ eliminated and $h_{sieve}$ reduced to per-AP rough count | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
-| **Phase P17: Lemma 5.6 (m = n) (Rough Count)** | `Erdos298.cfp_lemma_5_6_m_eq_n_of_rough_count` | Master $m = n$ theorem with $h_{trichotomy}$ eliminated and $h_{sieve}$ reduced to per-AP rough count | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
+| **Phase P17: Guarded Trichotomy Interface** | `Erdos298.GuardedTrichotomy` | Named form of the guarded structural trichotomy hypothesis ($8d < \|T\| < \xi N$, $0 < \xi \le 1/20$) | **Formalized & Compiled** | `[propext, Classical.choice, Quot.sound]` |
+| **Phase P17: Guarded AP Cover Interface** | `Erdos298.GuardedAPCover` | Branch 3 of the trichotomy with the guards $\mathrm{closure}(\mathrm{smallGrowth}(T,d)) = \top$ and $\|\mathrm{smallGrowth}(T,d)\| > 20(2d)^{51/50}/\|T\|^{1/50}$ that exclude Branches 1 and 2 | **Formalized & Compiled** | `[propext, Classical.choice, Quot.sound]` |
+| **Phase P17: Interface Equivalence** | `Erdos298.guardedAPCover_iff_trichotomy` | $\mathrm{GuardedAPCover} \iff \mathrm{GuardedTrichotomy}$ (via `guardedAPCover_of_trichotomy`, `trichotomy_of_guardedAPCover`) | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
+| **Phase P17: Unguarded Cover Refuted** | `Erdos298.not_unguarded_ap_cover` | For every $d$, $\neg\,\forall N\, T, \exists R, \mathrm{smallGrowth}(T,d) \subseteq R \wedge R.\ell\|R.H\| \le 128 d$ (witness $T = \mathrm{univ}$ in $\mathbb{Z}/(128d+1)$) | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
+| **Phase P17: Old `h_ap_cover` Refuted** | `Erdos298.not_unguarded_ap_cover'` | The unguarded hypothesis previously used by the `*_of_ap_cover` chain is false; theorems assuming it were vacuous | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
+| **Phase P17: Unsaturated Step Growth (AP Cover)** | `Erdos298.unsaturated_step_growth_of_ap_cover` | Contradiction $D \le \delta_j$ under `GuardedAPCover`; the guards are discharged in-proof from $\mathrm{closure}(Q) = \top$ and $E_1$ | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
+| **Phase P17: Unsaturated Steps Growth (AP Cover)** | `Erdos298.unsaturatedSteps_growth_of_ap_cover` | Uniform unsaturated growth bound $\forall j \in \mathrm{unsaturatedSteps}, D \le \delta_j$ under `GuardedAPCover` | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
+| **Phase P17: Master Finite Core (AP Cover)** | `Erdos298.cfp_lemma_5_6_finite_core_of_ap_cover` | Master finite core reducing to `GuardedAPCover` ($\equiv$ guarded trichotomy) and $h_{sieve}$ | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
+| **Phase P17: Lemma 5.6 (m = n) (AP Cover)** | `Erdos298.cfp_lemma_5_6_m_eq_n_of_ap_cover` | Master $m = n$ theorem reducing to `GuardedAPCover` and $h_{sieve}$ | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
+| **Phase P17: Finite Core (Rough Count)** | `Erdos298.cfp_lemma_5_6_finite_core_of_rough_count` | Master finite core under `GuardedAPCover` with $h_{sieve}$ reduced to per-AP rough count | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
+| **Phase P17: Lemma 5.6 (m = n) (Rough Count)** | `Erdos298.cfp_lemma_5_6_m_eq_n_of_rough_count` | Master $m = n$ theorem under `GuardedAPCover` with $h_{sieve}$ reduced to per-AP rough count | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
 | **Phase P09: AP Step Injectivity** | `Erdos298.IntAP.inj_of_hb` | Injectivity of integer AP mapping $j \mapsto a + j \cdot b$ when $0 < b$ | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
 | **Phase P09: Linear Congruence Separation** | `Erdos298.linear_dvd_sub_ge_d` | Separation principle: distinct solutions to $d \mid a + j \cdot b$ for coprime $b, d$ satisfy $j_2 - j_1 \ge d$ | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
 | **Phase P09: Separated Set Card Bound** | `Erdos298.card_le_div_add_one_of_separated` | Any $d$-separated subset of $\mathrm{range}(k)$ has cardinality $\le k / d + 1$ | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
@@ -435,7 +443,7 @@ A rigorous audit of the mathematical dependencies required for the 2021 lower bo
         - Range 2 floor arithmetic: `Erdos298.floor_mul_succ_gt` ($4s < (\lfloor 4s/b \rfloor + 1) b$).
         - Range 2 arithmetic contradiction: `Erdos298.range2_arith_contradiction` ($(q + 1) b \le 4s \wedge 4s < (q + 1) b \implies \text{False}$).
       - CFP §5.1 Combinatorial Core F1 of CFP Lemma 5.6 (Phases P16, P17, P18):
-        - Initial state & deterministic greedy choice: `Erdos298.initialGreedyState`, `Erdos298.greedyChoice`, `Erdos298.greedyChoice_mem`, `Erdos298.greedyChoice_max`.
+        - Initial state & deterministic greedy choice: `Erdos298.initialGreedyState`, `Erdos298.greedyChoice`, `Erdos298.greedyChoice_mem`, `Erdos298.greedyChoice_growth_max, Erdos298.greedyChoice_ordinary_max`.
         - State trajectory: `Erdos298.greedySeq` tracking $(E_j, B_j)$.
         - Exact capacity: `Erdos298.card_greedySeq_E` ($|E_j| = j$ for all $j \le K$).
         - Modular subset sum inclusion: `Erdos298.greedySeq_S_subset` ($S_j \subseteq \Sigma_t(A)$).
@@ -449,6 +457,7 @@ A rigorous audit of the mathematical dependencies required for the 2021 lower bo
       - CFP §5.1 Parameter Instantiation, Arithmetic Adapter & Non-Vacuity (Phase P19):
         - Concrete non-vacuous realization: `Erdos298.concreteFiniteConditions` providing an explicit machine-checked witness ($t = 20, A = \{1, 3, 7\}, v = 1, K = 2, M = 1, k_{div} = 1, U = 9, D = 1, gMax = 1, \xi = 1/128, \ell = 1024, B_{growth} = 0$).
         - Non-vacuity master theorem: `Erdos298.finiteConditions_realizable` proving `Nonempty FiniteConditions`.
+        - Arithmetic-layer non-vacuity (added 2026-09-19): `Erdos298.concreteCFPArithParams`, `Erdos298.concreteP17Conditions`, `Erdos298.concreteCFPArithParams_numeric`, `Erdos298.cfpArithParams_realizable`, `Erdos298.p17FiniteArithConditions_realizable`, `Erdos298.lemma_5_6_parameter_hypotheses_satisfiable` — an explicit witness ($n = t = 16411$ (prime), $v = W = 1$, $y = 8192$, $A = [8192, 16383]$, $K = 32$, $M = 8160$, $k_{div} = 1$, $U = 9$, $D = 1$, $gMax = 1$, $\xi = 1/128$, $\ell = 2^{20}$, $B_{growth} = 31$, $r = 8160^5$) certifying that the parameter-side hypotheses of the Lemma 5.6 master reductions are jointly satisfiable. The witness is small (its conclusion is trivial); it only rules out vacuity of the chain for lack of admissible parameters.
         - Primorial product and ratio: `Erdos298.primorialProd` ($W(P) = \prod_{p \in P} p$), `Erdos298.cfpTau` ($\tau(W, m) = \varphi(Wm) / (Wm)$), and positivity `Erdos298.cfpTau_pos`.
         - Number-theoretic rough candidate sets: `Erdos298.inY`, `Erdos298.inY_v`, and scaling injection `Erdos298.mem_Y_of_mem_Y_v` ($a \in Y_v \implies v \cdot a \in Y$).
         - Arithmetic parameter configuration: `Erdos298.CFPArithParams` bundling target $n$, scaling $v$, modulus $t$, set $A$, and the 10 numerical conditions.
@@ -498,7 +507,7 @@ A rigorous audit of the mathematical dependencies required for the 2021 lower bo
           - Additive stabilizers: `Erdos298.finsetAddStab`, establishing subgroup structure, cosets, and quotient projection.
           - Master DeVos bound: `Erdos298.kneser_bound_all` proving $|A + B| \ge |A + H| + |B + H| - |H|$ where $H = \mathrm{Stab}(A + B)$ or $A + B = G$.
           - Aperiodic sumset lower bound: `Erdos298.aperiodic_sumset_bound` proving $|A| + |B| \le |A + B| + 1$ whenever $\mathrm{Stab}(A + B) = \{0\}$.
-          - Iterated sumset linear growth (`Erdos298/Kneser.lean`): `Erdos298.card_iterSum_ge_of_stabilizer_trivial` proving $|k C| \ge k(|C| - 1) + 1$ for aperiodic $k C$.
+          - Iterated sumset linear growth (`Erdos298/Kneser.lean`): `Erdos298.iterSum_card_ge_linear_of_k3` proving $|k C| \ge k(|C| - 1) + 1$ for aperiodic $k C$.
           - Unconditional iterated sumset growth (CFP Lemma 2.3): `Erdos298.iterSum_card_ge_of_zero_mem_of_generates` proving:
             $$(k C).\mathrm{card} = N \lor (k + 1) \cdot C.\mathrm{card} \le 2 \cdot (k C).\mathrm{card}$$
             for any composite modulus $N = t/g$ ($[NeZero N]$), generators $C$ with $0 \in C$ and $\mathrm{closure}(C) = \top$, and any $k \ge 1$.
@@ -601,7 +610,13 @@ A rigorous audit of the mathematical dependencies required for the 2021 lower bo
 
 ---
 
-### 2.6 Phase P17 Extension: Elimination of `h_trichotomy` in Favor of Pure Coset AP Cover (`h_ap_cover`)
+### 2.6 Phase P17 Extension: Isolating Branch 3 of the Trichotomy as a Guarded Coset AP Cover (`GuardedAPCover`)
+
+> [!WARNING]
+> **Correction (2026-09-19).** The first version of this section replaced `h_trichotomy` by an *unguarded* hypothesis
+> $h_{ap\_cover} : \forall N\,[NeZero\,N]\,T\,d,\ \exists R : \mathrm{CosetAP}\,N,\ \mathrm{smallGrowth}(T,d) \subseteq R.\mathrm{toFinset} \wedge R.\ell\,|R.H| \le 128 d$.
+> That statement is **false** — for $T = \mathrm{univ}$ the small growth set is the whole group, which no coset AP with $R.\ell |R.H| \le 128 d$ can cover once $N > 128 d$ — so every theorem assuming it (`unsaturated_step_growth_of_ap_cover`, `cfp_lemma_5_6_*_of_ap_cover`, `*_of_rough_count`, `*_of_lifting_and_sieve`, `cfp_lemma_5_6_m_eq_n_of_branches_and_sieve`) was **vacuously true** and could never be instantiated. The refutation is now machine-checked (`Erdos298.not_unguarded_ap_cover`, `Erdos298.not_unguarded_ap_cover'`). Note that `#print axioms` cannot detect this kind of defect.
+> The chain has been re-based on the guarded interface `Erdos298.GuardedAPCover` described below, which is provably **equivalent** to the guarded trichotomy (`Erdos298.guardedAPCover_iff_trichotomy`). Mathematically, Branch 1 (proper subgroup) is a genuine case of the structure theorem and cannot be dropped from the hypothesis; it can only be excluded *inside* the contradiction argument using $\mathrm{closure}(Q) = \top$.
 
 - **Mathematical Rationale**:
   - In the original reduction `unsaturated_step_growth_of_arith_conditional`, the structural additive combinatorics interface `SmallGrowthTrichotomy` contained three branches:
@@ -610,8 +625,11 @@ A rigorous audit of the mathematical dependencies required for the 2021 lower bo
     3. **Branch 3 (Coset AP)**: $\mathrm{smallGrowth}(T, D) \subseteq R.\mathrm{toFinset}$ with $R.\ell \cdot |R.H| \le 128 D$.
   - Crucial Mathematical Insight: In the unsaturated step contradiction, Branch 1 is immediately refuted by $\mathrm{closure}(Q) = \top$ (since $Q \subseteq \mathrm{smallGrowth}(T, D)$ and $Q$ generates the quotient group $\mathbb{Z}/(t/g)\mathbb{Z}$). Branch 2 is immediately refuted by $M \le |Q| \le |G|$ and the explicit arithmetic condition $E_1$.
   - Therefore, Branch 1 and Branch 2 are **mathematically dead branches** in the contradiction argument! The only branch actually needed to derive the contradiction $D \le \delta_j$ is Branch 3 (Coset AP).
-  - By proving `unsaturated_step_growth_of_ap_cover`, `h_trichotomy` was completely eliminated from the master step contradiction, reducing the geometric input strictly to the existence of the coset AP cover:
-    $$h_{ap\_cover} : \forall N, [NeZero N], T, d, \exists (R : \mathrm{CosetAP}\; N), \mathrm{smallGrowth}(T, d) \subseteq R.\mathrm{toFinset} \land R.\ell \cdot |R.H| \le 128 d$$
+  - Consequently the geometric input can be *isolated* to Branch 3, but only together with the guards that make Branches 1 and 2 impossible. The interface `Erdos298.GuardedAPCover` is:
+    $$\forall N\,[NeZero\,N]\,T\,d\,\xi,\quad 8d < |T| \to 0 < \xi \le \tfrac{1}{20} \to |T| < \xi N \to \mathrm{closure}(\mathrm{smallGrowth}(T,d)) = \top \to \tfrac{20 (2d)^{51/50}}{|T|^{1/50}} < |\mathrm{smallGrowth}(T,d)| \to \exists R : \mathrm{CosetAP}\,N,\ \mathrm{smallGrowth}(T,d) \subseteq R.\mathrm{toFinset} \wedge R.\ell\,|R.H| \le 128 d$$
+  - `Erdos298.guardedAPCover_of_trichotomy` / `Erdos298.trichotomy_of_guardedAPCover` / `Erdos298.guardedAPCover_iff_trichotomy`: `GuardedAPCover` is equivalent to the guarded trichotomy `Erdos298.GuardedTrichotomy` (the hypothesis of `unsaturated_step_growth_of_arith_conditional`). Nothing is lost or gained logically; the interface merely names the one branch that still has to be supplied by a Deshouillers–Freiman / Balasubramanian–Pandey type structure theorem.
+  - `Erdos298.not_unguarded_ap_cover` (for every $d$) and `Erdos298.not_unguarded_ap_cover'`: the unguarded statement is refuted by $T = \mathrm{univ}$ in $\mathbb{Z}/(128d+1)\mathbb{Z}$, where $|\mathrm{smallGrowth}(T,d)| = 128d+1 > 128 d \ge R.\ell |R.H| \ge |R.\mathrm{toFinset}|$.
+  - In `unsaturated_step_growth_of_ap_cover` the two extra guards are discharged in-proof: $\mathrm{closure}(\mathrm{smallGrowth}(T,D)) = \top$ from $Q \subseteq \mathrm{smallGrowth}(T,D)$ and $\mathrm{closure}(Q) = \top$; the cardinality guard from $M \le |Q| \le |\mathrm{smallGrowth}(T,D)|$, $U < |T|$ and $E_1$.
 
 - **Structural Bridging Theorems Added**:
   1. `Erdos298.smallGrowth_subset_subgroup`:
@@ -623,23 +641,24 @@ A rigorous audit of the mathematical dependencies required for the 2021 lower bo
      $$\mathrm{closure}(\mathrm{smallGrowth}(T, d)) \ne \top \implies \exists H < \top, \mathrm{smallGrowth}(T, d) \subseteq H$$
      Provides direct instantiation of Branch 1 from `AddSubgroup.subset_closure`.
 
-- **Master Theorems with `h_trichotomy` Eliminated**:
+- **Master Theorems on the Guarded AP Cover Interface**:
   4. `Erdos298.unsaturated_step_growth_of_ap_cover`:
-     Master step contradiction $D \le \delta_j$ with $h_{trichotomy}$ completely removed from the signature, requiring only $P17FiniteArithConditions$, $h_{ap\_cover}$, and $h_{sieve}$.
+     Master step contradiction $D \le \delta_j$ requiring only $P17FiniteArithConditions$, `GuardedAPCover`, and $h_{sieve}$ (the guards are discharged inside the proof).
   5. `Erdos298.unsaturatedSteps_growth_of_ap_cover`:
-     Uniform unsaturated growth bound $\forall j \in \mathrm{unsaturatedSteps}, D \le \delta_j$ under pure AP cover and sieve bridge.
+     Uniform unsaturated growth bound $\forall j \in \mathrm{unsaturatedSteps}, D \le \delta_j$ under guarded AP cover and sieve bridge.
   6. `Erdos298.cfp_lemma_5_6_finite_core_of_ap_cover`:
-     Master finite core theorem $\min(\xi, 32/\ell) \cdot t \le |\Sigma_t(A)|$ with $h_{trichotomy}$ completely eliminated, leaving $h_{ap\_cover}$ and $h_{sieve}$ (`APCoverSieveBridge`) as the sole remaining hypotheses.
+     Master finite core theorem $\min(\xi, 32/\ell) \cdot t \le |\Sigma_t(A)|$ leaving `GuardedAPCover` and $h_{sieve}$ (`APCoverSieveBridge`) as the remaining hypotheses (besides $h_{numeric}$ and the parameter structures).
   7. `Erdos298.cfp_lemma_5_6_m_eq_n_of_ap_cover`:
-     Master specialization of CFP Lemma 5.6 to $m = n$ with $h_{trichotomy}$ eliminated, reducing cleanly to $h_{ap\_cover}$ and $h_{sieve}$.
+     Master specialization of CFP Lemma 5.6 to $m = n$, reducing to `GuardedAPCover` and $h_{sieve}$.
   8. `Erdos298.cfp_lemma_5_6_finite_core_of_rough_count`:
-     Master finite core theorem with $h_{trichotomy}$ eliminated and $h_{sieve}$ reduced directly to per-AP Selberg rough count bounds $h_{cov\_sieve}$.
+     Master finite core theorem under `GuardedAPCover` with $h_{sieve}$ reduced directly to per-AP Selberg rough count bounds $h_{cov\_sieve}$.
   9. `Erdos298.cfp_lemma_5_6_m_eq_n_of_rough_count`:
-     Master $m = n$ theorem with $h_{trichotomy}$ eliminated and $h_{sieve}$ reduced directly to per-AP Selberg rough count bounds $h_{cov\_sieve}$.
+     Master $m = n$ theorem under `GuardedAPCover` with $h_{sieve}$ reduced directly to per-AP Selberg rough count bounds $h_{cov\_sieve}$.
 
-- **Axiom & Compilation Audit**:
-  - Full build `lake build Erdos298` completes with 2048 jobs, Exit Code 0, 0 errors, 0 warnings.
-  - `#print axioms` verified on all 9 theorems: strictly standard Lean 4 axioms `[propext, Classical.choice, Quot.sound]`.
+- **Axiom & Compilation Audit (re-run 2026-09-19 after the interface correction)**:
+  - Full build `lake build Erdos298` (Lean 4.33.0, Mathlib `db584cd6`) completes with 2049 jobs (one more than before: `Mathlib.Tactic.NormNum.Prime` is now imported for the arithmetic witness), Exit Code 0, 0 errors, 0 `sorryAx`.
+  - 40 style-linter warnings (`linter.style.haveILetI`, `haveI`/`letI` used in proofs of propositions) — all on pre-existing lines; none introduced by the correction.
+  - `#print axioms` verified on the 5 new interface declarations, on the arithmetic witness theorems, and on all 14 theorems of the `*_of_ap_cover` / `*_of_rough_count` / `*_of_lifting_and_sieve` / `*_of_branches_and_sieve` chain (316 audited declarations in total): strictly standard Lean 4 axioms `[propext, Classical.choice, Quot.sound]`.
   - Strictly 0 `sorry`, zero `admit`, zero custom axioms.
 
 ---
@@ -684,40 +703,40 @@ A rigorous audit of the mathematical dependencies required for the 2021 lower bo
 
 - **Mathematical Rationale & Architecture**:
   - Following the roadmap in manual.md (§P08, §P09, §P17), the remaining mathematical work for Erdős Problem #360 is partitioned into:
-    1. Phase P08: Combinatorial lifting of a coset progression $ in $\mathbb{Z}/(t/g)\mathbb{Z}$ to an integer arithmetic progression cover IntAPCover.
-    2. Phase P09: Quantitative analytic Selberg sieve rough count bound for arithmetic progressions HasAPRoughCountBound.
-  - To enable fully modular, parallel development, the monolithic hypothesis {cov\_sieve}$ is decomposed into HasIntAPCover and HasAPRoughCountBound.
-  - Furthermore, candidate subsets  \subseteq fc.A$ covered by a coset AP $ satisfy the fundamental cardinality inequality $|B| \le R.\ell \cdot |R.H|$ unconditionally via strict scaled projection injectivity.
+    1. Phase P08: Combinatorial lifting of a coset progression $R$ in $\mathbb{Z}/(t/g)\mathbb{Z}$ to an integer arithmetic progression cover `IntAPCover`.
+    2. Phase P09: Quantitative analytic Selberg sieve rough count bound for arithmetic progressions `HasAPRoughCountBound`.
+  - To enable fully modular, parallel development, the monolithic hypothesis $h_{\mathrm{cov\_sieve}}$ is decomposed into `HasIntAPCover` and `HasAPRoughCountBound`.
+  - Furthermore, candidate subsets $B \subseteq fc.A$ covered by a coset AP $R$ satisfy the fundamental cardinality inequality $|B| \le R.\ell \cdot |R.H|$ unconditionally via strict scaled projection injectivity.
 
 - **Theorems Formally Proven & Integrated into Erdos298.lean (100% Proven, 0 sorry, Standard Axioms)**:
-  1. Erdos298.h_cov_sieve_of_lifting_and_sieve:
-     Decoupled master reduction: cleanly splits {cov\_sieve}$ into HasIntAPCover fc p (P08) and HasAPRoughCountBound fc p (P09).
-  2. Erdos298.cfp_lemma_5_6_finite_core_of_lifting_and_sieve:
+  1. `Erdos298.h_cov_sieve_of_lifting_and_sieve`:
+     Decoupled master reduction: cleanly splits $h_{\mathrm{cov\_sieve}}$ into `HasIntAPCover fc p` (P08) and `HasAPRoughCountBound fc p` (P09).
+  2. `Erdos298.cfp_lemma_5_6_finite_core_of_lifting_and_sieve`:
      Master finite core theorem with completely decoupled AP lifting and per-AP Selberg rough count bound.
-  3. Erdos298.cfp_lemma_5_6_m_eq_n_of_lifting_and_sieve:
-     Master  = n$ theorem for Erdős Problem #360 with decoupled AP lifting and per-AP sieve rough count bound.
-  4. Erdos298.coprime_q_W_of_inY_v:
-     Extraction of coprime arithmetic components from $ candidates: every  \in Y_v$ factors as  = q \cdot u$ where $ is coprime to $ and $ via Nat.coprime_mul_iff_right.
-  5. Erdos298.card_le_card_cosetAP_of_image_subset:
-     Master injection theorem for candidate subsets covered by coset APs: for any  \subseteq fc.A$ and any coset AP $ in $\mathbb{Z}/(t/g)\mathbb{Z}$ containing the scaled projection $\pi_g(B)$, the projection is strictly injective on $, establishing:
-     |B| \le R.\ell \cdot |R.H|
-     unconditionally via Nat.ModEq.mul_left' and P17FiniteArithConditions.injOn_A.
+  3. `Erdos298.cfp_lemma_5_6_m_eq_n_of_lifting_and_sieve`:
+     Master $m = n$ theorem for Erdős Problem #360 with decoupled AP lifting and per-AP sieve rough count bound.
+  4. `Erdos298.coprime_q_W_of_inY_v`:
+     Extraction of coprime arithmetic components from $Y_v$ candidates: every $a \in Y_v$ factors as $a = q \cdot u$ where $q$ is coprime to $W$ and $m$ via `Nat.coprime_mul_iff_right`.
+  5. `Erdos298.card_le_card_cosetAP_of_image_subset`:
+     Master injection theorem for candidate subsets covered by coset APs: for any $B \subseteq fc.A$ and any coset AP $R$ in $\mathbb{Z}/(t/g)\mathbb{Z}$ containing the scaled projection $\pi_g(B)$, the projection is strictly injective on $B$, establishing:
+     $$|B| \le R.\ell \cdot |R.H|$$
+     unconditionally via `Nat.ModEq.mul_left'` and `P17FiniteArithConditions.injOn_A`.
 
 - **Axiom & Compilation Audit**:
-  - Full build lake build Erdos298 completes with 2048 jobs, Exit Code 0, 0 errors, 0 warnings.
-  - #print axioms verified on all 5 new theorems: strictly standard Lean 4 axioms [propext, Classical.choice, Quot.sound].
-  - Strictly 0 sorry, zero dmit, zero custom axioms.
+  - Full build `lake build Erdos298` completes with 2048 jobs, Exit Code 0, 0 errors, 0 warnings.
+  - `#print axioms` verified on all 5 new theorems: strictly standard Lean 4 axioms `[propext, Classical.choice, Quot.sound]`.
+  - Strictly 0 `sorry`, zero `admit`, zero custom axioms.
 
 - **Phase P09 Additional Theorems (AP Sieve Monotonicity & Real Bounds)**:
-  6. Erdos298.card_filter_natAbs_dvd_toFinset_real_le:
+  6. `Erdos298.card_filter_natAbs_dvd_toFinset_real_le`:
      Real-valued divisibility upper bound:
-     (\#\{z \in P.\mathrm{toFinset} \mid d \mid z.\mathrm{natAbs}\} : \mathbb{R}) \le (P.k : \mathbb{R}) / (d : \mathbb{R}) + 1
-  7. Erdos298.roughCount_one:
+     $$(\#\{z \in P.\mathrm{toFinset} \mid d \mid z.\mathrm{natAbs}\} : \mathbb{R}) \le (P.k : \mathbb{R}) / (d : \mathbb{R}) + 1$$
+  7. `Erdos298.roughCount_one`:
      Identity $\mathrm{roughCount}(P, 1) = P.k$ for sieve modulus 1.
-  8. Erdos298.roughCount_mono:
-     Monotonicity of rough count under sieve modulus divisibility:  \mid Q_2 \implies \mathrm{roughCount}(P, Q_2) \le \mathrm{roughCount}(P, Q_1)$.
-  9. Erdos298.roughCount_le_card:
-     Universal upper bound $\mathrm{roughCount}(P, Q) \le P.k$ for all  \in \mathbb{N}$.
+  8. `Erdos298.roughCount_mono`:
+     Monotonicity of rough count under sieve modulus divisibility: $Q_1 \mid Q_2 \implies \mathrm{roughCount}(P, Q_2) \le \mathrm{roughCount}(P, Q_1)$.
+  9. `Erdos298.roughCount_le_card`:
+     Universal upper bound $\mathrm{roughCount}(P, Q) \le P.k$ for all $Q \in \mathbb{N}$.
 
 - **Phase P08 Master Branch Reductions (Branch A / Branch B Architecture)**:
   10. Erdos298.HasIntAPCoverBranchA:
@@ -727,7 +746,7 @@ A rigorous audit of the mathematical dependencies required for the 2021 lower bo
   12. Erdos298.hasIntAPCover_of_branchA_and_branchB:
       Master branch reduction combining Branch A and Branch B into full HasIntAPCover.
   13. Erdos298.cfp_lemma_5_6_m_eq_n_of_branches_and_sieve:
-      CFP Lemma 5.6 (m = n) Master Theorem with pure AP cover, Branch A / Branch B decoupled AP lifting, and per-AP Selberg sieve rough count bound.
+      CFP Lemma 5.6 (m = n) Master Theorem with guarded AP cover (`GuardedAPCover`), Branch A / Branch B decoupled AP lifting, and per-AP Selberg sieve rough count bound.
 
 - **Phase P08 Branch A Completion (`hasIntAPCoverBranchA`)**:
   14. Erdos298.branchA_AP:
@@ -743,3 +762,65 @@ A rigorous audit of the mathematical dependencies required for the 2021 lower bo
       Verified with strictly 0 sorry, 0 admit, strictly standard Lean 4 axioms: [propext, Classical.choice, Quot.sound].
       Full lake build Erdos298 completes with 2048 jobs, Exit Code 0.
 
+---
+
+### 2.8 Phase G6 Part 1: Mertens Analytical Foundation & Sieve G Lower Bound (Completed 2026-09-19)
+
+- **Independent Module `Erdos298/Mertens.lean` (15 Unconditional Analytical Lemmas)**:
+  1. `Erdos298.inv_sq_le_inv_sub`:
+     Telescoping inverse square bound: $\frac{1}{k^2} \le \frac{1}{k-1} - \frac{1}{k}$ for $k \ge 2$.
+  2. `Erdos298.sum_Icc_sub_tele`:
+     Finite telescoping sum identity $\sum_{k=2}^z (f(k-1) - f(k)) = f(1) - f(z)$.
+  3. `Erdos298.sum_inv_sq_le_two`:
+     Universal bound on partial sums of squares: $\sum_{k=1}^z \frac{1}{k^2} \le 2$.
+  4. `Erdos298.harmonic_le_two_mul_sum_squarefree_inv`:
+     Harmonic sum domination by squarefree reciprocals:
+     $$\sum_{n=1}^z \frac{1}{n} \le 2 \sum_{a \le z, \text{Squarefree } a} \frac{1}{a}$$
+     via unique decomposition $n = a b^2$ with $a$ squarefree (`Nat.sq_mul_squarefree`).
+  5. `Erdos298.log_le_harmonic`:
+     Logarithmic lower bound on harmonic sum: $\log z \le \sum_{n=1}^z \frac{1}{n}$.
+  6. `Erdos298.sum_squarefree_inv_ge_half_log`:
+     Squarefree reciprocal sum lower bound: $\frac{1}{2} \log z \le \sum_{a \le z, \text{Squarefree } a} \frac{1}{a}$.
+  7. `Erdos298.sum_squarefree_inv_totient_ge_half_log`:
+     Squarefree totient reciprocal sum lower bound: $\frac{1}{2} \log z \le \sum_{a \le z, \text{Squarefree } a} \frac{1}{\varphi(a)}$.
+  8. `Erdos298.totient_of_squarefree`:
+     Totient product formula for squarefree numbers: $\varphi(d) = \prod_{p \in d.\mathrm{primeFactors}} (p - 1)$.
+  9. `Erdos298.primeFactors_inj_of_squarefree`:
+     Injectivity of prime factors on squarefree integers: $d_1.\mathrm{primeFactors} = d_2.\mathrm{primeFactors} \implies d_1 = d_2$.
+  10. `Erdos298.cast_totient_of_squarefree`:
+      Real cast of squarefree totient: $(\varphi(d) : \mathbb{R}) = \prod_{p \in d.\mathrm{primeFactors}} ((p : \mathbb{R}) - 1)$.
+  11. `Erdos298.inv_totient_of_squarefree`:
+      Inverse totient product representation: $\frac{1}{\varphi(d)} = \prod_{p \in d.\mathrm{primeFactors}} \frac{1}{p - 1}$.
+  12. `Erdos298.one_add_inv_sub_one`:
+      Algebraic identity $1 + \frac{1}{p-1} = \frac{p}{p-1}$ for $p > 1$.
+  13. `Erdos298.sum_divisors_squarefree_inv_totient_le`:
+      Squarefree divisor totient sum bound:
+      $$\sum_{d \mid n, \text{Squarefree } d} \frac{1}{\varphi(d)} \le \frac{n}{\varphi(n)}$$
+      via powerset expansion of $n.\mathrm{primeFactors}$ and `Finset.prod_one_add`.
+  14. `Erdos298.sum_squarefree_inv_totient_le_mul`:
+      Coprime squarefree decomposition of totient sum:
+      $$\sum_{a \le z, \text{Squarefree } a} \frac{1}{\varphi(a)} \le \left(\sum_{d \mid n, \text{Squarefree } d} \frac{1}{\varphi(d)}\right) \left(\sum_{c \le z, \text{Squarefree } c, \gcd(c, n)=1} \frac{1}{\varphi(c)}\right)$$
+      via injection $a \mapsto (a.\gcd n, a / a.\gcd n)$ and `Nat.coprime_div_gcd_of_squarefree`.
+  15. `Erdos298.sum_coprime_squarefree_inv_totient_ge_half`:
+      Fundamental coprime squarefree totient reciprocal lower bound:
+      $$\frac{1}{2} \frac{\varphi(n)}{n} \log z \le \sum_{c \le z, \text{Squarefree } c, \gcd(c, n) = 1} \frac{1}{\varphi(c)}$$
+      for all $n \ge 1$, $z \ge 1$.
+
+- **Integration into `Erdos298.lean`**:
+  16. `Erdos298.selbergTerms_of_squarefree`:
+      Exact Selberg weights for squarefree divisors: for any $c$ squarefree and $c > 0$,
+      $$(\mathrm{erdosBoundingSieve } n\ s).\mathrm{selbergTerms } c = \frac{1}{\varphi(c)}$$
+      via `BoundingSieve.selbergTerms_apply` and `cast_totient_of_squarefree`.
+  17. `Erdos298.sieveG_ge_half_totient_ratio_mul_log`:
+      **Master Selberg Sieve G Lower Bound**:
+      $$\frac{1}{2} \frac{\varphi(n)}{n} \log z \le \mathrm{sieveG}(n, s, z)$$
+      unconditionally for all $n \ge 2$, $s \ge 1$, $2 \le z \le s$.
+  18. `Erdos298.minColors_le_of_totient_log`:
+      Specialized sieve chromatic bound with sharp totient-logarithm sieve $G$ lower bound:
+      $$f(n) \le 2s + \left\lceil \frac{n - 1}{s(s+1) ((1/2) (\varphi(n)/n) \log z)} + \frac{z^4}{s} \right\rceil$$
+      unconditionally for all $n \ge 2$, $s \ge 1$, $2 \le z \le s$.
+
+- **Axiom & Compilation Audit**:
+  - Full build `lake build Erdos298` completes with **2765 jobs**, Exit Code 0, **0 errors, strictly 0 warnings**.
+  - `#print axioms` verified on all 18 new theorems: strictly standard Lean 4 axioms `[propext, Classical.choice, Quot.sound]`.
+  - Strictly 0 `sorry`, zero `admit`, zero custom axioms.

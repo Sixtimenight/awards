@@ -25,8 +25,10 @@ import Mathlib.Analysis.SpecialFunctions.Log.Basic
 import Mathlib.Data.Nat.Log
 import Mathlib.Data.Finset.Sort
 import Mathlib.Algebra.Group.Subgroup.Lattice
+import Mathlib.Tactic.NormNum.Prime
 import Erdos298.Kneser
 import Erdos298.Lev
+import Erdos298.Mertens
 
 
 /-!
@@ -1559,6 +1561,96 @@ lemma sieveG_ge_one_add_sum_primes (n s z : ℕ) (hz : 1 ≤ z) :
   dsimp [sieveG]
   linarith
 
+lemma selbergTerms_of_squarefree (n s c : ℕ) (hc_sq : Squarefree c) (hc_pos : 0 < c) :
+    (erdosBoundingSieve n s).selbergTerms c = (1 : ℝ) / ((Nat.totient c : ℝ)) := by
+  have hc0 : c ≠ 0 := hc_pos.ne'
+  rw [BoundingSieve.selbergTerms_apply]
+  dsimp [erdosBoundingSieve, unitDensity]
+  rw [if_neg hc0]
+  have h_prod : (∏ p ∈ c.primeFactors, (1 - (if p = 0 then (0 : ℝ) else 1 / (p : ℝ)))⁻¹) =
+      ∏ p ∈ c.primeFactors, ((p : ℝ) / ((p : ℝ) - 1)) := by
+    apply Finset.prod_congr rfl
+    intro p hp
+    have hp_prime : Nat.Prime p := Nat.prime_of_mem_primeFactors hp
+    rw [if_neg hp_prime.ne_zero]
+    have hp_lt : (1 : ℝ) < (p : ℝ) := by exact_mod_cast hp_prime.one_lt
+    have hp_pos : (0 : ℝ) < (p : ℝ) := by linarith
+    have hp_sub : (p : ℝ) - 1 ≠ 0 := by linarith
+    have h1 : 1 - (1 : ℝ) / (p : ℝ) = ((p : ℝ) - 1) / (p : ℝ) := by
+      field_simp
+    rw [h1, inv_div]
+  rw [h_prod]
+  have h_div : (∏ p ∈ c.primeFactors, ((p : ℝ) / ((p : ℝ) - 1))) =
+      (∏ p ∈ c.primeFactors, (p : ℝ)) / ∏ p ∈ c.primeFactors, ((p : ℝ) - 1) := by
+    rw [Finset.prod_div_distrib]
+  rw [h_div]
+  have h_num : (∏ p ∈ c.primeFactors, (p : ℝ)) = (c : ℝ) := by
+    have h_c : ((∏ p ∈ c.primeFactors, p : ℕ) : ℝ) = (c : ℝ) := by
+      exact_mod_cast Nat.prod_primeFactors_of_squarefree hc_sq
+    push_cast at h_c
+    exact h_c
+  have h_den : (∏ p ∈ c.primeFactors, ((p : ℝ) - 1)) = ((Nat.totient c : ℝ)) := by
+    exact (cast_totient_of_squarefree hc_sq).symm
+  rw [h_num, h_den]
+  have hc_cast_pos : (0 : ℝ) < (c : ℝ) := Nat.cast_pos.mpr hc_pos
+  have htot_pos : (0 : ℝ) < ((Nat.totient c : ℝ)) := by
+    have : 0 < Nat.totient c := Nat.totient_pos.mpr hc_pos
+    exact Nat.cast_pos.mpr this
+  field_simp
+
+lemma sieveG_ge_half_totient_ratio_mul_log (n s z : ℕ)
+    (hn : 2 ≤ n) (_hs : 1 ≤ s) (hz : 2 ≤ z) (hzs : z ≤ s) :
+    (1 / 2 : ℝ) * ((Nat.totient n : ℝ) / (n : ℝ)) * Real.log (z : ℝ) ≤ sieveG n s z := by
+  let C := (Finset.Icc 1 z).filter (fun c => Squarefree c ∧ c.Coprime n)
+  have hn_pos : 0 < n := by omega
+  have hz1 : 1 ≤ z := by omega
+  have h_coprime_sum := sum_coprime_squarefree_inv_totient_ge_half n z hn_pos hz1
+  have h_terms : (∑ c ∈ C, (1 : ℝ) / ((Nat.totient c : ℝ))) =
+      ∑ c ∈ C, (erdosBoundingSieve n s).selbergTerms c := by
+    apply Finset.sum_congr rfl
+    intro c hc
+    simp only [Finset.mem_filter, Finset.mem_Icc, C] at hc
+    have hc_sq : Squarefree c := hc.2.1
+    have hc_pos : 0 < c := hc.1.1
+    rw [selbergTerms_of_squarefree n s c hc_sq hc_pos]
+  have h_sub : C ⊆ sieveLevelDivisors n s z := by
+    intro c hc
+    simp only [Finset.mem_filter, Finset.mem_Icc, C] at hc
+    obtain ⟨⟨hc1, hcz⟩, hc_sq, hc_cop⟩ := hc
+    simp only [sieveLevelDivisors, Finset.mem_filter, Nat.mem_divisors]
+    refine ⟨⟨?_, ?_⟩, hcz⟩
+    · have hc_prod : c = ∏ p ∈ c.primeFactors, p := (Nat.prod_primeFactors_of_squarefree hc_sq).symm
+      rw [hc_prod]
+      apply Finset.prod_dvd_prod_of_subset
+      intro p hp
+      have hp_prime : Nat.Prime p := Nat.prime_of_mem_primeFactors hp
+      have hp_dvd_c : p ∣ c := Nat.dvd_of_mem_primeFactors hp
+      have hp_le_c : p ≤ c := Nat.le_of_dvd hc1 hp_dvd_c
+      have hp_le_s : p ≤ s := hp_le_c.trans (hcz.trans hzs)
+      have hp_ge_2 : 2 ≤ p := hp_prime.two_le
+      have hp_not_dvd_n : ¬ p ∣ n := by
+        intro hpn
+        have hp_dvd_gcd : p ∣ c.gcd n := Nat.dvd_gcd hp_dvd_c hpn
+        rw [Nat.Coprime.gcd_eq_one hc_cop] at hp_dvd_gcd
+        have : p ≤ 1 := Nat.le_of_dvd (by omega) hp_dvd_gcd
+        omega
+      simp only [sievePrimes, Finset.mem_filter, Finset.mem_Icc]
+      exact ⟨⟨hp_ge_2, hp_le_s⟩, hp_prime, hp_not_dvd_n⟩
+    · have h_sq := (erdosBoundingSieve n s).prodPrimes_squarefree
+      exact Squarefree.ne_zero h_sq
+  have h_nonneg : ∀ d ∈ sieveLevelDivisors n s z, 0 ≤ (erdosBoundingSieve n s).selbergTerms d := by
+    intro d hd
+    simp only [sieveLevelDivisors, Finset.mem_filter, Nat.mem_divisors] at hd
+    exact le_of_lt (BoundingSieve.selbergTerms_pos hd.1.1)
+  have h_sum_le : (∑ c ∈ C, (erdosBoundingSieve n s).selbergTerms c) ≤
+      ∑ d ∈ sieveLevelDivisors n s z, (erdosBoundingSieve n s).selbergTerms d :=
+    Finset.sum_le_sum_of_subset_of_nonneg h_sub (fun d hd _ => h_nonneg d hd)
+  dsimp [sieveG]
+  calc (1 / 2 : ℝ) * ((Nat.totient n : ℝ) / (n : ℝ)) * Real.log (z : ℝ)
+    _ ≤ ∑ c ∈ C, (1 : ℝ) / ((Nat.totient c : ℝ)) := h_coprime_sum
+    _ = ∑ c ∈ C, (erdosBoundingSieve n s).selbergTerms c := h_terms
+    _ ≤ ∑ d ∈ sieveLevelDivisors n s z, (erdosBoundingSieve n s).selbergTerms d := h_sum_le
+
 lemma nat_div_le_div (m d : ℕ) (hd : 0 < d) : (((m / d : ℕ) : ℝ)) ≤ (m : ℝ) / (d : ℝ) := by
   have : (m / d) * d ≤ m := Nat.div_mul_le_self m d
   have h_cast : (((m / d) * d : ℕ) : ℝ) ≤ (m : ℝ) := by exact_mod_cast this
@@ -1698,6 +1790,29 @@ theorem minColors_le_of_prime_subset (n s z : ℕ) (hn : 2 ≤ n) (hs : 1 ≤ s)
       dsimp [gQ]; linarith
     exact h1.trans (sieveG_ge_one_add_sum_primes n s z hz)
   exact minColors_le_of_sieveG_lower_bound n s z hn hs hz gQ hgQ_pos hgQ_le
+
+/-- Sieve chromatic bound with the sharp totient-logarithm sieve G lower bound:
+    f(n) ≤ 2s + ⌈(n - 1) / (s(s + 1) ((1/2) (φ(n)/n) log z)) + z⁴ / s⌉. -/
+theorem minColors_le_of_totient_log (n s z : ℕ) (hn : 2 ≤ n) (hs : 1 ≤ s) (hz : 2 ≤ z) (hzs : z ≤ s) :
+    minColors n hn ≤ 2 * s +
+      Nat.ceil (((n - 1 : ℝ) / ((s : ℝ) * (s + 1 : ℝ) *
+        ((1 / 2 : ℝ) * ((Nat.totient n : ℝ) / (n : ℝ)) * Real.log (z : ℝ)))) +
+        (z : ℝ) ^ 4 / (s : ℝ)) := by
+  let g0 := (1 / 2 : ℝ) * ((Nat.totient n : ℝ) / (n : ℝ)) * Real.log (z : ℝ)
+  have hn_pos : (0 : ℝ) < (n : ℝ) := Nat.cast_pos.mpr (by omega)
+  have htot_pos : (0 : ℝ) < ((Nat.totient n : ℝ)) := by
+    have : 0 < Nat.totient n := Nat.totient_pos.mpr (by omega)
+    exact Nat.cast_pos.mpr this
+  have hz_gt1 : (1 : ℝ) < (z : ℝ) := by
+    have : 1 < z := by omega
+    exact_mod_cast this
+  have h_log_pos : 0 < Real.log (z : ℝ) := Real.log_pos hz_gt1
+  have hg0_pos : 0 < g0 := by
+    dsimp [g0]
+    positivity
+  have hg0_le : g0 ≤ sieveG n s z := sieveG_ge_half_totient_ratio_mul_log n s z hn hs hz hzs
+  exact minColors_le_of_sieveG_lower_bound n s z hn hs (by omega) g0 hg0_pos hg0_le
+
 
 /-!
 ### Section 5: Non-Trivial Lower Bound
@@ -4413,7 +4528,8 @@ Here we formalize:
 atCast_zmod_div_injOn_Ico & card_image_natCast_zmod_div_of_Ico:
    injectivity and cardinality preservation under scaled projection on intervals of length ≤ t / g.
 6. Fiber coordinates:
-   iber h S r (connecting to existing 
+   
+iber h S r (connecting to existing 
 esidueFiber),
    card_eq_sum_image_fibers,
    delta_fiber_le_delta,
@@ -6127,8 +6243,7 @@ lemma isDiverse_gcd_le_one {A : Finset ℕ} {k : ℕ} (hA : IsDiverse A k) (hk :
   have h_div := hA (A.gcd id) hd
   have h_empty : A.filter (fun x => ¬ A.gcd id ∣ x) = ∅ := by
     rw [Finset.filter_eq_empty_iff]
-    intro x hxA
-    intro h_not_dvd
+    intro x hxA h_not_dvd
     exact h_not_dvd (Finset.gcd_dvd hxA)
   rw [h_empty, Finset.card_empty] at h_div
   omega
@@ -6792,9 +6907,9 @@ def CFPDiverseWitness.ofLevCoverage
     (v : ℕ) (hv : 0 < v) (hvn : v ∣ n)
     (h_lev_hit : ∀ A : Finset ℕ, A ⊆ S → M + 1 ≤ A.card →
       let Q := (A.filter (fun x => v ∣ x)).image (fun x => x / v)
-      ∃ (V1 V2 : Finset ℕ) (hV1Q : V1 ⊆ Q) (hV2Q : V2 ⊆ Q) (h_disj : Disjoint V1 V2)
-        (L1 L2 : ℕ) (hL1 : V1.sum id ≤ L1) (hL2 : V2.sum id ≤ L2)
-        (h_dense : max (L1 : ℤ) (L2 : ℤ) + 2 ≤ ((subsetSums V1).card : ℤ) + ((subsetSums V2).card : ℤ))
+      ∃ (V1 V2 : Finset ℕ) (_hV1Q : V1 ⊆ Q) (_hV2Q : V2 ⊆ Q) (_h_disj : Disjoint V1 V2)
+        (L1 L2 : ℕ) (_hL1 : V1.sum id ≤ L1) (_hL2 : V2.sum id ≤ L2)
+        (_h_dense : max (L1 : ℤ) (L2 : ℤ) + 2 ≤ ((subsetSums V1).card : ℤ) + ((subsetSums V2).card : ℤ))
         (_h_step_bound : ∀ t ∈ Q \ (V1 ∪ V2),
           t ≤ (((subsetSums V1).card : ℤ) + ((subsetSums V2).card : ℤ) - 2).toNat -
               (L1 + L2 - (((subsetSums V1).card : ℤ) + ((subsetSums V2).card : ℤ) - 2)).toNat + 1)
@@ -6822,9 +6937,9 @@ theorem minColors_ge_of_lev_coverage
     (v : ℕ) (hv : 0 < v) (hvn : v ∣ n)
     (h_lev_hit : ∀ A : Finset ℕ, A ⊆ S → M + 1 ≤ A.card →
       let Q := (A.filter (fun x => v ∣ x)).image (fun x => x / v)
-      ∃ (V1 V2 : Finset ℕ) (hV1Q : V1 ⊆ Q) (hV2Q : V2 ⊆ Q) (h_disj : Disjoint V1 V2)
-        (L1 L2 : ℕ) (hL1 : V1.sum id ≤ L1) (hL2 : V2.sum id ≤ L2)
-        (h_dense : max (L1 : ℤ) (L2 : ℤ) + 2 ≤ ((subsetSums V1).card : ℤ) + ((subsetSums V2).card : ℤ))
+      ∃ (V1 V2 : Finset ℕ) (_hV1Q : V1 ⊆ Q) (_hV2Q : V2 ⊆ Q) (_h_disj : Disjoint V1 V2)
+        (L1 L2 : ℕ) (_hL1 : V1.sum id ≤ L1) (_hL2 : V2.sum id ≤ L2)
+        (_h_dense : max (L1 : ℤ) (L2 : ℤ) + 2 ≤ ((subsetSums V1).card : ℤ) + ((subsetSums V2).card : ℤ))
         (_h_step_bound : ∀ t ∈ Q \ (V1 ∪ V2),
           t ≤ (((subsetSums V1).card : ℤ) + ((subsetSums V2).card : ℤ) - 2).toNat -
               (L1 + L2 - (((subsetSums V1).card : ℤ) + ((subsetSums V2).card : ℤ) - 2)).toNat + 1)
@@ -6890,9 +7005,9 @@ theorem hasChromaticLowerBound_of_diverse_witnesses (F : ℕ → ℝ) (c : ℝ) 
     then f(n) satisfies HasChromaticLowerBound F c. -/
 theorem hasChromaticLowerBound_of_lev_coverage (F : ℕ → ℝ) (c : ℝ) (hc : 0 < c)
     (N0 : ℕ)
-    (h_wit : ∀ n, 2 ≤ n → N0 ≤ n → ∃ (k : ℕ) (S : Finset ℕ) (hS : S ⊆ Finset.Ico 1 n)
-      (M : ℕ) (h_card : k * M < S.card) (v : ℕ) (hv : 0 < v) (hvn : v ∣ n)
-      (h_lev_hit : ∀ A : Finset ℕ, A ⊆ S → M + 1 ≤ A.card →
+    (h_wit : ∀ n, 2 ≤ n → N0 ≤ n → ∃ (k : ℕ) (S : Finset ℕ) (_hS : S ⊆ Finset.Ico 1 n)
+      (M : ℕ) (_h_card : k * M < S.card) (v : ℕ) (_hv : 0 < v) (_hvn : v ∣ n)
+      (_h_lev_hit : ∀ A : Finset ℕ, A ⊆ S → M + 1 ≤ A.card →
         HasLevIntervalCoverage n v ((A.filter (fun x => v ∣ x)).image (fun x => x / v))),
       c * F n ≤ (k + 1 : ℝ)) :
     HasChromaticLowerBound F c := by
@@ -6920,9 +7035,9 @@ theorem erdos_problem_360_asymptotic_master_of_diverse (F : ℕ → ℝ) {c C : 
     asymptotic two-sided equivalence c * F(n) ≤ f(n) ≤ C * F(n). -/
 theorem erdos_problem_360_asymptotic_master_of_lev (F : ℕ → ℝ) {c C : ℝ} (hc : 0 < c)
     (N0 : ℕ)
-    (h_wit : ∀ n, 2 ≤ n → N0 ≤ n → ∃ (k : ℕ) (S : Finset ℕ) (hS : S ⊆ Finset.Ico 1 n)
-      (M : ℕ) (h_card : k * M < S.card) (v : ℕ) (hv : 0 < v) (hvn : v ∣ n)
-      (h_lev_hit : ∀ A : Finset ℕ, A ⊆ S → M + 1 ≤ A.card →
+    (h_wit : ∀ n, 2 ≤ n → N0 ≤ n → ∃ (k : ℕ) (S : Finset ℕ) (_hS : S ⊆ Finset.Ico 1 n)
+      (M : ℕ) (_h_card : k * M < S.card) (v : ℕ) (_hv : 0 < v) (_hvn : v ∣ n)
+      (_h_lev_hit : ∀ A : Finset ℕ, A ⊆ S → M + 1 ≤ A.card →
         HasLevIntervalCoverage n v ((A.filter (fun x => v ∣ x)).image (fun x => x / v))),
       c * F n ≤ (k + 1 : ℝ))
     (h_upper : HasChromaticUpperBound F C) :
@@ -7911,7 +8026,7 @@ lemma trajectory_growth_step_range1 (fc : FiniteConditions)
     (j : ℕ) (hj : j ∈ growthSteps fc)
     (hrange1 : 2 * f_g fc ((greedySeq fc j).g fc.t) j < (greedySeq fc j).B.card) :
     3 * f_g fc ((greedySeq fc j).g fc.t) j ≤ 2 * f_g fc ((greedySeq fc j).g fc.t) (j + 1) := by
-  haveI : NeZero fc.t := ⟨by have := fc.ht_pos; omega⟩
+  have : NeZero fc.t := ⟨by have := fc.ht_pos; omega⟩
   have h_grow : isGrowthStage fc.t fc.U (greedySeq fc j) := by
     simp only [growthSteps, Finset.mem_filter] at hj; exact hj.2
   have hB : (greedySeq fc j).B.Nonempty := by
@@ -7994,7 +8109,7 @@ lemma small_fiber_card_mul_two_lt (fc : FiniteConditions) (g : ℕ) (hg_pos : 0 
 theorem exists_trajectory_range2_candidate_of_iterSum_growth
     (fc : FiniteConditions)
     (h_inj : Set.InjOn (fun a : ℕ => (a : ZMod fc.t)) (fc.A : Set ℕ))
-    (h_u1 : ∀ (N : ℕ) (hN : 0 < N) (C : Finset (ZMod N)),
+    (h_u1 : ∀ (N : ℕ) (_hN : 0 < N) (C : Finset (ZMod N)),
       (0 : ZMod N) ∈ C →
       AddSubgroup.closure (C : Set (ZMod N)) = ⊤ →
       ∀ (k : ℕ), 1 ≤ k →
@@ -8069,7 +8184,7 @@ theorem exists_trajectory_range2_candidate_of_iterSum_growth
 lemma trajectory_growth_step_range2_of_iterSum_growth
     (fc : FiniteConditions)
     (h_inj : Set.InjOn (fun a : ℕ => (a : ZMod fc.t)) (fc.A : Set ℕ))
-    (h_u1 : ∀ (N : ℕ) (hN : 0 < N) (C : Finset (ZMod N)),
+    (h_u1 : ∀ (N : ℕ) (_hN : 0 < N) (C : Finset (ZMod N)),
       (0 : ZMod N) ∈ C →
       AddSubgroup.closure (C : Set (ZMod N)) = ⊤ →
       ∀ (k : ℕ), 1 ≤ k →
@@ -8329,7 +8444,7 @@ theorem cfp_lemma_5_6_finite_core_of_p16 (fc : FiniteConditions)
 theorem growthSteps_block_card_le_p16BlockBudget_of_iterSum_growth
     (fc : FiniteConditions)
     (h_inj : Set.InjOn (fun a : ℕ => (a : ZMod fc.t)) (fc.A : Set ℕ))
-    (h_u1 : ∀ (N : ℕ) (hN : 0 < N) (C : Finset (ZMod N)),
+    (h_u1 : ∀ (N : ℕ) (_hN : 0 < N) (C : Finset (ZMod N)),
       (0 : ZMod N) ∈ C →
       AddSubgroup.closure (C : Set (ZMod N)) = ⊤ →
       ∀ (k : ℕ), 1 ≤ k →
@@ -8351,7 +8466,7 @@ theorem growthSteps_block_card_le_p16BlockBudget_of_iterSum_growth
 theorem growthSteps_card_le_p16Budget_of_iterSum_growth
     (fc : FiniteConditions)
     (h_inj : Set.InjOn (fun a : ℕ => (a : ZMod fc.t)) (fc.A : Set ℕ))
-    (h_u1 : ∀ (N : ℕ) (hN : 0 < N) (C : Finset (ZMod N)),
+    (h_u1 : ∀ (N : ℕ) (_hN : 0 < N) (C : Finset (ZMod N)),
       (0 : ZMod N) ∈ C →
       AddSubgroup.closure (C : Set (ZMod N)) = ⊤ →
       ∀ (k : ℕ), 1 ≤ k →
@@ -8372,7 +8487,7 @@ theorem growthSteps_card_le_budget_of_iterSum_growth
     (fc : FiniteConditions)
     (h_inj : Set.InjOn (fun a : ℕ => (a : ZMod fc.t)) (fc.A : Set ℕ))
     (h_numeric : p16TotalBudget fc.t fc.gMax fc.U fc.M ≤ fc.B_growth)
-    (h_u1 : ∀ (N : ℕ) (hN : 0 < N) (C : Finset (ZMod N)),
+    (h_u1 : ∀ (N : ℕ) (_hN : 0 < N) (C : Finset (ZMod N)),
       (0 : ZMod N) ∈ C →
       AddSubgroup.closure (C : Set (ZMod N)) = ⊤ →
       ∀ (k : ℕ), 1 ≤ k →
@@ -8386,7 +8501,7 @@ theorem growthSteps_card_le_budget_of_iterSum_growth
 theorem cfp_lemma_5_6_finite_core_of_iterSum_growth (fc : FiniteConditions)
     (h_inj : Set.InjOn (fun a : ℕ => (a : ZMod fc.t)) (fc.A : Set ℕ))
     (h_numeric : p16TotalBudget fc.t fc.gMax fc.U fc.M ≤ fc.B_growth)
-    (h_u1 : ∀ (N : ℕ) (hN : 0 < N) (C : Finset (ZMod N)),
+    (h_u1 : ∀ (N : ℕ) (_hN : 0 < N) (C : Finset (ZMod N)),
       (0 : ZMod N) ∈ C →
       AddSubgroup.closure (C : Set (ZMod N)) = ⊤ →
       ∀ (k : ℕ), 1 ≤ k →
@@ -8403,7 +8518,7 @@ theorem cfp_lemma_5_6_finite_core_of_iterSum_growth (fc : FiniteConditions)
 theorem cfp_lemma_5_6_m_eq_n_of_iterSum_growth (p : CFPArithParams)
     (h_inj : Set.InjOn (fun a : ℕ => (a : ZMod p.t)) (p.A : Set ℕ))
     (h_numeric : p16TotalBudget p.t p.gMax p.U p.M ≤ p.B_growth)
-    (h_u1 : ∀ (N : ℕ) (hN : 0 < N) (C : Finset (ZMod N)),
+    (h_u1 : ∀ (N : ℕ) (_hN : 0 < N) (C : Finset (ZMod N)),
       (0 : ZMod N) ∈ C →
       AddSubgroup.closure (C : Set (ZMod N)) = ⊤ →
       ∀ (k : ℕ), 1 ≤ k →
@@ -9529,16 +9644,16 @@ def APCoverSieveBridge (fc : FiniteConditions) (p : P17FiniteArithConditions fc)
 theorem apCoverSieveBridge_of_cover_and_sieve
     (fc : FiniteConditions) (p : P17FiniteArithConditions fc)
     (h_cov_sieve : ∀ (B : Finset ℕ) (_hBA : B ⊆ fc.A) (_hB_card : fc.M ≤ B.card)
-      [instN : NeZero (fc.t / subgroupIndex fc.t B)]
+      [_instN : NeZero (fc.t / subgroupIndex fc.t B)]
       (R : CosetAP (fc.t / subgroupIndex fc.t B))
       (_hR_card : R.ell * (R.H : Set (ZMod (fc.t / subgroupIndex fc.t B))).toFinset.card ≤ 128 * fc.D)
       (_hQR : (B.image (fun a => ((a / (subgroupIndex fc.t B) : ℕ) : ZMod (fc.t / subgroupIndex fc.t B)))) ⊆ R.toFinset),
-      ∃ (Q : ℕ) (hB_rough : ∀ a ∈ B, Nat.Coprime a Q)
+      ∃ (Q : ℕ) (_hB_rough : ∀ a ∈ B, Nat.Coprime a Q)
         (cov : IntAPCover (B.image (fun (a : ℕ) => (a : ℤ)))
           (R.ell * (R.H : Set (ZMod (fc.t / subgroupIndex fc.t B))).toFinset.card) fc.t p.n)
-        (C_sieve : ℝ) (hC_nonneg : 0 ≤ C_sieve)
-        (h_sieve : ∀ i ∈ cov.I, (roughCount (cov.APs i) Q : ℝ) ≤ ((cov.APs i).k : ℝ) * C_sieve)
-        (hC_eq : C_sieve = 256 * Real.log (Real.log (p.n : ℝ)) / Real.log (p.r : ℝ)),
+        (C_sieve : ℝ) (_hC_nonneg : 0 ≤ C_sieve)
+        (_h_sieve : ∀ i ∈ cov.I, (roughCount (cov.APs i) Q : ℝ) ≤ ((cov.APs i).k : ℝ) * C_sieve)
+        (_hC_eq : C_sieve = 256 * Real.log (Real.log (p.n : ℝ)) / Real.log (p.r : ℝ)),
         True) :
     APCoverSieveBridge fc p := by
   intro B hBA hB_card instN R hR_card hQR
@@ -9570,8 +9685,8 @@ theorem unsaturated_step_growth_of_arith_conditional
   let st := greedySeq fc j
   let g := st.g fc.t
   let N := fc.t / g
-  haveI instN : NeZero N := unsaturatedSteps_div_neZero fc j hj
-  haveI : NeZero (fc.t / subgroupIndex fc.t st.B) := instN
+  have instN : NeZero N := unsaturatedSteps_div_neZero fc j hj
+  have : NeZero (fc.t / subgroupIndex fc.t st.B) := instN
   let Q := st.B.image (fun a => ((a / g : ℕ) : ZMod N))
   rcases h_med with ⟨T, hT_U, hT_xi, hQ_sub, hM_Q, hQ_gen⟩
 
@@ -9675,15 +9790,117 @@ theorem cfp_lemma_5_6_finite_core_of_arith_conditional
   have h_unsat := unsaturatedSteps_growth_of_arith_conditional fc p h_trichotomy h_sieve
   exact cfp_lemma_5_6_finite_core_closed fc h_inj h_numeric h_unsat
 
-/-- Pure AP Cover Step Growth Contradiction (h_trichotomy eliminated):
-    Under P17 finite arithmetic conditions, if every small growth set at an unsaturated step
-    is covered by a coset AP R with length at most 128 * D, then greedyDelta fc j ≥ D.
-    This completely eliminates the proper subgroup and small cardinality branches of the trichotomy. -/
+/-!
+#### Guarded Coset-AP Cover Interface (Branch 3 of the Trichotomy, Isolated)
+
+The earlier "pure AP cover" hypothesis
+
+  `∀ N [NeZero N] (T : Finset (ZMod N)) (d : ℕ), ∃ R : CosetAP N,
+     smallGrowth T d ⊆ R.toFinset ∧ R.ell * |R.H| ≤ 128 * d`
+
+is **false** (`not_unguarded_ap_cover`): for `T = univ` the small growth set is the whole group,
+which no coset AP with `R.ell * |R.H| ≤ 128 * d` can cover once `N > 128 * d`. Every theorem that
+assumed it was therefore vacuous. The interface `GuardedAPCover` below keeps exactly the guards
+under which the structure theorem is invoked at an unsaturated step, and is provably equivalent
+to the guarded trichotomy hypothesis `GuardedTrichotomy` (`guardedAPCover_iff_trichotomy`):
+Branch 1 is excluded by requiring that the small growth set generates `ZMod N`, Branch 2 by
+requiring that it exceeds the Deshouillers–Freiman cardinality threshold.
+-/
+
+/-- The guarded structural trichotomy hypothesis, exactly as consumed by
+    `unsaturated_step_growth_of_arith_conditional`. -/
+def GuardedTrichotomy : Prop :=
+  ∀ (N : ℕ) [NeZero N] (T : Finset (ZMod N)) (d : ℕ) (xi : ℝ),
+    8 * d < T.card → 0 < xi → xi ≤ (1 / 20 : ℝ) → (T.card : ℝ) < xi * (N : ℝ) →
+    SmallGrowthTrichotomy N T d
+
+/-- Guarded coset-AP cover hypothesis: Branch 3 of `SmallGrowthTrichotomy`, restricted to the
+    situation in which Branches 1 and 2 are excluded by the hypotheses themselves:
+    * density window `8 * d < |T| < xi * N` with `0 < xi ≤ 1/20` (excludes `T = univ`);
+    * the small growth set generates `ZMod N` (excludes Branch 1, proper subgroup);
+    * the small growth set exceeds the Deshouillers–Freiman threshold (excludes Branch 2). -/
+def GuardedAPCover : Prop :=
+  ∀ (N : ℕ) [NeZero N] (T : Finset (ZMod N)) (d : ℕ) (xi : ℝ),
+    8 * d < T.card → 0 < xi → xi ≤ (1 / 20 : ℝ) → (T.card : ℝ) < xi * (N : ℝ) →
+    AddSubgroup.closure (smallGrowth T d : Set (ZMod N)) = ⊤ →
+    20 * (2 * (d : ℝ)) ^ ((51 : ℝ) / 50) / ((T.card : ℝ)) ^ ((1 : ℝ) / 50) < ((smallGrowth T d).card : ℝ) →
+    ∃ (R : CosetAP N), smallGrowth T d ⊆ R.toFinset ∧
+      R.ell * (R.H : Set (ZMod N)).toFinset.card ≤ 128 * d
+
+/-- The guarded trichotomy yields the guarded AP cover: under the two extra guards, Branch 1 and
+    Branch 2 of the trichotomy are impossible, so Branch 3 must hold. -/
+theorem guardedAPCover_of_trichotomy (h : GuardedTrichotomy) : GuardedAPCover := by
+  intro N _ T d xi h8 hxi_pos hxi_le h_dense h_gen h_big
+  rcases h N T d xi h8 hxi_pos hxi_le h_dense with ⟨H, hH_ne, hGH⟩ | h_small | h_cover
+  · have h_le : AddSubgroup.closure (smallGrowth T d : Set (ZMod N)) ≤ H :=
+      (AddSubgroup.closure_le H).mpr hGH
+    rw [h_gen] at h_le
+    exact absurd (top_le_iff.mp h_le) hH_ne
+  · exact absurd h_small (not_le.mpr h_big)
+  · exact h_cover
+
+/-- The guarded AP cover yields the guarded trichotomy: if the small growth set does not generate
+    `ZMod N` we are in Branch 1, if it is below the threshold we are in Branch 2, and otherwise
+    the guarded cover provides Branch 3. -/
+theorem trichotomy_of_guardedAPCover (h : GuardedAPCover) : GuardedTrichotomy := by
+  intro N _ T d xi h8 hxi_pos hxi_le h_dense
+  simp only [SmallGrowthTrichotomy]
+  by_cases h_gen : AddSubgroup.closure (smallGrowth T d : Set (ZMod N)) = ⊤
+  · by_cases h_small : ((smallGrowth T d).card : ℝ) ≤
+        20 * (2 * (d : ℝ)) ^ ((51 : ℝ) / 50) / ((T.card : ℝ)) ^ ((1 : ℝ) / 50)
+    · exact Or.inr (Or.inl h_small)
+    · exact Or.inr (Or.inr (h N T d xi h8 hxi_pos hxi_le h_dense h_gen (not_le.mp h_small)))
+  · exact Or.inl (smallGrowth_proper_subgroup_of_closure_ne_top N T d h_gen)
+
+/-- The guarded AP cover interface is equivalent to the guarded structural trichotomy. -/
+theorem guardedAPCover_iff_trichotomy : GuardedAPCover ↔ GuardedTrichotomy :=
+  ⟨trichotomy_of_guardedAPCover, guardedAPCover_of_trichotomy⟩
+
+/-- The unguarded "pure AP cover" statement is false for every `d`: in `ZMod (128 * d + 1)` take
+    `T = univ`; then `smallGrowth T d = univ` has `128 * d + 1` elements, while any coset AP `R`
+    with `R.ell * |R.H| ≤ 128 * d` has at most `128 * d` elements. -/
+theorem not_unguarded_ap_cover (d : ℕ) :
+    ¬ (∀ (N : ℕ) [NeZero N] (T : Finset (ZMod N)),
+      ∃ (R : CosetAP N), smallGrowth T d ⊆ R.toFinset ∧
+        R.ell * (R.H : Set (ZMod N)).toFinset.card ≤ 128 * d) := by
+  intro h
+  have : NeZero (128 * d + 1) := ⟨by omega⟩
+  obtain ⟨R, h_sub, h_card⟩ := h (128 * d + 1) (Finset.univ : Finset (ZMod (128 * d + 1)))
+  have h_delta : ∀ x : ZMod (128 * d + 1),
+      delta (Finset.univ : Finset (ZMod (128 * d + 1))) x = 0 := by
+    intro x
+    simp only [delta, Finset.card_eq_zero, Finset.sdiff_eq_empty_iff_subset]
+    exact Finset.subset_univ _
+  have h_univ : smallGrowth (Finset.univ : Finset (ZMod (128 * d + 1))) d = Finset.univ := by
+    ext x
+    simp [smallGrowth, h_delta]
+  have h_le : (Finset.univ : Finset (ZMod (128 * d + 1))).card ≤ R.toFinset.card := by
+    rw [← h_univ]
+    exact Finset.card_le_card h_sub
+  rw [Finset.card_univ, ZMod.card] at h_le
+  exact absurd (h_le.trans (R.card_toFinset_le.trans h_card)) (by omega)
+
+/-- Consequently the original unguarded hypothesis (quantified over `d` as well) is refutable;
+    any theorem assuming it is vacuous. This is the reason for the guards in `GuardedAPCover`. -/
+theorem not_unguarded_ap_cover' :
+    ¬ (∀ (N : ℕ) [NeZero N] (T : Finset (ZMod N)) (d : ℕ),
+      ∃ (R : CosetAP N), smallGrowth T d ⊆ R.toFinset ∧
+        R.ell * (R.H : Set (ZMod N)).toFinset.card ≤ 128 * d) := by
+  intro h
+  apply not_unguarded_ap_cover 0
+  intro N _ T
+  exact h N T 0
+
+/-- Guarded AP Cover Step Growth Contradiction (Branch 3 interface):
+    Under P17 finite arithmetic conditions and the guarded coset-AP cover `GuardedAPCover`
+    (Branch 3 of the structural trichotomy, with the guards that exclude Branches 1 and 2 supplied
+    here from `closure Q = ⊤` and condition E1), every unsaturated step satisfies greedyDelta fc j ≥ D.
+    `GuardedAPCover` is equivalent to the guarded trichotomy (`guardedAPCover_iff_trichotomy`);
+    the unguarded form is false (`not_unguarded_ap_cover'`). -/
 theorem unsaturated_step_growth_of_ap_cover
     (fc : FiniteConditions)
     (p : P17FiniteArithConditions fc)
-    (h_ap_cover : ∀ (N : ℕ) [NeZero N] (T : Finset (ZMod N)) (d : ℕ),
-      ∃ (R : CosetAP N), smallGrowth T d ⊆ R.toFinset ∧ R.ell * (R.H : Set (ZMod N)).toFinset.card ≤ 128 * d)
+    (h_ap_cover : GuardedAPCover)
     (h_sieve : APCoverSieveBridge fc p)
     (j : ℕ) (hj : j ∈ unsaturatedSteps fc) :
     fc.D ≤ greedyDelta fc j := by
@@ -9694,11 +9911,60 @@ theorem unsaturated_step_growth_of_ap_cover
   let st := greedySeq fc j
   let g := st.g fc.t
   let N := fc.t / g
-  haveI instN : NeZero N := unsaturatedSteps_div_neZero fc j hj
-  haveI : NeZero (fc.t / subgroupIndex fc.t st.B) := instN
+  have instN : NeZero N := unsaturatedSteps_div_neZero fc j hj
+  have : NeZero (fc.t / subgroupIndex fc.t st.B) := instN
   let Q := st.B.image (fun a => ((a / g : ℕ) : ZMod N))
-  rcases h_med with ⟨T, _hT_U, _hT_xi, hQ_sub, _hM_Q, _hQ_gen⟩
-  rcases h_ap_cover N T fc.D with ⟨R, hGR, hR_card⟩
+  rcases h_med with ⟨T, hT_U, hT_xi, hQ_sub, hM_Q, hQ_gen⟩
+
+  have h8D_T : 8 * fc.D < T.card := by
+    have h8D_U := fc.h_growth_threshold
+    omega
+
+  have h_div_real : (fc.t : ℝ) / (g : ℝ) = (N : ℝ) := by
+    have hd : g ∣ fc.t := subgroupIndex_dvd_modulus fc.t st.B
+    have hg_pos : 0 < g := subgroupIndex_pos fc.t st.B fc.ht_pos
+    have h_div_mul := Nat.div_mul_cancel hd
+    rw [← h_div_mul]
+    push_cast
+    have : (g : ℝ) ≠ 0 := by positivity
+    exact mul_div_cancel_right₀ (N : ℝ) this
+
+  have hT_xi_N : (T.card : ℝ) < fc.xi * (N : ℝ) := by
+    calc (T.card : ℝ) < fc.xi * (fc.t : ℝ) / (g : ℝ) := hT_xi
+    _ = fc.xi * ((fc.t : ℝ) / (g : ℝ)) := by ring
+    _ = fc.xi * (N : ℝ) := by rw [h_div_real]
+
+  -- Guard 1 (excludes Branch 1): Q ⊆ smallGrowth T D and Q generates ZMod N.
+  have h_gen : AddSubgroup.closure (smallGrowth T fc.D : Set (ZMod N)) = ⊤ := by
+    have h_mono : AddSubgroup.closure (Q : Set (ZMod N)) ≤
+        AddSubgroup.closure (smallGrowth T fc.D : Set (ZMod N)) :=
+      AddSubgroup.closure_mono (Finset.coe_subset.mpr hQ_sub)
+    rw [hQ_gen] at h_mono
+    exact top_le_iff.mp h_mono
+
+  -- Guard 2 (excludes Branch 2): M ≤ |Q| ≤ |smallGrowth T D| and E1 with U < |T|.
+  have h_big : 20 * (2 * (fc.D : ℝ)) ^ ((51 : ℝ) / 50) / ((T.card : ℝ)) ^ ((1 : ℝ) / 50) <
+      ((smallGrowth T fc.D).card : ℝ) := by
+    have hU_pos : (0 : ℝ) < (fc.U : ℝ) := Nat.cast_pos.mpr fc.hU_pos
+    have h_exp_pos : (0 : ℝ) < (1 : ℝ) / 50 := by norm_num
+    have h_rpow_lt : (fc.U : ℝ) ^ ((1 : ℝ) / 50) < ((T.card : ℝ)) ^ ((1 : ℝ) / 50) := by
+      apply Real.rpow_lt_rpow (le_of_lt hU_pos) (by exact_mod_cast hT_U) h_exp_pos
+    have h_bound_lt : 20 * (2 * (fc.D : ℝ)) ^ ((51 : ℝ) / 50) / ((T.card : ℝ)) ^ ((1 : ℝ) / 50) <
+        20 * (2 * (fc.D : ℝ)) ^ ((51 : ℝ) / 50) / (fc.U : ℝ) ^ ((1 : ℝ) / 50) := by
+      have hD_pos : (0 : ℝ) < (fc.D : ℝ) := Nat.cast_pos.mpr fc.hD_pos
+      have h_num_pos : (0 : ℝ) < 20 * (2 * (fc.D : ℝ)) ^ ((51 : ℝ) / 50) := by
+        have : (0 : ℝ) < 2 * (fc.D : ℝ) := by linarith
+        have h_pow := Real.rpow_pos_of_pos this ((51 : ℝ) / 50)
+        linarith
+      have h_den_pos : (0 : ℝ) < (fc.U : ℝ) ^ ((1 : ℝ) / 50) := Real.rpow_pos_of_pos hU_pos _
+      exact div_lt_div_of_pos_left h_num_pos h_den_pos h_rpow_lt
+    have hQ_le_G : Q.card ≤ (smallGrowth T fc.D).card := Finset.card_le_card hQ_sub
+    have hM_le_Q_real : (fc.M : ℝ) ≤ (Q.card : ℝ) := by exact_mod_cast hM_Q
+    have hQ_le_G_real : (Q.card : ℝ) ≤ ((smallGrowth T fc.D).card : ℝ) := by exact_mod_cast hQ_le_G
+    exact lt_of_lt_of_le (h_bound_lt.trans p.hE1) (hM_le_Q_real.trans hQ_le_G_real)
+
+  rcases h_ap_cover N T fc.D fc.xi h8D_T fc.hxi_pos p.h_xi_le hT_xi_N h_gen h_big
+    with ⟨R, hGR, hR_card⟩
   have hQR : Q ⊆ R.toFinset := hQ_sub.trans hGR
   have hB_sub : st.B ⊆ fc.A := Finset.sdiff_subset
   have hB_card : fc.M ≤ st.B.card := by
@@ -9714,40 +9980,37 @@ theorem unsaturated_step_growth_of_ap_cover
   have hM_le_B : (fc.M : ℝ) ≤ (st.B.card : ℝ) := by exact_mod_cast hB_card
   linarith
 
-/-- All unsaturated steps satisfy greedyDelta ≥ D under P17 conditions, AP cover, and sieve bridge. -/
+/-- All unsaturated steps satisfy greedyDelta ≥ D under P17 conditions, guarded AP cover, and sieve bridge. -/
 theorem unsaturatedSteps_growth_of_ap_cover
     (fc : FiniteConditions)
     (p : P17FiniteArithConditions fc)
-    (h_ap_cover : ∀ (N : ℕ) [NeZero N] (T : Finset (ZMod N)) (d : ℕ),
-      ∃ (R : CosetAP N), smallGrowth T d ⊆ R.toFinset ∧ R.ell * (R.H : Set (ZMod N)).toFinset.card ≤ 128 * d)
+    (h_ap_cover : GuardedAPCover)
     (h_sieve : APCoverSieveBridge fc p) :
     ∀ j ∈ unsaturatedSteps fc, fc.D ≤ greedyDelta fc j :=
   fun j hj => unsaturated_step_growth_of_ap_cover fc p h_ap_cover h_sieve j hj
 
-/-- CFP Lemma 5.6 Finite Core with AP Cover and Sieve Bridge (h_trichotomy fully eliminated):
+/-- CFP Lemma 5.6 Finite Core with Guarded AP Cover and Sieve Bridge:
     Closes both h_inj and h_unsaturated_step_growth under explicit P17 arithmetic conditions,
-    pure AP cover, and the sieve bridge, completely dispensing with the 3-branch trichotomy. -/
+    the guarded AP cover `GuardedAPCover` (equivalent to the guarded trichotomy), and the sieve bridge. -/
 theorem cfp_lemma_5_6_finite_core_of_ap_cover
     (fc : FiniteConditions)
     (p : P17FiniteArithConditions fc)
     (h_numeric : p16TotalBudget fc.t fc.gMax fc.U fc.M ≤ fc.B_growth)
-    (h_ap_cover : ∀ (N : ℕ) [NeZero N] (T : Finset (ZMod N)) (d : ℕ),
-      ∃ (R : CosetAP N), smallGrowth T d ⊆ R.toFinset ∧ R.ell * (R.H : Set (ZMod N)).toFinset.card ≤ 128 * d)
+    (h_ap_cover : GuardedAPCover)
     (h_sieve : APCoverSieveBridge fc p) :
     min fc.xi ((32 : ℝ) / (fc.ell : ℝ)) * (fc.t : ℝ) ≤ ((subsetSumsMod fc.t fc.A).card : ℝ) := by
   have h_inj := p.injOn_A fc
   have h_unsat := unsaturatedSteps_growth_of_ap_cover fc p h_ap_cover h_sieve
   exact cfp_lemma_5_6_finite_core_closed fc h_inj h_numeric h_unsat
 
-/-- CFP Lemma 5.6 Master Theorem Specialized to m = n with Pure AP Cover (h_trichotomy fully eliminated):
+/-- CFP Lemma 5.6 Master Theorem Specialized to m = n with Guarded AP Cover:
     Closes both h_inj and h_unsaturated_step_growth under explicit P17 arithmetic conditions,
-    pure AP cover, and the sieve bridge, completely dispensing with the 3-branch trichotomy. -/
+    the guarded AP cover `GuardedAPCover` (equivalent to the guarded trichotomy), and the sieve bridge. -/
 theorem cfp_lemma_5_6_m_eq_n_of_ap_cover
     (p_cf : CFPArithParams)
     (p : P17FiniteArithConditions p_cf.toFiniteConditions)
     (h_numeric : p16TotalBudget p_cf.t p_cf.gMax p_cf.U p_cf.M ≤ p_cf.B_growth)
-    (h_ap_cover : ∀ (N : ℕ) [NeZero N] (T : Finset (ZMod N)) (d : ℕ),
-      ∃ (R : CosetAP N), smallGrowth T d ⊆ R.toFinset ∧ R.ell * (R.H : Set (ZMod N)).toFinset.card ≤ 128 * d)
+    (h_ap_cover : GuardedAPCover)
     (h_sieve : APCoverSieveBridge p_cf.toFiniteConditions p) :
     min p_cf.xi ((32 : ℝ) / (p_cf.ell : ℝ)) * (p_cf.t : ℝ) ≤ ((subsetSumsMod p_cf.t p_cf.A).card : ℝ) := by
   have h_inj : Set.InjOn (fun a : ℕ => (a : ZMod p_cf.t)) (p_cf.A : Set ℕ) := by
@@ -9756,14 +10019,13 @@ theorem cfp_lemma_5_6_m_eq_n_of_ap_cover
   have h_unsat := unsaturatedSteps_growth_of_ap_cover p_cf.toFiniteConditions p h_ap_cover h_sieve
   exact cfp_lemma_5_6_m_eq_n_closed p_cf h_inj h_numeric h_unsat
 
-/-- CFP Lemma 5.6 Finite Core with Pure AP Cover and Per-AP Sieve Rough Count:
-    Eliminates h_trichotomy and reduces the sieve bridge to explicit per-AP Selberg rough count bounds. -/
+/-- CFP Lemma 5.6 Finite Core with Guarded AP Cover and Per-AP Sieve Rough Count:
+    Uses the guarded AP cover interface and reduces the sieve bridge to explicit per-AP Selberg rough count bounds. -/
 theorem cfp_lemma_5_6_finite_core_of_rough_count
     (fc : FiniteConditions)
     (p : P17FiniteArithConditions fc)
     (h_numeric : p16TotalBudget fc.t fc.gMax fc.U fc.M ≤ fc.B_growth)
-    (h_ap_cover : ∀ (N : ℕ) [NeZero N] (T : Finset (ZMod N)) (d : ℕ),
-      ∃ (R : CosetAP N), smallGrowth T d ⊆ R.toFinset ∧ R.ell * (R.H : Set (ZMod N)).toFinset.card ≤ 128 * d)
+    (h_ap_cover : GuardedAPCover)
     (h_cov_sieve : ∀ (B : Finset ℕ) (_hBA : B ⊆ fc.A) (_hB_card : fc.M ≤ B.card)
       [_instN : NeZero (fc.t / subgroupIndex fc.t B)]
       (R : CosetAP (fc.t / subgroupIndex fc.t B))
@@ -9780,14 +10042,13 @@ theorem cfp_lemma_5_6_finite_core_of_rough_count
   have h_sieve := apCoverSieveBridge_of_cover_and_sieve fc p h_cov_sieve
   exact cfp_lemma_5_6_finite_core_of_ap_cover fc p h_numeric h_ap_cover h_sieve
 
-/-- CFP Lemma 5.6 (m = n) Master Theorem with Pure AP Cover and Per-AP Sieve Rough Count:
-    Eliminates h_trichotomy and reduces the sieve bridge to explicit per-AP Selberg rough count bounds. -/
+/-- CFP Lemma 5.6 (m = n) Master Theorem with Guarded AP Cover and Per-AP Sieve Rough Count:
+    Uses the guarded AP cover interface and reduces the sieve bridge to explicit per-AP Selberg rough count bounds. -/
 theorem cfp_lemma_5_6_m_eq_n_of_rough_count
     (p_cf : CFPArithParams)
     (p : P17FiniteArithConditions p_cf.toFiniteConditions)
     (h_numeric : p16TotalBudget p_cf.t p_cf.gMax p_cf.U p_cf.M ≤ p_cf.B_growth)
-    (h_ap_cover : ∀ (N : ℕ) [NeZero N] (T : Finset (ZMod N)) (d : ℕ),
-      ∃ (R : CosetAP N), smallGrowth T d ⊆ R.toFinset ∧ R.ell * (R.H : Set (ZMod N)).toFinset.card ≤ 128 * d)
+    (h_ap_cover : GuardedAPCover)
     (h_cov_sieve : ∀ (B : Finset ℕ) (_hBA : B ⊆ p_cf.toFiniteConditions.A) (_hB_card : p_cf.toFiniteConditions.M ≤ B.card)
       [_instN : NeZero (p_cf.toFiniteConditions.t / subgroupIndex p_cf.toFiniteConditions.t B)]
       (R : CosetAP (p_cf.toFiniteConditions.t / subgroupIndex p_cf.toFiniteConditions.t B))
@@ -10098,8 +10359,7 @@ theorem cfp_lemma_5_6_finite_core_of_lifting_and_sieve
     (fc : FiniteConditions)
     (p : P17FiniteArithConditions fc)
     (h_numeric : p16TotalBudget fc.t fc.gMax fc.U fc.M ≤ fc.B_growth)
-    (h_ap_cover : ∀ (N : ℕ) [NeZero N] (T : Finset (ZMod N)) (d : ℕ),
-      ∃ (R : CosetAP N), smallGrowth T d ⊆ R.toFinset ∧ R.ell * (R.H : Set (ZMod N)).toFinset.card ≤ 128 * d)
+    (h_ap_cover : GuardedAPCover)
     (h_lift : HasIntAPCover fc p)
     (h_sieve_bound : HasAPRoughCountBound fc p) :
     min fc.xi ((32 : ℝ) / (fc.ell : ℝ)) * (fc.t : ℝ) ≤ ((subsetSumsMod fc.t fc.A).card : ℝ) := by
@@ -10107,14 +10367,13 @@ theorem cfp_lemma_5_6_finite_core_of_lifting_and_sieve
   exact cfp_lemma_5_6_finite_core_of_rough_count fc p h_numeric h_ap_cover h_cov_sieve
 
 /-- CFP Lemma 5.6 (m = n) Master Theorem with Decoupled AP Lifting and Sieve Bound:
-    Specializes Lemma 5.6 to m = n with pure AP cover, decoupled AP lifting (P08),
+    Specializes Lemma 5.6 to m = n with guarded AP cover, decoupled AP lifting (P08),
     and Selberg sieve rough count bound (P09). -/
 theorem cfp_lemma_5_6_m_eq_n_of_lifting_and_sieve
     (p_cf : CFPArithParams)
     (p : P17FiniteArithConditions p_cf.toFiniteConditions)
     (h_numeric : p16TotalBudget p_cf.t p_cf.gMax p_cf.U p_cf.M ≤ p_cf.B_growth)
-    (h_ap_cover : ∀ (N : ℕ) [NeZero N] (T : Finset (ZMod N)) (d : ℕ),
-      ∃ (R : CosetAP N), smallGrowth T d ⊆ R.toFinset ∧ R.ell * (R.H : Set (ZMod N)).toFinset.card ≤ 128 * d)
+    (h_ap_cover : GuardedAPCover)
     (h_lift : HasIntAPCover p_cf.toFiniteConditions p)
     (h_sieve_bound : HasAPRoughCountBound p_cf.toFiniteConditions p) :
     min p_cf.xi ((32 : ℝ) / (p_cf.ell : ℝ)) * (p_cf.t : ℝ) ≤ ((subsetSumsMod p_cf.t p_cf.A).card : ℝ) := by
@@ -10122,14 +10381,13 @@ theorem cfp_lemma_5_6_m_eq_n_of_lifting_and_sieve
   exact cfp_lemma_5_6_m_eq_n_of_rough_count p_cf p h_numeric h_ap_cover h_cov_sieve
 
 /-- CFP Lemma 5.6 (m = n) Master Theorem with Branch-Decoupled AP Lifting and Sieve Bound:
-    Specializes Lemma 5.6 to m = n with pure AP cover, Branch A (|R.H|^3 ≥ R_card) /
+    Specializes Lemma 5.6 to m = n with guarded AP cover, Branch A (|R.H|^3 ≥ R_card) /
     Branch B (|R.H|^3 < R_card) decoupled AP lifting (P08), and Selberg sieve rough count bound (P09). -/
 theorem cfp_lemma_5_6_m_eq_n_of_branches_and_sieve
     (p_cf : CFPArithParams)
     (p : P17FiniteArithConditions p_cf.toFiniteConditions)
     (h_numeric : p16TotalBudget p_cf.t p_cf.gMax p_cf.U p_cf.M ≤ p_cf.B_growth)
-    (h_ap_cover : ∀ (N : ℕ) [NeZero N] (T : Finset (ZMod N)) (d : ℕ),
-      ∃ (R : CosetAP N), smallGrowth T d ⊆ R.toFinset ∧ R.ell * (R.H : Set (ZMod N)).toFinset.card ≤ 128 * d)
+    (h_ap_cover : GuardedAPCover)
     (hA : HasIntAPCoverBranchA p_cf.toFiniteConditions p)
     (hB : HasIntAPCoverBranchB p_cf.toFiniteConditions p)
     (h_sieve_bound : HasAPRoughCountBound p_cf.toFiniteConditions p) :
@@ -10226,6 +10484,230 @@ theorem erdos_problem_360_unified_solution :
           minColors_le_conlon_fox_pham,
           minColors_ge_of_cfp_witness,
           conlon_fox_pham_bounds⟩
+
+/-!
+### Concrete Non-Vacuity Witness for `CFPArithParams`, `P17FiniteArithConditions` and `h_numeric`
+
+The structures `CFPArithParams` and `P17FiniteArithConditions` bundle several numerical
+conditions (E1, E2, E3, the small-fiber and growth-budget bounds, and the growth-step budget
+`h_numeric` consumed by the master theorems). None of the master theorems can be applied unless
+these conditions are jointly satisfiable, so we exhibit an explicit witness:
+
+* `n = t = 16411` (prime), `v = 1`, `W = 1`, `y = 8192`, `A = [8192, 16383]` (8192 elements);
+* `K = 32`, `M = 8160`, `k_div = 1`, `U = 9`, `D = 1`, `gMax = 1`, `ξ = 1/128`, `ℓ = 2^20`,
+  `B_growth = 31`, `r = 8160^5`.
+
+Every element of `A` is coprime to the prime modulus, which gives `subgroupIndex t B = 1` for every
+non-empty `B ⊆ A`, and the consecutive elements `8192, 8193 ∈ A` give 1-diversity. The analytic
+conditions E1 and E3 are verified from `0 < log 2 ≤ 1` and monotonicity of `log` only.
+
+The witness is deliberately small: for it the conclusion `min(ξ, 32/ℓ) · t ≤ |Σ_t(A)|` of the
+master theorems is trivial (`32 t / ℓ < 1`). Its purpose is solely to certify that the parameter
+side of the Lemma 5.6 reduction chain is consistent, i.e. that no theorem of the chain is vacuous
+for lack of admissible parameters.
+-/
+
+/-- The prime modulus of the witness. -/
+theorem witness_prime : Nat.Prime 16411 := by norm_num
+
+/-- Every element of the witness candidate set is coprime to the modulus. -/
+lemma witness_coprime {a : ℕ} (ha : a ∈ Finset.Icc 8192 16383) : Nat.Coprime a 16411 := by
+  rw [Finset.mem_Icc] at ha
+  have h_not_dvd : ¬ 16411 ∣ a := Nat.not_dvd_of_pos_of_lt (by omega) (by omega)
+  exact ((Nat.Prime.coprime_iff_not_dvd witness_prime).mpr h_not_dvd).symm
+
+/-- For every non-empty `B ⊆ [8192, 16383]`, the subgroup index modulo `16411` is `1`. -/
+lemma witness_subgroupIndex_le_one (B : Finset ℕ) (hB : B ⊆ Finset.Icc 8192 16383)
+    (hM : 8160 ≤ B.card) : subgroupIndex 16411 B ≤ 1 := by
+  have h_nonempty : B.Nonempty := Finset.card_pos.mp (by omega)
+  rcases h_nonempty with ⟨b, hb⟩
+  have hb_A := hB hb
+  have hb_cop : Nat.Coprime b 16411 := witness_coprime hb_A
+  dsimp [subgroupIndex]
+  have h_dvd_gcd : Finset.gcd B id ∣ b := Finset.gcd_dvd hb
+  have h_gcd_dvd_b : Nat.gcd 16411 (Finset.gcd B id) ∣ Nat.gcd 16411 b :=
+    Nat.dvd_gcd (Nat.gcd_dvd_left 16411 _) (dvd_trans (Nat.gcd_dvd_right 16411 _) h_dvd_gcd)
+  have h1 : Nat.gcd 16411 b = 1 := hb_cop.symm
+  rw [h1] at h_gcd_dvd_b
+  exact Nat.le_of_dvd (by decide) h_gcd_dvd_b
+
+/-- The witness candidate set is `1`-diverse (it contains the consecutive integers `8192, 8193`). -/
+lemma witness_isDiverse : IsDiverse (Finset.Icc 8192 16383) 1 := by
+  intro d hd
+  have h_mem_of : ∀ x, x ∈ Finset.Icc 8192 16383 → ¬ d ∣ x →
+      0 < ((Finset.Icc 8192 16383).filter (fun x => ¬ d ∣ x)).card := by
+    intro x hx hdx
+    exact Finset.card_pos.mpr ⟨x, Finset.mem_filter.mpr ⟨hx, hdx⟩⟩
+  by_cases h1 : d ∣ 8192
+  · have h2 : ¬ d ∣ 8193 := by
+      intro h2
+      have h_one : d ∣ 8193 - 8192 := Nat.dvd_sub h2 h1
+      have : d ∣ 1 := by simpa using h_one
+      have := Nat.le_of_dvd (by decide) this
+      omega
+    exact h_mem_of 8193 (by simp) h2
+  · exact h_mem_of 8192 (by simp) h1
+
+/-- Explicit arithmetic parameter configuration (see the section docstring). -/
+noncomputable def concreteCFPArithParams : CFPArithParams where
+  n := 16411
+  hn := by decide
+  t := 16411
+  ht_pos := by decide
+  A := Finset.Icc 8192 16383
+  hA_pos := by
+    intro a ha
+    rw [Finset.mem_Icc] at ha
+    omega
+  v := 1
+  hv_pos := by decide
+  hvn := one_dvd _
+  K := 32
+  M := 8160
+  hM_pos := by decide
+  k_div := 1
+  U := 9
+  hU_pos := by decide
+  D := 1
+  hD_pos := by decide
+  gMax := 1
+  hgMax_pos := by decide
+  xi := (1 : ℝ) / 128
+  hxi_pos := by norm_num
+  ell := 2 ^ 20
+  hell_pos := by decide
+  B_growth := 31
+  hB_le_K := by decide
+  hK_add_M_le := by simp
+  hA_diverse := witness_isDiverse
+  h_subgroup_le := witness_subgroupIndex_le_one
+  h_subgroup_diverse := by
+    intro B hB hM
+    have := witness_subgroupIndex_le_one B hB hM
+    omega
+  h_small_fiber_bound := by decide
+  h_growth_threshold := by decide
+  h_growth_budget := by norm_num
+
+/-- `Nat.log2 16411 = 14`. -/
+lemma witness_log2 : Nat.log2 16411 = 14 := by
+  have h1 : 14 ≤ Nat.log2 16411 := (Nat.le_log2 (by decide)).mpr (by decide)
+  have h2 : Nat.log2 16411 < 15 := (Nat.log2_lt (by decide)).mpr (by decide)
+  omega
+
+/-- The growth-step budget condition `h_numeric` holds for the witness. -/
+theorem concreteCFPArithParams_numeric :
+    p16TotalBudget concreteCFPArithParams.t concreteCFPArithParams.gMax
+      concreteCFPArithParams.U concreteCFPArithParams.M ≤ concreteCFPArithParams.B_growth := by
+  show p16TotalBudget 16411 1 9 8160 ≤ 31
+  simp only [p16TotalBudget, p16BlockBudget, p16MultBudget, p16LinearBudget, witness_log2]
+  decide
+
+/-- Condition E1 for the witness. -/
+lemma witness_E1 :
+    20 * (2 * ((1 : ℕ) : ℝ)) ^ ((51 : ℝ) / 50) / ((9 : ℕ) : ℝ) ^ ((1 : ℝ) / 50) < ((8160 : ℕ) : ℝ) := by
+  have h_base : (2 * ((1 : ℕ) : ℝ)) = 2 := by norm_num
+  have h1 : (2 * ((1 : ℕ) : ℝ)) ^ ((51 : ℝ) / 50) ≤ 4 := by
+    rw [h_base]
+    calc (2 : ℝ) ^ ((51 : ℝ) / 50) ≤ (2 : ℝ) ^ (2 : ℝ) :=
+          Real.rpow_le_rpow_of_exponent_le (by norm_num) (by norm_num)
+      _ = 4 := by rw [Real.rpow_two]; norm_num
+  have h2 : (1 : ℝ) ≤ ((9 : ℕ) : ℝ) ^ ((1 : ℝ) / 50) := Real.one_le_rpow (by norm_num) (by norm_num)
+  have h_num_nonneg : (0 : ℝ) ≤ 20 * (2 * ((1 : ℕ) : ℝ)) ^ ((51 : ℝ) / 50) := by positivity
+  calc 20 * (2 * ((1 : ℕ) : ℝ)) ^ ((51 : ℝ) / 50) / ((9 : ℕ) : ℝ) ^ ((1 : ℝ) / 50)
+      ≤ 20 * (2 * ((1 : ℕ) : ℝ)) ^ ((51 : ℝ) / 50) := div_le_self h_num_nonneg h2
+    _ ≤ 20 * 4 := by linarith
+    _ < ((8160 : ℕ) : ℝ) := by norm_num
+
+/-- `log (log 16411) ≤ 4 log 2`. -/
+lemma witness_loglog_le : Real.log (Real.log ((16411 : ℕ) : ℝ)) ≤ 4 * Real.log 2 := by
+  have h_two_pos : 0 < Real.log 2 := Real.log_pos (by norm_num)
+  have h_two_le : Real.log 2 ≤ 1 := by
+    have := Real.log_le_sub_one_of_pos (by norm_num : (0 : ℝ) < 2)
+    linarith
+  have h_log_le : Real.log ((16411 : ℕ) : ℝ) ≤ 15 * Real.log 2 := by
+    have h := Real.log_le_log (by norm_num : (0 : ℝ) < ((16411 : ℕ) : ℝ))
+      (by norm_num : ((16411 : ℕ) : ℝ) ≤ (2 : ℝ) ^ (15 : ℕ))
+    rwa [Real.log_pow] at h
+    -- `Real.log_pow : Real.log (x ^ n) = n * Real.log x`
+  have h_log_pos : 0 < Real.log ((16411 : ℕ) : ℝ) := Real.log_pos (by norm_num)
+  have h_log_le_16 : Real.log ((16411 : ℕ) : ℝ) ≤ (2 : ℝ) ^ (4 : ℕ) := by
+    have h16 : (2 : ℝ) ^ (4 : ℕ) = 16 := by norm_num
+    rw [h16]
+    linarith
+  have h := Real.log_le_log h_log_pos h_log_le_16
+  rwa [Real.log_pow] at h
+
+/-- `60 log 2 ≤ log (8160^5)`. -/
+lemma witness_logr_ge : 60 * Real.log 2 ≤ Real.log (((8160 ^ 5 : ℕ) : ℝ)) := by
+  have h_cast : (((8160 ^ 5 : ℕ) : ℝ)) = ((8160 : ℕ) : ℝ) ^ (5 : ℕ) := by push_cast; ring
+  rw [h_cast, Real.log_pow]
+  have h : Real.log ((2 : ℝ) ^ (12 : ℕ)) ≤ Real.log ((8160 : ℕ) : ℝ) :=
+    Real.log_le_log (by norm_num) (by norm_num)
+  rw [Real.log_pow] at h
+  push_cast at h ⊢
+  linarith
+
+/-- Condition E3 for the witness. -/
+lemma witness_E3 :
+    98304 * ((1 : ℕ) : ℝ) * Real.log (Real.log ((16411 : ℕ) : ℝ)) / Real.log (((8160 ^ 5 : ℕ) : ℝ))
+      < ((8160 : ℕ) : ℝ) := by
+  have h_two_pos : 0 < Real.log 2 := Real.log_pos (by norm_num)
+  have hL := witness_loglog_le
+  have hR := witness_logr_ge
+  have hR_pos : 0 < Real.log (((8160 ^ 5 : ℕ) : ℝ)) := by linarith
+  rw [div_lt_iff₀ hR_pos]
+  norm_num at hL hR ⊢
+  linarith
+
+/-- Explicit P17 arithmetic conditions on the witness parameters. -/
+noncomputable def concreteP17Conditions :
+    P17FiniteArithConditions concreteCFPArithParams.toFiniteConditions where
+  n := 16411
+  hn_pos := by decide
+  hn_ge_three := by decide
+  r := 8160 ^ 5
+  hr_pos := by norm_num
+  hr_gt_one := by norm_num
+  y := 8192
+  hy_pos := by decide
+  W := 1
+  hW_pos := by decide
+  hv_dvd_n := one_dvd _
+  h_y_le_vt := by decide
+  h_t_le_n := le_refl _
+  hA_inY := by
+    intro a ha
+    have ha' : a ∈ Finset.Icc 8192 16383 := ha
+    have hcop := witness_coprime ha'
+    rw [Finset.mem_Icc] at ha'
+    show inY_v 8192 16411 1 1 a
+    refine ⟨by omega, by omega, a, 1, (mul_one a).symm, by norm_num, by norm_num, ?_⟩
+    simpa using hcop
+  hE1 := witness_E1
+  hE2 := by
+    show (8160 ^ 5) ^ 3 ≤ 8160 ^ 16
+    rw [← pow_mul]
+    exact Nat.pow_le_pow_right (by decide) (by decide)
+  hE3 := witness_E3
+  h_xi_le := by
+    show (1 : ℝ) / 128 ≤ 1 / 20
+    norm_num
+
+/-- `CFPArithParams` is non-vacuous. -/
+theorem cfpArithParams_realizable : Nonempty CFPArithParams := ⟨concreteCFPArithParams⟩
+
+/-- `P17FiniteArithConditions` is non-vacuous. -/
+theorem p17FiniteArithConditions_realizable :
+    Nonempty (P17FiniteArithConditions concreteCFPArithParams.toFiniteConditions) :=
+  ⟨concreteP17Conditions⟩
+
+/-- The parameter-side hypotheses of the Lemma 5.6 master reductions
+    (`CFPArithParams`, `P17FiniteArithConditions`, `h_numeric`) are jointly satisfiable. -/
+theorem lemma_5_6_parameter_hypotheses_satisfiable :
+    ∃ (p_cf : CFPArithParams) (_p : P17FiniteArithConditions p_cf.toFiniteConditions),
+      p16TotalBudget p_cf.t p_cf.gMax p_cf.U p_cf.M ≤ p_cf.B_growth :=
+  ⟨concreteCFPArithParams, concreteP17Conditions, concreteCFPArithParams_numeric⟩
 
 end Erdos298
 
@@ -10529,6 +11011,11 @@ end Erdos298
 #print axioms Erdos298.smallGrowth_subset_subgroup
 #print axioms Erdos298.proper_subgroup_smallGrowth_of_three_coset_absorption
 #print axioms Erdos298.smallGrowth_proper_subgroup_of_closure_ne_top
+#print axioms Erdos298.guardedAPCover_of_trichotomy
+#print axioms Erdos298.trichotomy_of_guardedAPCover
+#print axioms Erdos298.guardedAPCover_iff_trichotomy
+#print axioms Erdos298.not_unguarded_ap_cover
+#print axioms Erdos298.not_unguarded_ap_cover'
 #print axioms Erdos298.unsaturated_step_growth_of_ap_cover
 #print axioms Erdos298.unsaturatedSteps_growth_of_ap_cover
 #print axioms Erdos298.cfp_lemma_5_6_finite_core_of_ap_cover
@@ -10565,3 +11052,11 @@ end Erdos298
 
 #print axioms Erdos298.cfp_lemma_5_6_m_eq_n_of_branches_and_sieve
 #print axioms Erdos298.hasIntAPCoverBranchA
+#print axioms Erdos298.concreteCFPArithParams_numeric
+#print axioms Erdos298.cfpArithParams_realizable
+#print axioms Erdos298.p17FiniteArithConditions_realizable
+#print axioms Erdos298.lemma_5_6_parameter_hypotheses_satisfiable
+
+#print axioms Erdos298.selbergTerms_of_squarefree
+#print axioms Erdos298.sieveG_ge_half_totient_ratio_mul_log
+#print axioms Erdos298.minColors_le_of_totient_log

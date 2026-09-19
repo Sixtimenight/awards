@@ -7,8 +7,8 @@
 - **锁定环境**: Lean 4.33.0, Mathlib `db584cd6d46c92f209a44c0f1c829460d327499d`
 - **交接日期**: 2026-09-19
 - **核心文件基线哈希**:
-  - `Erdos298.lean`: `D9C367D0671AEBBCE2F0A965A076B821EE32C9C8FC5085C44943A412695DD9D6`
-  - `PROGRESS.md`: `CE60C6A76AF812CA73D6363CBD2056160C1C52E7A4120E40FE95FBDF4C71C4FE`
+  - `Erdos298.lean`: `ECDB823729038B7873CD51FAAF867FD078DABBE98F792EEAAA2B6CC84A1883C0`（2026-09-19 `GuardedAPCover` 接口修正 + 参数侧非空见证后）
+  - `PROGRESS.md`: `16E22F30FFAD62BBA6C5C6346496BA70CADB15C6223E6610EF2BC3FF09E6B36B`（同上）
   - `lakefile.toml`: `177B3F4CE942D9F30A5699B44BA2298BE85CB7A991DD6B48F098F2EEBE948B2B`
   - `lean-toolchain`: `302CD63C54178885B89E669F33B38F12F4DD7AE7E5CAC537B3203E3768D8FB2B`
   - `lake-manifest.json`: `9A8C568CD295614A423753FC3530ADFEBBFE16C2BEADC2A752963910F5412C36`
@@ -129,24 +129,36 @@ $$c F(n) \le f(n) \le C F(n) \quad\text{其中 } F(n) = \frac{n^{1/3}(n/\varphi(
   - `Erdos298.hasChromaticLowerBound_of_asymptotic_params`: 显式参数包闭合全局染色下界。
   - 依赖审计：全部新定理 0 `sorry`，严格依赖 Lean 4 核心逻辑公理 `[propext, Classical.choice, Quot.sound]`。
 
-### 2.6 消除 `h_trichotomy` 纯化为 AP 覆盖接口与筛法细化（已完全闭合）
+### 2.6 三分支结构定理的 Branch 3 隔离为带守卫的 AP 覆盖接口 `GuardedAPCover`（接口已于 2026-09-19 修正）
+
+> [!WARNING]
+> **修正记录（2026-09-19）**：本节第一版把 `h_trichotomy` 替换成了一个**不带守卫**的假设
+> $h_{ap\_cover} : \forall N\,T\,d, \exists R, \mathrm{smallGrowth}(T,d) \subseteq R.\mathrm{toFinset} \wedge R.\ell|R.H| \le 128d$。
+> 该命题是**假的**：取 $T = \mathrm{univ}$，$\mathrm{smallGrowth}(T,d)$ 是整个群，而任何满足 $R.\ell|R.H| \le 128d$ 的陪集 AP 至多 $128d < N$ 个元素。因此此前以它为前提的 9 条定理（`*_of_ap_cover`、`*_of_rough_count`、`*_of_lifting_and_sieve`、`cfp_lemma_5_6_m_eq_n_of_branches_and_sieve`）全部**空真**，永远无法实例化；`#print axioms` 查不出这类缺陷。反例已机器验证：`Erdos298.not_unguarded_ap_cover`、`Erdos298.not_unguarded_ap_cover'`。
+> 数学上，Branch 1（真子群）是结构定理真实会出现的情形，**不能从假设里删掉**，只能在反证过程中用 $\mathrm{closure}(Q) = \top$ 排除。现已改为带守卫的接口 `Erdos298.GuardedAPCover`，并机器证明它与带守卫的三分支假设 `Erdos298.GuardedTrichotomy` **等价**（`Erdos298.guardedAPCover_iff_trichotomy`）。
 - **核心数学洞察**:
   - 原集成层归约 `unsaturated_step_growth_of_arith_conditional` 引入了 `SmallGrowthTrichotomy`（包含真子群 Branch 1、小基数 Branch 2、陪集 AP Branch 3）。
   - 数学反演推导表明：在不饱和步的反证法中，由于商群像 $Q$ 满足 $\mathrm{closure}(Q) = \top$，Branch 1 直接被排除；由于中等纤维基数下界 $M \le |Q| \le |G|$ 结合显式算术阈值 $E_1$，Branch 2 也直接被排除！
-  - 导出矛盾**唯一真正需要的结构输入是 Branch 3（陪集 AP 覆盖）**。
+  - 导出矛盾**唯一真正需要的结构输入是 Branch 3（陪集 AP 覆盖）**——但前提必须携带排除 Branch 1、Branch 2 的守卫。`GuardedAPCover` 的形式为：
+    $$\forall N\,T\,d\,\xi,\ 8d < |T| \to 0 < \xi \le \tfrac{1}{20} \to |T| < \xi N \to \mathrm{closure}(\mathrm{smallGrowth}(T,d)) = \top \to \tfrac{20(2d)^{51/50}}{|T|^{1/50}} < |\mathrm{smallGrowth}(T,d)| \to \exists R,\ \mathrm{smallGrowth}(T,d) \subseteq R.\mathrm{toFinset} \wedge R.\ell|R.H| \le 128d$$
+  - `Erdos298.GuardedTrichotomy`、`Erdos298.GuardedAPCover`：两个接口的命名定义。
+  - `Erdos298.guardedAPCover_of_trichotomy`、`Erdos298.trichotomy_of_guardedAPCover`、`Erdos298.guardedAPCover_iff_trichotomy`：两接口等价（逻辑上不多不少，只是把真正待补的那一支单独命名）。
+  - `Erdos298.not_unguarded_ap_cover`（对每个 $d$）与 `Erdos298.not_unguarded_ap_cover'`：旧的无守卫命题被反驳。
+  - 参数侧非空见证（同日新增）：`Erdos298.concreteCFPArithParams`、`Erdos298.concreteP17Conditions`、`Erdos298.concreteCFPArithParams_numeric`、`Erdos298.lemma_5_6_parameter_hypotheses_satisfiable`（$n = t = 16411$ (prime), $v = W = 1$, $y = 8192$, $A = [8192, 16383]$, $K = 32$, $M = 8160$, $k_{div} = 1$, $U = 9$, $D = 1$, $gMax = 1$, $\xi = 1/128$, $\ell = 2^{20}$, $B_{growth} = 31$, $r = 8160^5$），E1–E3 等全部条件机器验证，防止 `P17FiniteArithConditions` / `CFPArithParams` 空真。见证很小、结论平凡，仅证明参数侧假设可同时满足。
 - **结构过渡引理群（100% 坚实证明）**:
   - `Erdos298.smallGrowth_subset_subgroup`: $\forall T, H \le G, d < |T| \land T \subseteq H \implies \mathrm{smallGrowth}(T, d) \subseteq H$。
   - `Erdos298.proper_subgroup_smallGrowth_of_three_coset_absorption`: 3-陪集吸收直接提升至 $\mathrm{smallGrowth}(T, d) \subseteq H < \top$。
   - `Erdos298.smallGrowth_proper_subgroup_of_closure_ne_top`: $\mathrm{closure}(\mathrm{smallGrowth}(T, d)) \ne \top \implies \exists H < \top, \mathrm{smallGrowth}(T, d) \subseteq H$。
-- **大师定理（`h_trichotomy` 彻底移除）**:
-  - `Erdos298.unsaturated_step_growth_of_ap_cover`: 不饱和步矛盾定理，完全剔除 `h_trichotomy`，仅需纯 AP 覆盖 $h_{ap\_cover}$ 与筛法桥接 $h_{sieve}$。
+- **大师定理（以 `GuardedAPCover` 为接口）**:
+  - `Erdos298.unsaturated_step_growth_of_ap_cover`: 不饱和步矛盾定理，仅需 `GuardedAPCover` 与筛法桥接 $h_{sieve}$；两条额外守卫在证明内部由 $\mathrm{closure}(Q) = \top$ 与 $E_1$ 直接导出。
   - `Erdos298.unsaturatedSteps_growth_of_ap_cover`: 一致不饱和步增长下界 $\forall j \in \mathrm{unsaturatedSteps}, D \le \delta_j$。
-  - `Erdos298.cfp_lemma_5_6_finite_core_of_ap_cover`: **Lemma 5.6 核心有限核大师定理**，签名中彻底抹除 `h_trichotomy`，将剩余算术组合学缺口干净地孤立为 $h_{ap\_cover}$ 与 $h_{sieve}$。
-  - `Erdos298.cfp_lemma_5_6_m_eq_n_of_ap_cover`: **Lemma 5.6 ($m = n$) 大师定理**，彻底消除 `h_trichotomy`，仅需 $h_{ap\_cover}$ 与 $h_{sieve}$。
+  - `Erdos298.cfp_lemma_5_6_finite_core_of_ap_cover`: **Lemma 5.6 核心有限核大师定理**，剩余算术组合学缺口孤立为 `GuardedAPCover` 与 $h_{sieve}$。
+  - `Erdos298.cfp_lemma_5_6_m_eq_n_of_ap_cover`: **Lemma 5.6 ($m = n$) 大师定理**，仅需 `GuardedAPCover` 与 $h_{sieve}$。
   - `Erdos298.cfp_lemma_5_6_finite_core_of_rough_count`: 有限核大师定理，将 $h_{sieve}$ 深入归约至单条等差数列的 Selberg 粗计数估计 $h_{cov\_sieve}$。
   - `Erdos298.cfp_lemma_5_6_m_eq_n_of_rough_count`: $m = n$ 大师定理，将 $h_{sieve}$ 深入归约至单条等差数列的 Selberg 粗计数估计 $h_{cov\_sieve}$。
-- **依赖与公理审计**:
-  - 退出码 0，2048 jobs 全量编译通过，0 `sorry`，严格依赖 Lean 4 官方核心逻辑公理 `[propext, Classical.choice, Quot.sound]`。
+- **依赖与公理审计（2026-09-19 接口修正后重新编译）**:
+  - `lake build Erdos298`（Lean 4.33.0 / Mathlib `db584cd6`）退出码 0，2049 jobs（为算术见证新增 `import Mathlib.Tactic.NormNum.Prime`，多一个 job），0 错误，0 `sorryAx`；5 条新声明与整条 `*_of_ap_cover` → `*_of_branches_and_sieve` 链（共 14 条）均严格依赖 `[propext, Classical.choice, Quot.sound]`。
+  - 日志中有 40 条 `linter.style.haveILetI` 风格警告，全部位于修正前已存在的行；此前文档所写“0 warnings”并不准确。
 
 ### 2.7 Phase P09 等差数列 Selberg 筛法计数工具链（已完全闭合）
 - **核心数学突破**:
@@ -238,11 +250,11 @@ $$c F(n) \le f(n) \le C F(n) \quad\text{其中 } F(n) = \frac{n^{1/3}(n/\varphi(
   - `card_le_sieve_bound_of_cover`: 机器证明 $|B| \le 384 d \cdot C_{sieve}$。
   - `apCoverSieveBridge_of_cover_and_sieve`: **核心桥接大师定理**，将任意满足 Selberg 粗计数界的 `IntAPCover` 无条件桥接至 `APCoverSieveBridge fc p`，精确代数计算 $384 \times 256 = 98304$ 严格闭合！
 
-#### 任务 C3: 消除 `h_trichotomy` 归约至纯 Coset AP 覆盖与筛法细化【已完全闭合】
+#### 任务 C3: 把三分支结构定理归约到带守卫的 Coset AP 覆盖接口与筛法细化【已闭合；接口于 2026-09-19 修正】
 - **数学成果**:
-  - 机器证明在不饱和步矛盾中，Branch 1（真子群）与 Branch 2（小基数）分别被 $\mathrm{closure}(Q) = \top$ 与算术阈值 $E_1$ 直接排除，结构矛盾唯一需要的输入是 Branch 3（陪集 AP 覆盖）。
+  - 机器证明在不饱和步矛盾中，Branch 1（真子群）与 Branch 2（小基数）分别被 $\mathrm{closure}(Q) = \top$ 与算术阈值 $E_1$ 直接排除，结构矛盾唯一需要的输入是 Branch 3（陪集 AP 覆盖）。**注意**：这只允许把 Branch 3 隔离成带守卫的接口 `GuardedAPCover`（守卫 = 排除 Branch 1/2 的两个条件），不允许用无守卫的“纯 AP 覆盖”替换——后者是假命题（`not_unguarded_ap_cover'`）。`GuardedAPCover ↔ GuardedTrichotomy` 已机器证明。
   - 新增三条过渡定理：`smallGrowth_subset_subgroup`、`proper_subgroup_smallGrowth_of_three_coset_absorption`、`smallGrowth_proper_subgroup_of_closure_ne_top`。
-  - 核心大师定理群（`h_trichotomy` 彻底从签名抹除）：
+  - 核心大师定理群（以 `GuardedAPCover` 为唯一结构输入）：
     - `unsaturated_step_growth_of_ap_cover` 与 `unsaturatedSteps_growth_of_ap_cover`：不饱和步增长矛盾。
     - `cfp_lemma_5_6_finite_core_of_ap_cover` 与 `cfp_lemma_5_6_m_eq_n_of_ap_cover`：Lemma 5.6 有限核与 $m = n$ 大师定理。
     - `cfp_lemma_5_6_finite_core_of_rough_count` 与 `cfp_lemma_5_6_m_eq_n_of_rough_count`：进一步将筛法桥接深入归约至单条等差数列的 Selberg 粗计数界 $h_{cov\_sieve}$。
@@ -298,7 +310,7 @@ $$c F(n) \le f(n) \le C F(n) \quad\text{其中 } F(n) = \frac{n^{1/3}(n/\varphi(
 | **Level 4: 奖题最终闭合** | `erdos_problem_360_unified_solution` 无外部假设 | 全库 0 `sorry`，`#print axioms` 仅 3 条核心公理 | “Erdős Problem #360 正式宣告完全解决” |
 
 > [!CAUTION]
-> **严禁越级宣称**：严禁在 Level 1（当前状态）时宣称达到 Level 3 或 Level 4。汇报中必须诚实列出尚未消除的外部假设（当前为：`h_ap_cover` 与 `APCoverSieveBridge` / `h_sieve`）。
+> **严禁越级宣称**：严禁在 Level 1（当前状态）时宣称达到 Level 3 或 Level 4。汇报中必须诚实列出尚未消除的外部假设（当前为：`GuardedAPCover`（≡ 带守卫的 `h_trichotomy`，即 Deshouillers–Freiman / Balasubramanian–Pandey 型小增长结构定理）、`APCoverSieveBridge` / `HasAPRoughCountBound`、`HasIntAPCoverBranchB`；`h_numeric` 与 `P17FiniteArithConditions` / `CFPArithParams` 已有显式非空见证 `concreteCFPArithParams` / `concreteP17Conditions` / `lemma_5_6_parameter_hypotheses_satisfiable`，但该见证很小、结论平凡，只用于证明参数侧假设可同时满足）。
 
 ---
 
@@ -306,19 +318,15 @@ $$c F(n) \le f(n) \le C F(n) \quad\text{其中 } F(n) = \frac{n^{1/3}(n/\varphi(
 - **筛法解耦定理**：
   已建立 Erdos298.h_cov_sieve_of_lifting_and_sieve、Erdos298.cfp_lemma_5_6_finite_core_of_lifting_and_sieve 与 Erdos298.cfp_lemma_5_6_m_eq_n_of_lifting_and_sieve，将 {cov\_sieve}$ 完全模块化解耦为 P08 组合提升 HasIntAPCover 与 P09 筛法粗糙数界 HasAPRoughCountBound。
 - **等差数列分离性与整除计数工具**：
-  已完全证明并验证 8 个核心引理（IntAP.inj_of_hb, linear_dvd_sub_ge_d, card_le_div_add_one_of_separated, card_filter_range_dvd_le, card_filter_dvd_toFinset_le, dvd_natAbs_iff, card_filter_natAbs_dvd_toFinset_le, 
-oughCount_eq_card_filter_range），确立了余项误差 $\le 1$ 的基础。
+  已完全证明并验证 8 个核心引理（`IntAP.inj_of_hb`, `linear_dvd_sub_ge_d`, `card_le_div_add_one_of_separated`, `card_filter_range_dvd_le`, `card_filter_dvd_toFinset_le`, `dvd_natAbs_iff`, `card_filter_natAbs_dvd_toFinset_le`, `roughCount_eq_card_filter_range`），确立了余项误差 $\le 1$ 的基础。
 - **候选像单射性与基数界**：
-  已完全证明并验证 Erdos298.card_le_card_cosetAP_of_image_subset，无条件确立了 $|B| \le R.\ell \cdot |R.H|$。
+  已完全证明并验证 `Erdos298.card_le_card_cosetAP_of_image_subset`，无条件确立了 $|B| \le R.\ell \cdot |R.H|$。
 - **候选互素因式分解**：
-  已完全证明并验证 Erdos298.coprime_q_W_of_inY_v，由 inY_v 直接析出与 $ 及 $ 互素的因式分量。
+  已完全证明并验证 `Erdos298.coprime_q_W_of_inY_v`，由 `inY_v` 直接析出与 $W$ 及 $m$ 互素的因式分量。
 - **编译与公理**：
-  lake build Erdos298 通过（2048 jobs，退出码 0，标准公理 [propext, Classical.choice, Quot.sound]，0 sorry）。
+  `lake build Erdos298` 通过（2048 jobs，退出码 0，标准公理 `[propext, Classical.choice, Quot.sound]`，0 sorry）。
 - **等差数列粗计数单调性与实数界**：
-  已完全证明并验证 4 个新增筛法定理（card_filter_natAbs_dvd_toFinset_real_le, 
-oughCount_one, 
-oughCount_mono, 
-oughCount_le_card），打通了等差数列粗计数的实数整除上界、模数 1 退化界、模数整除单调性以及全局全长界。
+  已完全证明并验证 4 个新增筛法定理（`card_filter_natAbs_dvd_toFinset_real_le`, `roughCount_one`, `roughCount_mono`, `roughCount_le_card`），打通了等差数列粗计数的实数整除上界、模数 1 退化界、模数整除单调性以及全局全长界。
 
 - **P08 分支解耦主定理架构与 Branch A 完全闭合**：
   已建立 HasIntAPCoverBranchA（$|R.H|^3 \ge R_{card}$）与 HasIntAPCoverBranchB（$|R.H|^3 < R_{card}$），证明了 Erdos298.hasIntAPCover_of_branchA_and_branchB，并由此推出 Erdos298.cfp_lemma_5_6_m_eq_n_of_branches_and_sieve，将整个 P08 组合提升几何模块彻底解耦为两个互补的代数子分支。
@@ -334,8 +342,8 @@ oughCount_le_card），打通了等差数列粗计数的实数整除上界、模
    推进小子群长周期分支（$|R.H|^3 < R_{card}$）的整数 AP 提升。
 2. **攻坚 `HasAPRoughCountBound` / `h_sieve` (`APCoverSieveBridge`)**:
    利用已知 Selberg 筛法粗估计结果，连接整数等差数列覆盖与候选集上界 $|B| \le 98304 d \frac{\log\log n}{\log r}$。
-3. **攻坚 `h_ap_cover` (Deshouillers–Freiman 陪集 AP 覆盖)**:
-   推进小增长集被陪集等差数列覆盖的定理结构。
+3. **攻坚 `GuardedAPCover` (Deshouillers–Freiman / Balasubramanian–Pandey 小增长结构定理的 Branch 3)**:
+   在守卫 $8d < |T| < \xi N$、$\mathrm{closure}(\mathrm{smallGrowth}) = \top$、$|\mathrm{smallGrowth}| > 20(2d)^{51/50}/|T|^{1/50}$ 之下证明小增长集被短陪集等差数列覆盖。**不要**再尝试去掉守卫（见 §2.6 修正记录）。
 4. **全局参数实例化与端到端贯通**:
    闭合 `CFPAsymptoticParams` 的具体数值实例化。
 
