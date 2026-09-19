@@ -40,11 +40,12 @@ The formalization bridges and unifies all three historical generations of soluti
 | Component | Formal Status | Scope & Dependencies |
 | :--- | :--- | :--- |
 | **Cubic-Root Upper Bound** ($f(n) \le 2\lceil n^{1/3}\rceil$) | **Unconditionally Proven** | Complete constructive proof (`Erdos298.exists_coloring_of_le_cube`, `minColors_le_two_mul_s`). |
+| **Cubic-Root Asymptotic Witness** ($f(n) \le 4n^{1/3}$) | **Unconditionally Proven** | First non-empty witness certifying satisfiability of `HasChromaticUpperBound` (`Erdos298.cubeRootScale`, `Erdos298.hasChromaticUpperBound_cubeRoot`). |
 | **Sieve-Remainder Bound** ($f(n) \le s + |P| + \lceil |R|/s \rceil$) | **Unconditionally Proven** | Complete combinatorial proof (`Erdos298.exists_coloring_sieve`, `minColors_le_sieve`). |
 | **Finite Selberg Sieve** ($|R| \le m/G + z^4$) | **Unconditionally Proven** | Diagonalized quadratic form & error sum (`Erdos298.selberg_remainder_bound`). |
 | **Prime Reciprocal Sum Bound** | **Unconditionally Proven** | Complete explicit prime sum bound (`Erdos298.minColors_le_of_sum_primes`). |
 | **CFP 4-Layer Upper Bound** | **Unconditionally Proven** | Complete constructive 4-layer coloring (`Erdos298.exists_coloring_conlon_fox_pham`, `minColors_le_conlon_fox_pham`). |
-| **Mertens Analytical Package (`Mertens.lean`)** | **Unconditionally Proven** | 15 analytical lemmas; squarefree totient reciprocal sum $\ge \frac{1}{2}\log z$ (`Erdos298.sum_coprime_squarefree_inv_totient_ge_half`). |
+| **Mertens Analytical Package (`Mertens.lean`)** | **Unconditionally Proven** | 22 analytical lemmas; squarefree totient reciprocal sum $\ge \frac{1}{2}\log z$ (`Erdos298.sum_coprime_squarefree_inv_totient_ge_half`); (M2) prime reciprocal sum lower bound $\ge \log\log z - \log 2$ (`Erdos298.sum_primesLE_inv_ge_log_log`). |
 | **Master Selberg Sieve G Lower Bound** | **Unconditionally Proven** | $\mathrm{sieveG}(n, s, z) \ge \frac{1}{2} \frac{\varphi(n)}{n} \log z$ (`Erdos298.sieveG_ge_half_totient_ratio_mul_log`, `minColors_le_of_totient_log`). |
 | **Elementary Lower Bound** ($f(n) \ge 2$) | **Unconditionally Proven** | Machine-checked for all $n \ge 3$ (`Erdos298.minColors_ge_two`). |
 | **CFP Lower Bound Reduction Engine** | **Unconditionally Proven** | Monotone lifting, fiber pigeonhole, AP hitting bridge (`Erdos298.minColors_ge_of_cfp_witness`). |

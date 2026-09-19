@@ -4,6 +4,7 @@ import Mathlib.Data.Nat.Totient
 import Mathlib.NumberTheory.Harmonic.Bounds
 import Mathlib.Data.Real.Basic
 import Mathlib.Analysis.SpecialFunctions.Log.Basic
+import Mathlib.NumberTheory.PrimeCounting
 
 open Real
 
@@ -463,5 +464,110 @@ lemma sum_coprime_squarefree_inv_totient_ge_half (n z : ℕ) (hn : 0 < n) (hz : 
     _ = ((Nat.totient n : ℝ) / (n : ℝ)) * ((1 / 2 : ℝ) * Real.log (z : ℝ)) := by ring
     _ ≤ ∑ c ∈ C, (1 : ℝ) / ((Nat.totient c : ℝ)) := h_mul_le
 
+lemma primeFactors_subset_primesLE {a z : ℕ} (haz : a ≤ z) :
+    a.primeFactors ⊆ Nat.primesLE z := by
+  intro p hp
+  rw [Nat.mem_primeFactors] at hp
+  rw [Nat.mem_primesLE]
+  have ha_pos : 1 ≤ a := by
+    obtain ⟨_, _, ha_ne⟩ := hp
+    exact Nat.pos_of_ne_zero ha_ne
+  have hp_le_a : p ≤ a := Nat.le_of_dvd ha_pos hp.2.1
+  exact ⟨hp_le_a.trans haz, hp.1⟩
+
+lemma prod_primesLE_one_add (z : ℕ) :
+    ∏ p ∈ Nat.primesLE z, (1 + (1 : ℝ) / (p : ℝ)) =
+      ∑ S ∈ (Nat.primesLE z).powerset, ∏ p ∈ S, ((1 : ℝ) / (p : ℝ)) := by
+  exact Finset.prod_one_add (Nat.primesLE z)
+
+lemma prod_one_add_le_exp_sum (z : ℕ) :
+    ∏ p ∈ Nat.primesLE z, (1 + (1 : ℝ) / (p : ℝ)) ≤ exp (∑ p ∈ Nat.primesLE z, (1 : ℝ) / (p : ℝ)) := by
+  rw [Real.exp_sum]
+  apply Finset.prod_le_prod
+  · intro p _
+    positivity
+  · intro p _
+    rw [add_comm]
+    exact add_one_le_exp ((1 : ℝ) / (p : ℝ))
+
+lemma cast_prod_primeFactors_of_squarefree {a : ℕ} (ha : Squarefree a) :
+    (a : ℝ) = ∏ p ∈ a.primeFactors, (p : ℝ) := by
+  conv_lhs => rw [← Nat.prod_primeFactors_of_squarefree ha]
+  rw [Nat.cast_prod]
+
+lemma inv_prod_primeFactors_of_squarefree {a : ℕ} (ha : Squarefree a) :
+    (1 : ℝ) / (a : ℝ) = ∏ p ∈ a.primeFactors, ((1 : ℝ) / (p : ℝ)) := by
+  rw [cast_prod_primeFactors_of_squarefree ha, one_div, ← Finset.prod_inv_distrib]
+  simp only [one_div]
+
+lemma sum_squarefree_inv_le_prod_primesLE (z : ℕ) :
+    (∑ a ∈ (Finset.Icc 1 z).filter Squarefree, (1 : ℝ) / (a : ℝ)) ≤
+      ∏ p ∈ Nat.primesLE z, (1 + (1 : ℝ) / (p : ℝ)) := by
+  let S := (Finset.Icc 1 z).filter Squarefree
+  let P := Nat.primesLE z
+  let f : ℕ → Finset ℕ := fun a => a.primeFactors
+  have h_inj : Set.InjOn f S := by
+    intro a1 ha1 a2 ha2 heq
+    have ha1_sq : Squarefree a1 := (Finset.mem_filter.mp ha1).2
+    have ha2_sq : Squarefree a2 := (Finset.mem_filter.mp ha2).2
+    exact primeFactors_inj_of_squarefree ha1_sq ha2_sq heq
+  have h_im_sub : S.image f ⊆ P.powerset := by
+    intro s hs
+    simp only [Finset.mem_image] at hs
+    obtain ⟨a, ha, rfl⟩ := hs
+    simp only [Finset.mem_filter, Finset.mem_Icc, S] at ha
+    rw [Finset.mem_powerset]
+    exact primeFactors_subset_primesLE ha.1.2
+  have h_sum_map : (∑ a ∈ S, (1 : ℝ) / (a : ℝ)) =
+      ∑ s ∈ S.image f, ∏ p ∈ s, ((1 : ℝ) / (p : ℝ)) := by
+    rw [Finset.sum_image h_inj]
+    apply Finset.sum_congr rfl
+    intro a ha
+    have ha_sq : Squarefree a := (Finset.mem_filter.mp ha).2
+    exact inv_prod_primeFactors_of_squarefree ha_sq
+  have h_sub_le : (∑ s ∈ S.image f, ∏ p ∈ s, ((1 : ℝ) / (p : ℝ))) ≤
+      ∑ s ∈ P.powerset, ∏ p ∈ s, ((1 : ℝ) / (p : ℝ)) := by
+    apply Finset.sum_le_sum_of_subset_of_nonneg h_im_sub
+    intro s _ _
+    apply Finset.prod_nonneg
+    intro p _
+    positivity
+  calc (∑ a ∈ S, (1 : ℝ) / (a : ℝ))
+    _ = ∑ s ∈ S.image f, ∏ p ∈ s, ((1 : ℝ) / (p : ℝ)) := h_sum_map
+    _ ≤ ∑ s ∈ P.powerset, ∏ p ∈ s, ((1 : ℝ) / (p : ℝ)) := h_sub_le
+    _ = ∏ p ∈ P, (1 + (1 : ℝ) / (p : ℝ)) := (prod_primesLE_one_add z).symm
+
+/-- (M2) Elementary lower bound on the sum of prime reciprocals:
+    ∑_{p ≤ z} 1/p ≥ log(log z) - log 2 for all z ≥ 3. -/
+theorem sum_primesLE_inv_ge_log_log (z : ℕ) (hz : 3 ≤ z) :
+    Real.log (Real.log (z : ℝ)) - Real.log 2 ≤ ∑ p ∈ Nat.primesLE z, (1 : ℝ) / (p : ℝ) := by
+  have h_log_pos : 0 < Real.log (z : ℝ) := by
+    have : (1 : ℝ) < (z : ℝ) := by exact_mod_cast (by omega : 1 < z)
+    exact Real.log_pos this
+  have h_half_log_pos : 0 < (1 / 2 : ℝ) * Real.log (z : ℝ) := by positivity
+  have h1z : 1 ≤ z := by omega
+  have h_sq_ge : (1 / 2 : ℝ) * Real.log (z : ℝ) ≤
+      ∑ a ∈ (Finset.Icc 1 z).filter Squarefree, (1 : ℝ) / (a : ℝ) :=
+    sum_squarefree_inv_ge_half_log z h1z
+  have h_prod_ge : (1 / 2 : ℝ) * Real.log (z : ℝ) ≤
+      ∏ p ∈ Nat.primesLE z, (1 + (1 : ℝ) / (p : ℝ)) :=
+    h_sq_ge.trans (sum_squarefree_inv_le_prod_primesLE z)
+  have h_exp_ge : (1 / 2 : ℝ) * Real.log (z : ℝ) ≤
+      exp (∑ p ∈ Nat.primesLE z, (1 : ℝ) / (p : ℝ)) :=
+    h_prod_ge.trans (prod_one_add_le_exp_sum z)
+  have h_log_le : Real.log ((1 / 2 : ℝ) * Real.log (z : ℝ)) ≤
+      ∑ p ∈ Nat.primesLE z, (1 : ℝ) / (p : ℝ) := by
+    rw [← Real.log_exp (∑ p ∈ Nat.primesLE z, (1 : ℝ) / (p : ℝ))]
+    exact Real.log_le_log h_half_log_pos h_exp_ge
+  have h_log_mul : Real.log ((1 / 2 : ℝ) * Real.log (z : ℝ)) =
+      Real.log (Real.log (z : ℝ)) - Real.log 2 := by
+    rw [Real.log_mul (by norm_num) h_log_pos.ne']
+    have : Real.log (1 / 2 : ℝ) = - Real.log 2 := by
+      rw [Real.log_div (by norm_num) (by norm_num), Real.log_one, zero_sub]
+    rw [this]
+    ring
+  rw [h_log_mul] at h_log_le
+  exact h_log_le
 
 end Erdos298
+

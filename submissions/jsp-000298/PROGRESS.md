@@ -338,6 +338,9 @@
 | **Final Master Theorem** | `Erdos298.erdos_problem_360_unconditional_master` | Unconditional two-sided bound: $2 \le f(n) \le \text{CFP 4-layer bound}$ for all $n \ge 3$ | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
 | **Final Master Theorem** | `Erdos298.erdos_problem_360_asymptotic_master` | Sharp asymptotic two-sided equivalence $c F(n) \le f(n) \le C F(n)$ | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
 | **Final Master Theorem** | `Erdos298.erdos_problem_360_unified_solution` | Grand synthesis unifying all 3 historical generations of Erdős Problem 360 | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
+| **Asymptotic Upper: Cube Root Scale** | `Erdos298.cubeRootScale` | Elementary cubic-root growth scale $F(n) = n^{1/3}$ | **Formalized & Compiled** | `[propext, Classical.choice, Quot.sound]` |
+| **Asymptotic Upper: Cube Root Witness** | `Erdos298.hasChromaticUpperBound_cubeRoot` | First non-empty witness certifying satisfiability of `HasChromaticUpperBound` ($f(n) \le 4n^{1/3}$ for $n \ge 2$) | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
+| **Mertens Analytical: M2 Prime Sum Lower** | `Erdos298.sum_primesLE_inv_ge_log_log` | Elementary prime reciprocal sum lower bound $\sum_{p \le z} 1/p \ge \log\log z - \log 2$ for all $z \ge 3$ | **Proven & Compiled** | `[propext, Classical.choice, Quot.sound]` |
 
 ---
 

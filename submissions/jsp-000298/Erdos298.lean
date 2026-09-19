@@ -1876,6 +1876,50 @@ theorem conlon_fox_pham_bounds (F : ℕ → ℝ) {c C : ℝ}
   have h2 : N2 ≤ n := le_of_max_le_right hmax
   exact ⟨hN1 n hn h1, hN2 n hn h2⟩
 
+/-- Elementary cubic-root growth scale: F(n) = n^(1/3). -/
+noncomputable def cubeRootScale (n : ℕ) : ℝ :=
+  (n : ℝ) ^ ((1 : ℝ) / 3)
+
+/-- Unconditional cubic-root asymptotic chromatic upper bound:
+    f(n) ≤ C * n^(1/3) with C = 4. -/
+theorem hasChromaticUpperBound_cubeRoot :
+    ∃ C > 0, HasChromaticUpperBound cubeRootScale C := by
+  refine ⟨4, by norm_num, ⟨by norm_num, 2, fun n hn _ => ?_⟩⟩
+  dsimp [cubeRootScale]
+  set x := (n : ℝ) ^ ((1 : ℝ) / 3)
+  set s := Nat.ceil x
+  have hn_pos : 0 < (n : ℝ) := by positivity
+  have hx_pos : 0 < x := Real.rpow_pos_of_pos hn_pos _
+  have hx_le_s : x ≤ (s : ℝ) := Nat.le_ceil x
+  have h1_le_x : 1 ≤ x := by
+    dsimp [x]
+    have h1_le_n : (1 : ℝ) ≤ (n : ℝ) := by exact_mod_cast (by omega : 1 ≤ n)
+    exact Real.one_le_rpow h1_le_n (by norm_num)
+  have hs : 1 ≤ s := by
+    have : (1 : ℝ) ≤ (s : ℝ) := h1_le_x.trans hx_le_s
+    exact_mod_cast this
+  have hx3_le_s3 : x ^ 3 ≤ (s : ℝ) ^ 3 := by
+    gcongr
+  have hx3_eq : x ^ 3 = (n : ℝ) := by
+    dsimp [x]
+    rw [← Real.rpow_natCast, ← Real.rpow_mul (le_of_lt hn_pos)]
+    have : ((1 : ℝ) / 3) * ((3 : ℕ) : ℝ) = 1 := by norm_num
+    rw [this, Real.rpow_one]
+  have hn_le_s3_real : (n : ℝ) ≤ (s : ℝ) ^ 3 := by
+    rw [← hx3_eq]
+    exact hx3_le_s3
+  have hn_le_s3 : n ≤ s ^ 3 := by
+    exact_mod_cast hn_le_s3_real
+  have h_minColors : minColors n hn ≤ 2 * s := minColors_le_two_mul_s n s hn hs hn_le_s3
+  have h_cast : (minColors n hn : ℝ) ≤ 2 * (s : ℝ) := by
+    exact_mod_cast h_minColors
+  have hs_le_x_add_one : (s : ℝ) ≤ x + 1 := le_of_lt (Nat.ceil_lt_add_one (le_of_lt hx_pos))
+  have hs_le_2x : (s : ℝ) ≤ 2 * x := by
+    linarith [hs_le_x_add_one, h1_le_x]
+  have : (minColors n hn : ℝ) ≤ 4 * x := by
+    linarith [h_cast, hs_le_2x]
+  exact this
+
 
 
 
@@ -11060,3 +11104,5 @@ end Erdos298
 #print axioms Erdos298.selbergTerms_of_squarefree
 #print axioms Erdos298.sieveG_ge_half_totient_ratio_mul_log
 #print axioms Erdos298.minColors_le_of_totient_log
+#print axioms Erdos298.hasChromaticUpperBound_cubeRoot
+#print axioms Erdos298.sum_primesLE_inv_ge_log_log

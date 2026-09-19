@@ -110,6 +110,8 @@ lake build
 - `Erdos298.HasChromaticUpperBound`: Formal witness predicate for upper bounds relative to growth scale $F(n)$.
 - `Erdos298.HasChromaticLowerBound`: Formal witness predicate for lower bounds relative to growth scale $F(n)$.
 - `Erdos298.conlon_fox_pham_bounds`: The Conlon–Fox–Pham two-sided asymptotic growth theorem $c F(n) \le f(n) \le C F(n)$.
+- `Erdos298.cubeRootScale`: Elementary cubic-root growth scale $F(n) = n^{1/3}$.
+- `Erdos298.hasChromaticUpperBound_cubeRoot`: First non-empty witness certifying satisfiability of `HasChromaticUpperBound` ($f(n) \le 4n^{1/3}$ for $n \ge 2$). Note: this bound is weaker than Erdős's $o(n^{1/3})$ and serves strictly as an elementary non-emptiness witness for the upper-bound hypothesis of `erdos_problem_360_asymptotic_master`.
 
 ### 10. Conlon–Fox–Pham (2021) Lower Bound Formulation & Combinatorial Reductions
 - `Erdos298.hasValidColoring_of_le`: Monotone lifting of valid colorings ($m \le k \wedge \mathrm{HasValidColoring}(n, m) \implies \mathrm{HasValidColoring}(n, k)$).
@@ -446,7 +448,7 @@ lake build
   5. (Conlon–Fox–Pham 2021 Asymptotic, Conditional): Two-sided asymptotic growth equivalence $f(n) \asymp F(n)$ under hypothesis of matching witnesses.
 
 ### 26. Analytical Number Theory Foundation (`Erdos298/Mertens.lean`)
-- Dedicated independent analytical module containing 15 machine-checked, zero-sorry, standard-axiom lemmas:
+- Dedicated independent analytical module containing 22 machine-checked, zero-sorry, standard-axiom lemmas:
   - `Erdos298.inv_sq_le_inv_sub`: Telescoping inverse square bound $1/k^2 \le 1/(k-1) - 1/k$.
   - `Erdos298.sum_Icc_sub_tele`: Telescoping sum identity $\sum_{k=2}^z (f(k-1) - f(k)) = f(1) - f(z)$.
   - `Erdos298.sum_inv_sq_le_two`: Universal bound $\sum_{k=1}^z 1/k^2 \le 2$.
@@ -462,4 +464,11 @@ lake build
   - `Erdos298.sum_squarefree_inv_totient_le_mul`: Coprime squarefree decomposition of totient sum.
   - `Erdos298.sum_coprime_squarefree_inv_totient_ge_half`: Fundamental coprime squarefree totient reciprocal lower bound:
     $$\frac{1}{2} \frac{\varphi(n)}{n} \log z \le \sum_{c \le z, \text{Squarefree } c, \gcd(c, n) = 1} \frac{1}{\varphi(c)}.$$
+  - `Erdos298.primeFactors_subset_primesLE`: Prime factor containment $a \le z \implies a.\mathrm{primeFactors} \subseteq \mathrm{primesLE}(z)$.
+  - `Erdos298.prod_primesLE_one_add`: Powerset product expansion identity $\prod_{p \le z} (1 + 1/p) = \sum_{S \subseteq \mathrm{primesLE}(z)} \prod_{p \in S} 1/p$.
+  - `Erdos298.prod_one_add_le_exp_sum`: Exponential bound $\prod_{p \le z} (1 + 1/p) \le \exp(\sum_{p \le z} 1/p)$.
+  - `Erdos298.cast_prod_primeFactors_of_squarefree` & `Erdos298.inv_prod_primeFactors_of_squarefree`: Product formula for squarefree reciprocals and their inverses.
+  - `Erdos298.sum_squarefree_inv_le_prod_primesLE`: Squarefree reciprocal sum bounded by prime product expansion.
+  - `Erdos298.sum_primesLE_inv_ge_log_log` (M2): Elementary lower bound on the sum of prime reciprocals:
+    $$\sum_{p \le z, \text{Prime } p} \frac{1}{p} \ge \log(\log z) - \log 2 \qquad (z \ge 3).$$
 
