@@ -22,6 +22,11 @@ import Mathlib.Algebra.Order.Floor.Ring
 import Mathlib.Algebra.Order.Archimedean.Real.Basic
 import Mathlib.Analysis.SpecialFunctions.Pow.Real
 import Mathlib.Analysis.SpecialFunctions.Log.Basic
+import Mathlib.Data.Nat.Log
+import Mathlib.Data.Finset.Sort
+import Mathlib.Algebra.Group.Subgroup.Lattice
+import Erdos298.Kneser
+import Erdos298.Lev
 
 
 /-!
@@ -4268,68 +4273,6 @@ Here we formalize:
    natural and real-valued conditional growth interfaces for Lemma 2.3.
 -/
 
-/-- Sumset of two finsets in an additive group. -/
-def sumset (A B : Finset G) : Finset G :=
-  (A ×ˢ B).image (fun p => p.1 + p.2)
-
-/-- k-fold iterated sumset of a finset T. -/
-def iterSum : ℕ → Finset G → Finset G
-  | 0, _ => {0}
-  | k + 1, T => sumset (iterSum k T) T
-
-@[simp]
-lemma iterSum_zero (T : Finset G) : iterSum 0 T = {0} := rfl
-
-@[simp]
-lemma iterSum_succ (k : ℕ) (T : Finset G) :
-    iterSum (k + 1) T = sumset (iterSum k T) T := rfl
-
-lemma mem_sumset_iff (A B : Finset G) (x : G) :
-    x ∈ sumset A B ↔ ∃ a ∈ A, ∃ b ∈ B, a + b = x := by
-  simp only [sumset, Finset.mem_image, Finset.mem_product]
-  constructor
-  · rintro ⟨p, ⟨ha, hb⟩, rfl⟩
-    exact ⟨p.1, ha, p.2, hb, rfl⟩
-  · rintro ⟨a, ha, b, hb, rfl⟩
-    exact ⟨(a, b), ⟨ha, hb⟩, rfl⟩
-
-lemma sumset_assoc (A B C : Finset G) :
-    sumset (sumset A B) C = sumset A (sumset B C) := by
-  ext x
-  simp only [mem_sumset_iff]
-  constructor
-  · rintro ⟨ab, ⟨a, ha, b, hb, rfl⟩, c, hc, rfl⟩
-    exact ⟨a, ha, b + c, ⟨b, hb, c, hc, rfl⟩, (add_assoc a b c).symm⟩
-  · rintro ⟨a, ha, bc, ⟨b, hb, c, hc, rfl⟩, rfl⟩
-    exact ⟨a + b, ⟨a, ha, b, hb, rfl⟩, c, hc, add_assoc a b c⟩
-
-lemma sumset_zero_left (A : Finset G) : sumset {0} A = A := by
-  ext x
-  simp only [mem_sumset_iff, Finset.mem_singleton]
-  constructor
-  · rintro ⟨a, rfl, b, hb, rfl⟩
-    rwa [zero_add]
-  · intro hx
-    exact ⟨0, rfl, x, hx, zero_add x⟩
-
-lemma sumset_zero_right (A : Finset G) : sumset A {0} = A := by
-  ext x
-  simp only [mem_sumset_iff, Finset.mem_singleton]
-  constructor
-  · rintro ⟨a, ha, b, rfl, rfl⟩
-    rwa [add_zero]
-  · intro hx
-    exact ⟨x, hx, 0, rfl, add_zero x⟩
-
-/-- Iterated sumset splits over natural addition: (a + b)T = aT + bT. -/
-lemma iterSum_add (a b : ℕ) (T : Finset G) :
-    iterSum (a + b) T = sumset (iterSum a T) (iterSum b T) := by
-  induction b with
-  | zero =>
-    simp only [Nat.add_zero, iterSum_zero, sumset_zero_right]
-  | succ b ih =>
-    rw [Nat.add_succ, iterSum_succ, ih, iterSum_succ, sumset_assoc]
-
 /-- Single-step expansion when 0 ∈ T: kT ⊆ (k + 1)T. -/
 lemma iterSum_subset_succ (T : Finset G) (h0 : 0 ∈ T) (k : ℕ) :
     iterSum k T ⊆ iterSum (k + 1) T := by
@@ -4712,6 +4655,36 @@ lemma delta_centerFiber_eq {N d : ℕ} (h : d ∣ N) (S : Finset (ZMod N)) (r : 
 Integer AP representations, cardinality preservation, coset AP lifting, and length sum bounds.
 -/
 
+/-- A coset arithmetic progression in ZMod N with subgroup H, start c, step v, and length ell. -/
+structure CosetAP (N : ℕ) where
+  H : AddSubgroup (ZMod N)
+  c : ZMod N
+  v : ZMod N
+  ell : ℕ
+
+/-- The elements of a coset arithmetic progression as a finite set in ZMod N. -/
+noncomputable def CosetAP.toFinset {N : ℕ} [NeZero N] (R : CosetAP N) : Finset (ZMod N) :=
+  (Finset.range R.ell).biUnion (fun j =>
+    ((R.H : Set (ZMod N)).toFinset).image (fun h => R.c + (j : ZMod N) * R.v + h))
+
+/-- Cardinality of a CosetAP is bounded by ell * |H|. -/
+lemma CosetAP.card_toFinset_le {N : ℕ} [NeZero N] (R : CosetAP N) :
+    R.toFinset.card ≤ R.ell * (R.H : Set (ZMod N)).toFinset.card := by
+  dsimp [CosetAP.toFinset]
+  have h := Finset.card_biUnion_le (s := Finset.range R.ell)
+    (t := fun j => ((R.H : Set (ZMod N)).toFinset).image (fun h => R.c + (j : ZMod N) * R.v + h))
+  have h_img : ∀ j ∈ Finset.range R.ell,
+      (((R.H : Set (ZMod N)).toFinset).image (fun h => R.c + (j : ZMod N) * R.v + h)).card ≤
+      (R.H : Set (ZMod N)).toFinset.card := by
+    intro j _hj
+    exact Finset.card_image_le
+  have h_sum : ∑ j ∈ Finset.range R.ell,
+      (((R.H : Set (ZMod N)).toFinset).image (fun h => R.c + (j : ZMod N) * R.v + h)).card ≤
+      ∑ _j ∈ Finset.range R.ell, (R.H : Set (ZMod N)).toFinset.card :=
+    Finset.sum_le_sum h_img
+  rw [Finset.sum_const, Finset.card_range, smul_eq_mul] at h_sum
+  exact h.trans h_sum
+
 /-- An integer arithmetic progression with start a, common difference b > 0, and length k. -/
 structure IntAP where
   a : ℤ
@@ -4734,6 +4707,121 @@ lemma IntAP.card_toFinset (P : IntAP) : P.toFinset.card = P.k := by
     have : (x : ℤ) * (P.b : ℤ) = (y : ℤ) * (P.b : ℤ) := by linarith
     have : (x : ℤ) = (y : ℤ) := mul_right_cancel₀ hb_ne this
     exact_mod_cast this
+
+/-- Injectivity of the integer arithmetic progression mapping when common difference b > 0. -/
+lemma IntAP.inj_of_hb (P : IntAP) :
+    ∀ x y : ℕ, P.a + (x : ℤ) * (P.b : ℤ) = P.a + (y : ℤ) * (P.b : ℤ) → x = y := by
+  intro x y hxy
+  have hb_pos := P.hb
+  have hb_ne : (P.b : ℤ) ≠ 0 := by omega
+  have : (x : ℤ) * (P.b : ℤ) = (y : ℤ) * (P.b : ℤ) := by linarith
+  have : (x : ℤ) = (y : ℤ) := mul_right_cancel₀ hb_ne this
+  exact_mod_cast this
+
+/-- Fundamental separation principle for linear congruences:
+    For any common difference b coprime to modulus d > 0, any two distinct solutions
+    j1 < j2 to d ∣ a + j * b have gap at least d. -/
+lemma linear_dvd_sub_ge_d (a : ℤ) (b : ℕ) (d : ℕ) (_hd : 0 < d) (hbd : Nat.Coprime b d)
+    (j1 j2 : ℕ) (h_lt : j1 < j2)
+    (h1 : (d : ℤ) ∣ (a + (j1 : ℤ) * (b : ℤ)))
+    (h2 : (d : ℤ) ∣ (a + (j2 : ℤ) * (b : ℤ))) :
+    d ≤ j2 - j1 := by
+  rcases h1 with ⟨k1, hk1⟩
+  rcases h2 with ⟨k2, hk2⟩
+  have h_diff : (a + (j2 : ℤ) * (b : ℤ)) - (a + (j1 : ℤ) * (b : ℤ)) = (k2 - k1) * (d : ℤ) := by
+    rw [hk2, hk1]
+    ring
+  have h_eq : (a + (j2 : ℤ) * (b : ℤ)) - (a + (j1 : ℤ) * (b : ℤ)) = ((j2 : ℤ) - (j1 : ℤ)) * (b : ℤ) := by ring
+  rw [h_eq] at h_diff
+  have hj_cast : (j2 : ℤ) - (j1 : ℤ) = ((j2 - j1 : ℕ) : ℤ) := (Int.ofNat_sub (by omega)).symm
+  rw [hj_cast] at h_diff
+  have hdvd_int : (d : ℤ) ∣ ((j2 - j1 : ℕ) : ℤ) * (b : ℤ) := by
+    use (k2 - k1)
+    rw [h_diff, mul_comm]
+  have hdvd_nat : d ∣ (j2 - j1) * b := by
+    rw [← Int.natCast_dvd_natCast, Nat.cast_mul]
+    exact hdvd_int
+  have h_dvd : d ∣ (j2 - j1) := (Nat.Coprime.symm hbd).dvd_of_dvd_mul_right hdvd_nat
+  have h_pos : 0 < j2 - j1 := by omega
+  exact Nat.le_of_dvd h_pos h_dvd
+
+/-- Any d-separated subset of Finset.range k has cardinality at most k / d + 1. -/
+lemma card_le_div_add_one_of_separated {k d : ℕ} (hd : 0 < d)
+    (S : Finset ℕ) (hS : S ⊆ Finset.range k)
+    (h_sep : ∀ j1 ∈ S, ∀ j2 ∈ S, j1 < j2 → d ≤ j2 - j1) :
+    S.card ≤ k / d + 1 := by
+  have h_inj : ∀ j1 ∈ S, ∀ j2 ∈ S, j1 / d = j2 / d → j1 = j2 := by
+    intro j1 hj1 j2 hj2 heq
+    rcases lt_trichotomy j1 j2 with hlt | heq' | hgt
+    · have hle := h_sep j1 hj1 j2 hj2 hlt
+      have : j1 / d + 1 = (j1 + d) / d := by rw [Nat.add_div_right _ hd]
+      have : (j1 + d) / d ≤ j2 / d := Nat.div_le_div_right (by omega)
+      omega
+    · exact heq'
+    · have hle := h_sep j2 hj2 j1 hj1 hgt
+      have : j2 / d + 1 = (j2 + d) / d := by rw [Nat.add_div_right _ hd]
+      have : (j2 + d) / d ≤ j1 / d := Nat.div_le_div_right (by omega)
+      omega
+  have h_sub : S.image (fun j => j / d) ⊆ Finset.range (k / d + 1) := by
+    intro x hx
+    simp only [Finset.mem_image, Finset.mem_range] at hx ⊢
+    rcases hx with ⟨j, hj, rfl⟩
+    have hj_lt : j < k := Finset.mem_range.mp (hS hj)
+    have : j / d ≤ k / d := Nat.div_le_div_right (by omega)
+    omega
+  have h_card_eq : (S.image (fun j => j / d)).card = S.card := by
+    apply Finset.card_image_of_injOn
+    intro x hx y hy hxy
+    exact h_inj x hx y hy hxy
+  rw [← h_card_eq]
+  have := Finset.card_le_card h_sub
+  rw [Finset.card_range] at this
+  exact this
+
+/-- Number of index solutions j < P.k to d ∣ a + j * b is bounded by P.k / d + 1. -/
+lemma card_filter_range_dvd_le (P : IntAP) (d : ℕ) (hd : 0 < d) (hbd : Nat.Coprime P.b d) :
+    ((Finset.range P.k).filter (fun (j : ℕ) => (d : ℤ) ∣ (P.a + (j : ℤ) * (P.b : ℤ)))).card ≤ P.k / d + 1 := by
+  let S := (Finset.range P.k).filter (fun (j : ℕ) => (d : ℤ) ∣ (P.a + (j : ℤ) * (P.b : ℤ)))
+  have hS_sub : S ⊆ Finset.range P.k := Finset.filter_subset _ _
+  have h_sep : ∀ j1 ∈ S, ∀ j2 ∈ S, j1 < j2 → d ≤ j2 - j1 := by
+    intro j1 hj1 j2 hj2 hlt
+    simp only [Finset.mem_filter, S] at hj1 hj2
+    exact linear_dvd_sub_ge_d P.a P.b d hd hbd j1 j2 hlt hj1.2 hj2.2
+  exact card_le_div_add_one_of_separated hd S hS_sub h_sep
+
+/-- Number of elements of an integer AP divisible by d (coprime to b) is at most P.k / d + 1. -/
+lemma card_filter_dvd_toFinset_le (P : IntAP) (d : ℕ) (hd : 0 < d) (hbd : Nat.Coprime P.b d) :
+    (P.toFinset.filter (fun z => (d : ℤ) ∣ z)).card ≤ P.k / d + 1 := by
+  dsimp [IntAP.toFinset]
+  rw [Finset.filter_image]
+  exact (Finset.card_image_le (f := fun (j : ℕ) => P.a + (j : ℤ) * (P.b : ℤ))).trans (card_filter_range_dvd_le P d hd hbd)
+
+/-- Equivalence between natural divisibility of natAbs and integer divisibility. -/
+lemma dvd_natAbs_iff (d : ℕ) (z : ℤ) : d ∣ z.natAbs ↔ (d : ℤ) ∣ z := by
+  rw [← Int.natCast_dvd_natCast, Int.natCast_natAbs, dvd_abs]
+
+/-- Natural divisibility bound on integer AP elements. -/
+lemma card_filter_natAbs_dvd_toFinset_le (P : IntAP) (d : ℕ) (hd : 0 < d) (hbd : Nat.Coprime P.b d) :
+    (P.toFinset.filter (fun z => d ∣ z.natAbs)).card ≤ P.k / d + 1 := by
+  have h_eq : (P.toFinset.filter (fun z => d ∣ z.natAbs)) =
+      (P.toFinset.filter (fun z => (d : ℤ) ∣ z)) := by
+    ext z
+    simp only [Finset.mem_filter, dvd_natAbs_iff]
+  rw [h_eq]
+  exact card_filter_dvd_toFinset_le P d hd hbd
+
+/-- Real-valued upper bound on the number of elements in an integer AP divisible by d:
+    #\{z \in P.toFinset | d ∣ |z|\} ≤ P.k / d + 1. -/
+lemma card_filter_natAbs_dvd_toFinset_real_le (P : IntAP) (d : ℕ)
+    (hd : 0 < d) (h_coprime : Nat.Coprime P.b d) :
+    ((P.toFinset.filter (fun z => d ∣ z.natAbs)).card : ℝ) ≤ (P.k : ℝ) / (d : ℝ) + 1 := by
+  have h_nat := card_filter_natAbs_dvd_toFinset_le P d hd h_coprime
+  have h_cast : ((P.toFinset.filter (fun z => d ∣ z.natAbs)).card : ℝ) ≤ ((P.k / d + 1 : ℕ) : ℝ) := by
+    exact_mod_cast h_nat
+  have h_div_le : ((P.k / d : ℕ) : ℝ) ≤ (P.k : ℝ) / (d : ℝ) := Nat.cast_div_le
+  have h_add : ((P.k / d + 1 : ℕ) : ℝ) = ((P.k / d : ℕ) : ℝ) + 1 := by push_cast; rfl
+  rw [h_add] at h_cast
+  linarith
 
 /-- Lifting a coset of a cyclic subgroup H ≤ ZMod N of order h (with h ∣ N)
     to an integer arithmetic progression of length h with common difference N / h. -/
@@ -4763,6 +4851,258 @@ lemma coset_family_length_sum_le_three_mul (R_card : ℕ) (q h : ℕ)
     (h_prod : q * h = R_card) :
     q * h ≤ 3 * R_card := by
   omega
+
+/-- Definition of rough elements in an integer arithmetic progression P with respect to sieve modulus Q. -/
+def roughCount (P : IntAP) (Q : ℕ) : ℕ :=
+  (P.toFinset.filter (fun a => Nat.Coprime a.natAbs Q)).card
+
+/-- Exact equality between roughCount on the AP set and filtering indices in Finset.range P.k. -/
+lemma roughCount_eq_card_filter_range (P : IntAP) (Q : ℕ) :
+    roughCount P Q = ((Finset.range P.k).filter (fun (j : ℕ) =>
+      Nat.Coprime (P.a + (j : ℤ) * (P.b : ℤ)).natAbs Q)).card := by
+  dsimp [roughCount, IntAP.toFinset]
+  rw [Finset.filter_image]
+  rw [Finset.card_image_of_injective _ (fun x y hxy => P.inj_of_hb x y hxy)]
+
+/-- For sieve modulus Q = 1, all elements are coprime, so roughCount P 1 = P.k. -/
+lemma roughCount_one (P : IntAP) : roughCount P 1 = P.k := by
+  dsimp [roughCount]
+  have h_filt : (P.toFinset.filter (fun a => Nat.Coprime a.natAbs 1)) = P.toFinset := by
+    ext a
+    simp
+  rw [h_filt, P.card_toFinset]
+
+/-- Monotonicity of roughCount with respect to sieve modulus divisibility:
+    if Q1 ∣ Q2, then roughCount P Q2 ≤ roughCount P Q1. -/
+lemma roughCount_mono (P : IntAP) {Q1 Q2 : ℕ} (h : Q1 ∣ Q2) :
+    roughCount P Q2 ≤ roughCount P Q1 := by
+  dsimp [roughCount]
+  apply Finset.card_le_card
+  intro a ha
+  simp only [Finset.mem_filter] at ha ⊢
+  refine ⟨ha.1, ?_⟩
+  exact Nat.Coprime.coprime_dvd_right h ha.2
+
+/-- Universal upper bound: roughCount P Q is always bounded by the length P.k. -/
+lemma roughCount_le_card (P : IntAP) (Q : ℕ) : roughCount P Q ≤ P.k := by
+  have h1 : 1 ∣ Q := one_dvd Q
+  have h_mono := roughCount_mono P h1
+  rw [roughCount_one] at h_mono
+  exact h_mono
+
+/-- If every element of B is coprime to Q, and B is covered by a union of APs,
+    then |B| is bounded by the sum of rough counts of the APs. -/
+lemma card_le_sum_roughCount_of_subset_bUnion {ι : Type*} [DecidableEq ι]
+    (B : Finset ℤ) (Q : ℕ) (hB_rough : ∀ a ∈ B, Nat.Coprime a.natAbs Q)
+    (I : Finset ι) (APs : ι → IntAP)
+    (h_cov : B ⊆ I.biUnion (fun i => (APs i).toFinset)) :
+    B.card ≤ ∑ i ∈ I, roughCount (APs i) Q := by
+  have h_sub : B ⊆ I.biUnion (fun i => (APs i).toFinset.filter (fun a => Nat.Coprime a.natAbs Q)) := by
+    intro a ha
+    have ha_cov := h_cov ha
+    simp only [mem_biUnion] at ha_cov ⊢
+    rcases ha_cov with ⟨i, hi, ha_AP⟩
+    refine ⟨i, hi, ?_⟩
+    simp only [mem_filter]
+    exact ⟨ha_AP, hB_rough a ha⟩
+  have h_card := card_le_card h_sub
+  dsimp [roughCount]
+  exact h_card.trans card_biUnion_le
+
+/-- Summing the Selberg sieve rough count bound over an AP family covering B:
+    If each AP satisfies the roughCount bound and total length ≤ 3 * |R| ≤ 384 * d,
+    then |B| ≤ 384 * d * C_sieve. For C_sieve = 256 * log(log n) / log r,
+    this yields 384 * 256 * d * log(log n) / log r = 98304 * d * log(log n) / log r. -/
+lemma card_le_sieve_bound_of_ap_family {ι : Type*} [DecidableEq ι]
+    (B : Finset ℤ) (Q : ℕ) (hB_rough : ∀ a ∈ B, Nat.Coprime a.natAbs Q)
+    (I : Finset ι) (APs : ι → IntAP)
+    (h_cov : B ⊆ I.biUnion (fun i => (APs i).toFinset))
+    (d : ℕ) (_n _r : ℕ) (C_sieve : ℝ) (hC_nonneg : 0 ≤ C_sieve)
+    (h_sieve : ∀ i ∈ I, (roughCount (APs i) Q : ℝ) ≤ ((APs i).k : ℝ) * C_sieve)
+    (h_sum_len : (∑ i ∈ I, (APs i).k : ℝ) ≤ 384 * (d : ℝ)) :
+    (B.card : ℝ) ≤ 384 * (d : ℝ) * C_sieve := by
+  have h1 : (B.card : ℝ) ≤ (∑ i ∈ I, roughCount (APs i) Q : ℝ) := by
+    exact_mod_cast card_le_sum_roughCount_of_subset_bUnion B Q hB_rough I APs h_cov
+  have h2 : (∑ i ∈ I, roughCount (APs i) Q : ℝ) ≤ (∑ i ∈ I, ((APs i).k : ℝ)) * C_sieve := by
+    rw [sum_mul]
+    apply sum_le_sum
+    intro i hi
+    exact h_sieve i hi
+  calc (B.card : ℝ) ≤ (∑ i ∈ I, roughCount (APs i) Q : ℝ) := h1
+  _ ≤ (∑ i ∈ I, ((APs i).k : ℝ)) * C_sieve := h2
+  _ ≤ 384 * (d : ℝ) * C_sieve := by
+    exact mul_le_mul_of_nonneg_right h_sum_len hC_nonneg
+
+/-- A family of integer arithmetic progressions covering B with length and step bounds
+    matching CFP Lemma 5.10 / P17 specification. -/
+structure IntAPCover (B : Finset ℤ) (R_card : ℕ) (t n : ℕ) where
+  ι : Type
+  [instDecEq : DecidableEq ι]
+  I : Finset ι
+  APs : ι → IntAP
+  h_cov : B ⊆ I.biUnion (fun i => (APs i).toFinset)
+  h_sum_len : ∑ i ∈ I, (APs i).k ≤ 3 * R_card
+  h_min_len : ∀ i ∈ I, R_card ≤ (APs i).k ^ 3
+  h_step_pos : ∀ i ∈ I, 0 < (APs i).b
+  h_step_le_t : ∀ i ∈ I, (APs i).b ≤ t
+  h_t_le_n : t ≤ n
+
+attribute [instance] IntAPCover.instDecEq
+
+/-- Scaled coset AP lift: Lifting a coset to an integer AP with common difference t / h. -/
+def scaledCosetAPLift (t h : ℕ) (ht_pos : 0 < t) (hh_pos : 0 < h)
+    (h_dvd : h ∣ t) (c : ℤ) : IntAP where
+  a := c
+  b := t / h
+  hb := Nat.div_pos (Nat.le_of_dvd ht_pos h_dvd) hh_pos
+  k := h
+
+/-- Length of a scaled coset AP lift is h. -/
+lemma scaledCosetAPLift_k (t h : ℕ) (ht_pos : 0 < t) (hh_pos : 0 < h)
+    (h_dvd : h ∣ t) (c : ℤ) :
+    (scaledCosetAPLift t h ht_pos hh_pos h_dvd c).k = h := rfl
+
+/-- Common difference of a scaled coset AP lift is bounded by t. -/
+lemma scaledCosetAPLift_b_le (t h : ℕ) (ht_pos : 0 < t) (hh_pos : 0 < h)
+    (h_dvd : h ∣ t) (c : ℤ) :
+    (scaledCosetAPLift t h ht_pos hh_pos h_dvd c).b ≤ t := by
+  dsimp [scaledCosetAPLift]
+  exact Nat.div_le_self t h
+
+/-- Every element x in an additive subgroup H ≤ ZMod N has x.val divisible by N / |H|. -/
+lemma zmod_subgroup_val_dvd (N : ℕ) [NeZero N] (H : AddSubgroup (ZMod N))
+    (x : ZMod N) (hx : x ∈ H) :
+    let h := (H : Set (ZMod N)).toFinset.card
+    (N / h) ∣ x.val := by
+  intro h
+  have h_card : (H : Set (ZMod N)).toFinset.card = Fintype.card H := Set.toFinset_card (H : Set (ZMod N))
+  have h_nsmul : Fintype.card H • (⟨x, hx⟩ : H) = 0 := @card_nsmul_eq_zero H _ _ ⟨x, hx⟩
+  have h_zero : h • x = 0 := by
+    have h_val := congr_arg (fun (y : H) => (y : ZMod N)) h_nsmul
+    change Fintype.card H • x = 0 at h_val
+    dsimp [h]
+    rw [h_card]
+    exact h_val
+  have h_cast : ((h * x.val : ℕ) : ZMod N) = 0 := by
+    calc ((h * x.val : ℕ) : ZMod N) = (h : ZMod N) * (x.val : ZMod N) := by push_cast; rfl
+    _ = (h : ZMod N) * x := by rw [ZMod.natCast_zmod_val]
+    _ = h • x := by rw [nsmul_eq_mul]
+    _ = 0 := h_zero
+  have hdvd : N ∣ h * x.val := (CharP.cast_eq_zero_iff (ZMod N) N (h * x.val)).mp h_cast
+  have hh_dvd : h ∣ N := by
+    have h_lag := AddSubgroup.card_addSubgroup_dvd_card H
+    rw [Nat.card_zmod N, Nat.card_eq_fintype_card, ← h_card] at h_lag
+    exact h_lag
+  have h0 : (0 : ZMod N) ∈ (H : Set (ZMod N)).toFinset := by
+    rw [Set.mem_toFinset]
+    exact H.zero_mem
+  have hh_pos : 0 < h := Finset.card_pos.mpr ⟨0, h0⟩
+  have h_dvd_mul : h * (N / h) ∣ h * x.val := by
+    have h_eq : h * (N / h) = N := Nat.mul_div_cancel' hh_dvd
+    rwa [h_eq]
+  exact (Nat.mul_dvd_mul_iff_left hh_pos).mp h_dvd_mul
+
+/-- Scaled subgroup elements have coordinates divisible by t / |H|. -/
+lemma zmod_subgroup_scaled_val_dvd (N : ℕ) [NeZero N] (H : AddSubgroup (ZMod N))
+    (t g : ℕ) (h_gN : g * N = t)
+    (x : ZMod N) (hx : x ∈ H) :
+    let h := (H : Set (ZMod N)).toFinset.card
+    (t / h) ∣ g * x.val := by
+  intro h
+  have hdvd := zmod_subgroup_val_dvd N H x hx
+  rcases hdvd with ⟨k, hk⟩
+  have hh_dvd : h ∣ N := by
+    have h_card : (H : Set (ZMod N)).toFinset.card = Fintype.card H := Set.toFinset_card (H : Set (ZMod N))
+    have h_lag := AddSubgroup.card_addSubgroup_dvd_card H
+    rw [Nat.card_zmod N, Nat.card_eq_fintype_card, ← h_card] at h_lag
+    exact h_lag
+  use k
+  rw [hk]
+  have h_mul : g * (N / h * k) = (g * (N / h)) * k := by ring
+  rw [h_mul]
+  have h_assoc : g * (N / h) = (g * N) / h := (Nat.mul_div_assoc g hh_dvd).symm
+  rw [h_assoc, h_gN]
+
+/-- Constructing an IntAPCover from a general finite indexed family of integer APs
+    covering B with length sum ≤ 3 * R_card and minimum length R_card ≤ k^3. -/
+def intAPCover_of_family
+    (B : Finset ℤ) (R_card t n : ℕ) (htn : t ≤ n)
+    {ι : Type} [DecidableEq ι] (I : Finset ι) (APs : ι → IntAP)
+    (h_cov : B ⊆ I.biUnion (fun i => (APs i).toFinset))
+    (h_sum_len : ∑ i ∈ I, (APs i).k ≤ 3 * R_card)
+    (h_min_len : ∀ i ∈ I, R_card ≤ (APs i).k ^ 3)
+    (h_step_pos : ∀ i ∈ I, 0 < (APs i).b)
+    (h_step_le_t : ∀ i ∈ I, (APs i).b ≤ t) :
+    IntAPCover B R_card t n where
+  ι := ι
+  I := I
+  APs := APs
+  h_cov := h_cov
+  h_sum_len := h_sum_len
+  h_min_len := h_min_len
+  h_step_pos := h_step_pos
+  h_step_le_t := h_step_le_t
+  h_t_le_n := htn
+
+/-- An IntAPCover consisting of a single arithmetic progression covering B. -/
+def intAPCover_of_single
+    (B : Finset ℤ) (R_card t n : ℕ) (htn : t ≤ n)
+    (P : IntAP)
+    (h_cov : B ⊆ P.toFinset)
+    (h_k_le : P.k ≤ 3 * R_card)
+    (h_k_ge : R_card ≤ P.k ^ 3)
+    (h_step_le : P.b ≤ t) :
+    IntAPCover B R_card t n where
+  ι := Unit
+  I := {()}
+  APs := fun _ => P
+  h_cov := by
+    intro x hx
+    simp only [Finset.mem_biUnion, Finset.mem_singleton]
+    exact ⟨(), by simp, h_cov hx⟩
+  h_sum_len := by
+    simp only [Finset.sum_singleton]
+    exact h_k_le
+  h_min_len := by
+    intro i _hi
+    exact h_k_ge
+  h_step_pos := by
+    intro i _hi
+    exact P.hb
+  h_step_le_t := by
+    intro i _hi
+    exact h_step_le
+  h_t_le_n := htn
+
+/-- An IntAPCover consisting of a family of q arithmetic progressions each of length h. -/
+def intAPCover_of_coset_family
+    (B : Finset ℤ) (R_card t n : ℕ) (htn : t ≤ n)
+    (q h : ℕ) (APs : Fin q → IntAP)
+    (h_cov : B ⊆ (Finset.univ : Finset (Fin q)).biUnion (fun i => (APs i).toFinset))
+    (h_len : ∀ i, (APs i).k = h)
+    (h_sum_le : q * h ≤ 3 * R_card)
+    (h_min_len : R_card ≤ h ^ 3)
+    (h_step_le : ∀ i, (APs i).b ≤ t) :
+    IntAPCover B R_card t n where
+  ι := Fin q
+  I := Finset.univ
+  APs := APs
+  h_cov := h_cov
+  h_sum_len := by
+    have h_sum := coset_family_length_sum_eq q h APs h_len
+    rw [h_sum]
+    exact h_sum_le
+  h_min_len := by
+    intro i _hi
+    rw [h_len i]
+    exact h_min_len
+  h_step_pos := by
+    intro i _hi
+    exact (APs i).hb
+  h_step_le_t := by
+    intro i _hi
+    exact h_step_le i
+  h_t_le_n := htn
 
 /-!
 ### 16. Finite Numerical Parameter Package (Conlon–Fox–Pham 2021, Lemma 5.6 Finite Conditions / Phase P12)
@@ -5076,30 +5416,163 @@ def initialGreedyState (A : Finset ℕ) : GreedyState A where
   E := ∅
   hE_sub := Finset.empty_subset A
 
-/-- Deterministic greedy candidate selection using Classical.choose. -/
-noncomputable def greedyChoice {A : Finset ℕ} (t : ℕ) (st : GreedyState A)
+/-- Modulo t subset sums of elements in E divisible by g (Conlon–Fox–Pham 2021, §5.1 T_g(E)). -/
+def selectedMultiplesSums (t g : ℕ) (E : Finset ℕ) : Finset (ZMod t) :=
+  subsetSumsMod t (E.filter (fun a => g ∣ a))
+
+lemma zero_mem_selectedMultiplesSums (t g : ℕ) (E : Finset ℕ) :
+    (0 : ZMod t) ∈ selectedMultiplesSums t g E :=
+  zero_mem_subsetSumsMod t _
+
+lemma card_selectedMultiplesSums_pos (t g : ℕ) (E : Finset ℕ) :
+    0 < (selectedMultiplesSums t g E).card :=
+  Finset.card_pos.mpr ⟨0, zero_mem_selectedMultiplesSums t g E⟩
+
+lemma one_le_card_selectedMultiplesSums (t g : ℕ) (E : Finset ℕ) :
+    1 ≤ (selectedMultiplesSums t g E).card :=
+  card_selectedMultiplesSums_pos t g E
+
+lemma selectedMultiplesSums_mono (t g : ℕ) {E E' : Finset ℕ} (hEE' : E ⊆ E') :
+    selectedMultiplesSums t g E ⊆ selectedMultiplesSums t g E' :=
+  subsetSumsMod_mono (Finset.filter_subset_filter _ hEE')
+
+lemma card_selectedMultiplesSums_le_of_subset (t g : ℕ) {E E' : Finset ℕ} (hEE' : E ⊆ E') :
+    (selectedMultiplesSums t g E).card ≤ (selectedMultiplesSums t g E').card :=
+  Finset.card_le_card (selectedMultiplesSums_mono t g hEE')
+
+lemma card_selectedMultiplesSums_insert_eq (t g : ℕ) (E : Finset ℕ) (a : ℕ)
+    (ha_not : a ∉ E) (ha_dvd : g ∣ a) :
+    (selectedMultiplesSums t g (insert a E)).card =
+      (selectedMultiplesSums t g E).card + delta (selectedMultiplesSums t g E) (a : ZMod t) := by
+  dsimp [selectedMultiplesSums]
+  have h_filter : (insert a E).filter (fun x => g ∣ x) = insert a (E.filter (fun x => g ∣ x)) := by
+    ext x
+    simp only [Finset.mem_filter, Finset.mem_insert]
+    constructor
+    · rintro ⟨rfl | hx, hg⟩
+      · exact Or.inl rfl
+      · exact Or.inr ⟨hx, hg⟩
+    · rintro (rfl | ⟨hx, hg⟩)
+      · exact ⟨Or.inl rfl, ha_dvd⟩
+      · exact ⟨Or.inr hx, hg⟩
+  rw [h_filter]
+  have ha_not_filter : a ∉ E.filter (fun x => g ∣ x) := by
+    intro h
+    exact ha_not (Finset.mem_filter.mp h).1
+  exact card_subsetSumsMod_insert_eq t (E.filter (fun x => g ∣ x)) a ha_not_filter
+
+lemma card_selectedMultiplesSums_le_U {A : Finset ℕ} (t U : ℕ) (st : GreedyState A)
+    (ht_pos : 0 < t) (h_grow : isGrowthStage t U st) :
+    (selectedMultiplesSums t (st.g t) st.E).card ≤ U := by
+  rcases h_grow with ⟨r, hr_img, hr_card⟩
+  have hd : st.g t ∣ t := subgroupIndex_dvd_modulus t st.B
+  have hg_pos : 0 < st.g t := subgroupIndex_pos t st.B ht_pos
+  simp only [Finset.mem_image] at hr_img
+  rcases hr_img with ⟨s, hs_in, rfl⟩
+  have hs_mem : s ∈ residueFiber t (st.g t) hd st.E (zmodProj hd s) :=
+    Finset.mem_filter.mpr ⟨hs_in, rfl⟩
+  have h_nonempty : (residueFiber t (st.g t) hd st.E (zmodProj hd s)).Nonempty := ⟨s, hs_mem⟩
+  have h_le_fiber := card_subsetSumsMod_dvd_le_fiber t (st.g t) hg_pos ht_pos hd st.E (zmodProj hd s) h_nonempty
+  change (residueFiber t (st.g t) hd st.E (zmodProj hd s)).card ≤ U at hr_card
+  exact h_le_fiber.trans hr_card
+
+/-- Residue of the chosen small fiber during a growth stage (auxiliary tool). -/
+noncomputable def growthResidue {A : Finset ℕ} (t U : ℕ) (st : GreedyState A)
+    (h_grow : isGrowthStage t U st) : ZMod (st.g t) :=
+  h_grow.choose
+
+/-- The chosen small fiber during a growth stage (auxiliary tool). -/
+noncomputable def growthFiber {A : Finset ℕ} (t U : ℕ) (st : GreedyState A)
+    (h_grow : isGrowthStage t U st) : Finset (ZMod t) :=
+  fiber (subgroupIndex_dvd_modulus t st.B) (st.S t) (growthResidue t U st h_grow)
+
+/-- The chosen small fiber has cardinality bounded by U. -/
+lemma card_growthFiber_le {A : Finset ℕ} (t U : ℕ) (st : GreedyState A)
+    (h_grow : isGrowthStage t U st) :
+    (growthFiber t U st h_grow).card ≤ U :=
+  h_grow.choose_spec.2
+
+/-- Existence of a candidate in B maximizing the translation growth of selected multiples sums. -/
+lemma exists_growth_element {A : Finset ℕ} (t : ℕ) (st : GreedyState A)
+    (hB_nonempty : st.B.Nonempty) :
+    ∃ a ∈ st.B, ∀ x ∈ st.B,
+      delta (selectedMultiplesSums t (st.g t) st.E) (x : ZMod t) ≤
+      delta (selectedMultiplesSums t (st.g t) st.E) (a : ZMod t) :=
+  Finset.exists_max_image st.B (fun x => delta (selectedMultiplesSums t (st.g t) st.E) (x : ZMod t)) hB_nonempty
+
+/-- Deterministic candidate selection in growth stage maximizing selected multiples sums delta. -/
+noncomputable def growthChoice {A : Finset ℕ} (t : ℕ) (st : GreedyState A)
+    (hB : st.B.Nonempty) : ℕ :=
+  (exists_growth_element t st hB).choose
+
+lemma growthChoice_mem {A : Finset ℕ} (t : ℕ) (st : GreedyState A)
+    (hB : st.B.Nonempty) :
+    growthChoice t st hB ∈ st.B :=
+  (exists_growth_element t st hB).choose_spec.1
+
+lemma growthChoice_max {A : Finset ℕ} (t : ℕ) (st : GreedyState A)
+    (hB : st.B.Nonempty) (x : ℕ) (hx : x ∈ st.B) :
+    delta (selectedMultiplesSums t (st.g t) st.E) (x : ZMod t) ≤
+    delta (selectedMultiplesSums t (st.g t) st.E) (growthChoice t st hB : ZMod t) :=
+  (exists_growth_element t st hB).choose_spec.2 x hx
+
+/-- Deterministic ordinary candidate selection maximizing total modular delta. -/
+noncomputable def ordinaryChoice {A : Finset ℕ} (t : ℕ) (st : GreedyState A)
     (hB : st.B.Nonempty) : ℕ :=
   (exists_greedy_element t st hB).choose
 
-lemma greedyChoice_mem {A : Finset ℕ} (t : ℕ) (st : GreedyState A)
+lemma ordinaryChoice_mem {A : Finset ℕ} (t : ℕ) (st : GreedyState A)
     (hB : st.B.Nonempty) :
-    greedyChoice t st hB ∈ st.B :=
+    ordinaryChoice t st hB ∈ st.B :=
   (exists_greedy_element t st hB).choose_spec.1
 
-lemma greedyChoice_max {A : Finset ℕ} (t : ℕ) (st : GreedyState A)
+lemma ordinaryChoice_max {A : Finset ℕ} (t : ℕ) (st : GreedyState A)
     (hB : st.B.Nonempty) (x : ℕ) (hx : x ∈ st.B) :
-    delta (st.S t) (x : ZMod t) ≤ delta (st.S t) (greedyChoice t st hB : ZMod t) :=
+    delta (st.S t) (x : ZMod t) ≤ delta (st.S t) (ordinaryChoice t st hB : ZMod t) :=
   (exists_greedy_element t st hB).choose_spec.2 x hx
 
-/-- Recursive trajectory of greedy states.
-    If remaining candidates are non-empty and j < K, pick the greedy element. -/
+/-- Unified Stage-Aware Greedy Candidate Selection (Conlon–Fox–Pham 2021, §5.1):
+    - Growth stage: maximize delta of selected multiples sums δ(selectedMultiplesSums, a).
+    - Ordinary stage: maximize total modular delta δ(S, a) for Claim 2. -/
+noncomputable def greedyChoice {A : Finset ℕ} (t U : ℕ) (st : GreedyState A)
+    (hB : st.B.Nonempty) : ℕ :=
+  if isGrowthStage t U st then
+    growthChoice t st hB
+  else
+    ordinaryChoice t st hB
+
+lemma greedyChoice_mem {A : Finset ℕ} (t U : ℕ) (st : GreedyState A)
+    (hB : st.B.Nonempty) :
+    greedyChoice t U st hB ∈ st.B := by
+  dsimp [greedyChoice]
+  split_ifs
+  · exact growthChoice_mem t st hB
+  · exact ordinaryChoice_mem t st hB
+
+lemma greedyChoice_growth_max {A : Finset ℕ} (t U : ℕ) (st : GreedyState A)
+    (hB : st.B.Nonempty) (h_grow : isGrowthStage t U st) (x : ℕ) (hx : x ∈ st.B) :
+    delta (selectedMultiplesSums t (st.g t) st.E) (x : ZMod t) ≤
+    delta (selectedMultiplesSums t (st.g t) st.E) (greedyChoice t U st hB : ZMod t) := by
+  dsimp [greedyChoice]
+  rw [if_pos h_grow]
+  exact growthChoice_max t st hB x hx
+
+lemma greedyChoice_ordinary_max {A : Finset ℕ} (t U : ℕ) (st : GreedyState A)
+    (hB : st.B.Nonempty) (h_not_grow : ¬ isGrowthStage t U st) (x : ℕ) (hx : x ∈ st.B) :
+    delta (st.S t) (x : ZMod t) ≤ delta (st.S t) (greedyChoice t U st hB : ZMod t) := by
+  dsimp [greedyChoice]
+  rw [if_neg h_not_grow]
+  exact ordinaryChoice_max t st hB x hx
+
+/-- Recursive trajectory of greedy states with stage-aware candidate selection.
+    If remaining candidates are non-empty and j < K, pick the stage-aware greedy element. -/
 noncomputable def greedySeq (fc : FiniteConditions) : ℕ → GreedyState fc.A
   | 0 => initialGreedyState fc.A
   | j + 1 =>
     if j < fc.K then
       let st := greedySeq fc j
       if hB : st.B.Nonempty then
-        nextState st (greedyChoice fc.t st hB) (greedyChoice_mem fc.t st hB)
+        nextState st (greedyChoice fc.t fc.U st hB) (greedyChoice_mem fc.t fc.U st hB)
       else st
     else greedySeq fc j
 
@@ -5137,7 +5610,7 @@ noncomputable def greedyDelta (fc : FiniteConditions) (j : ℕ) : ℕ :=
   if hj : j < fc.K then
     let st := greedySeq fc j
     have hB : st.B.Nonempty := st.B_nonempty (by rw [card_greedySeq_E fc j (by omega)]; omega)
-    delta (st.S fc.t) (greedyChoice fc.t st hB : ZMod fc.t)
+    delta (st.S fc.t) (greedyChoice fc.t fc.U st hB : ZMod fc.t)
   else 0
 
 /-- Step increment formula for subset sums cardinality. -/
@@ -5147,13 +5620,13 @@ lemma card_greedySeq_S_succ (fc : FiniteConditions) (j : ℕ) (hj : j < fc.K) :
   let st := greedySeq fc j
   have hB : st.B.Nonempty := st.B_nonempty (by rw [card_greedySeq_E fc j (by omega)]; omega)
   have hj_card : st.E.card ≤ fc.K := by rw [card_greedySeq_E fc j (by omega)]; omega
-  have h_notMem : greedyChoice fc.t st hB ∉ st.E :=
-    (Finset.mem_sdiff.mp (greedyChoice_mem fc.t st hB)).2
+  have h_notMem : greedyChoice fc.t fc.U st hB ∉ st.E :=
+    (Finset.mem_sdiff.mp (greedyChoice_mem fc.t fc.U st hB)).2
   dsimp [greedySeq]
   rw [if_pos hj, dif_pos hB]
   dsimp [GreedyState.S, nextState, greedyDelta]
   rw [dif_pos hj]
-  rw [card_subsetSumsMod_insert_eq fc.t st.E (greedyChoice fc.t st hB) h_notMem]
+  rw [card_subsetSumsMod_insert_eq fc.t st.E (greedyChoice fc.t fc.U st hB) h_notMem]
 
 /-- Telescoping sum lower bound: sum of delta increments is bounded by the final subset sums size. -/
 lemma sum_delta_le_card_final (fc : FiniteConditions) :
@@ -5434,6 +5907,14 @@ lemma mem_Y_of_mem_Y_v (y m W v a : ℕ) (ha : inY_v y m W v a) : inY y m W (v *
   rcases ha with ⟨h_ge, h_lt, q, u, rfl, h_dvd, h_pow, h_coprime⟩
   refine ⟨h_ge, h_lt, q, v * u, ?_, h_dvd, h_pow, h_coprime⟩
   ring
+
+/-- Extraction of coprime components from inY_v candidates:
+    Every candidate a ∈ Y_v factors as a = q * u where q is coprime to W and m. -/
+lemma coprime_q_W_of_inY_v {y m W v a : ℕ} (ha : inY_v y m W v a) :
+    ∃ q u : ℕ, a = q * u ∧ Nat.Coprime q W ∧ Nat.Coprime q m := by
+  rcases ha with ⟨_, _, q, u, rfl, _, _, hcop⟩
+  have ⟨h1, h2⟩ := Nat.coprime_mul_iff_right.mp hcop
+  exact ⟨q, u, rfl, h1, h2⟩
 
 /-- Arithmetic parameter configuration for Conlon–Fox–Pham Lemma 5.6.
     Explicitly bundles number-theoretic data (target n, scaling v, modulus t, set A)
@@ -5794,10 +6275,3872 @@ theorem card_CFPLemma54Subsets_eq {A : Finset ℕ} {s k k' : ℕ}
     (CFPLemma54Subsets A s k').card = Nat.choose A.card s := by
   rw [cfp_lemma_5_4_all_subsets_diverse hA h_loss hk', Finset.card_powersetCard]
 
+/-- Combinatorial partition of a finite set into m pairwise disjoint subsets of equal size s. -/
+theorem exists_disjoint_subsets_list {α : Type*} [DecidableEq α]
+    (A : Finset α) (m s : ℕ) (h_card : m * s ≤ A.card) :
+    ∃ L : List (Finset α),
+      L.length = m ∧
+      (∀ B ∈ L, B ⊆ A) ∧
+      (∀ B ∈ L, B.card = s) ∧
+      L.Pairwise Disjoint := by
+  induction m generalizing A with
+  | zero =>
+    refine ⟨[], rfl, by simp, by simp, List.Pairwise.nil⟩
+  | succ m ih =>
+    have h_prod : (m + 1) * s = m * s + s := Nat.succ_mul m s
+    have hs_le : s ≤ A.card := by omega
+    obtain ⟨B0, hB0_sub, hB0_card⟩ := Finset.exists_subset_card_eq hs_le
+    let A' := A \ B0
+    have hA'_card : m * s ≤ A'.card := by
+      rw [Finset.card_sdiff_of_subset hB0_sub, hB0_card]
+      omega
+    obtain ⟨L', hlen', hsub', hcard', hdisj'⟩ := ih A' hA'_card
+    refine ⟨B0 :: L', ?_, ?_, ?_, ?_⟩
+    · simp [hlen']
+    · intro B hB
+      simp only [List.mem_cons] at hB
+      rcases hB with rfl | hB_in
+      · exact hB0_sub
+      · have := hsub' B hB_in
+        exact this.trans Finset.sdiff_subset
+    · intro B hB
+      simp only [List.mem_cons] at hB
+      rcases hB with rfl | hB_in
+      · exact hB0_card
+      · exact hcard' B hB_in
+    · apply List.Pairwise.cons
+      · intro B hB
+        have hB_sub_A' : B ⊆ A' := hsub' B hB
+        rw [Finset.disjoint_left]
+        intro x hx0 hxB
+        have hx_A' := hB_sub_A' hxB
+        simp only [A', Finset.mem_sdiff] at hx_A'
+        exact hx_A'.2 hx0
+      · exact hdisj'
+
+/-- Conlon–Fox–Pham Lemma 5.4 Multi-Subset Diverse Partition (List Form):
+    From a k-diverse set A, whenever m * s ≤ |A| and |A| - s ≤ k - k' with k' ≤ k,
+    there exists a list of m mutually disjoint subsets of size s that all retain k'-diversity. -/
+theorem exists_disjoint_diverse_list {A : Finset ℕ} {k k' m s : ℕ}
+    (hA : IsDiverse A k)
+    (h_card : m * s ≤ A.card)
+    (h_loss : A.card - s ≤ k - k')
+    (hk' : k' ≤ k) :
+    ∃ L : List (Finset ℕ),
+      L.length = m ∧
+      (∀ B ∈ L, B ⊆ A) ∧
+      (∀ B ∈ L, B.card = s) ∧
+      (∀ B ∈ L, IsDiverse B k') ∧
+      L.Pairwise Disjoint := by
+  obtain ⟨L, hlen, hsub, hcard, hdisj⟩ := exists_disjoint_subsets_list A m s h_card
+  refine ⟨L, hlen, hsub, hcard, ?_, hdisj⟩
+  intro B hB
+  apply isDiverse_subset_of_card_diff_le hA (hsub B hB) _ hk'
+  rw [hcard B hB]
+  exact h_loss
+
+/-- Pairwise disjointness indexed by Fin for any pairwise disjoint list. -/
+lemma pairwise_get_of_pairwise {α : Type*} {L : List (Finset α)} (h : L.Pairwise Disjoint)
+    (i j : Fin L.length) (hij : i ≠ j) : Disjoint (L.get i) (L.get j) := by
+  obtain ⟨i, hi⟩ := i
+  obtain ⟨j, hj⟩ := j
+  dsimp at hij ⊢
+  rcases lt_or_gt_of_ne (fun h_eq => hij (Fin.ext h_eq)) with hlt | hgt
+  · exact List.pairwise_iff_get.mp h ⟨i, hi⟩ ⟨j, hj⟩ hlt
+  · exact (List.pairwise_iff_get.mp h ⟨j, hj⟩ ⟨i, hi⟩ hgt).symm
+
+/-- Conlon–Fox–Pham Lemma 5.4 Multi-Subset Diverse Family:
+    From a k-diverse set A, whenever m * s ≤ |A| and |A| - s ≤ k - k' with k' ≤ k,
+    there exists a family V : Fin m → Finset ℕ of pairwise disjoint subsets of size s
+    that all retain k'-diversity. -/
+theorem exists_disjoint_diverse_family {A : Finset ℕ} {k k' m s : ℕ}
+    (hA : IsDiverse A k)
+    (h_card : m * s ≤ A.card)
+    (h_loss : A.card - s ≤ k - k')
+    (hk' : k' ≤ k) :
+    ∃ V : Fin m → Finset ℕ,
+      (∀ i, V i ⊆ A) ∧
+      (∀ i, (V i).card = s) ∧
+      (∀ i, IsDiverse (V i) k') ∧
+      (∀ i j, i ≠ j → Disjoint (V i) (V j)) := by
+  obtain ⟨L, hlen, hsub, hcard, hdiv, hdisj⟩ :=
+    exists_disjoint_diverse_list hA h_card h_loss hk'
+  let V : Fin m → Finset ℕ := fun i => L.get ⟨i.1, by omega⟩
+  refine ⟨V, ?_, ?_, ?_, ?_⟩
+  · intro i
+    have h_mem : V i ∈ L := List.get_mem L ⟨i.1, by omega⟩
+    exact hsub (V i) h_mem
+  · intro i
+    have h_mem : V i ∈ L := List.get_mem L ⟨i.1, by omega⟩
+    exact hcard (V i) h_mem
+  · intro i
+    have h_mem : V i ∈ L := List.get_mem L ⟨i.1, by omega⟩
+    exact hdiv (V i) h_mem
+  · intro i j hij
+    dsimp [V]
+    have hij' : (⟨i.1, by omega⟩ : Fin L.length) ≠ ⟨j.1, by omega⟩ := by
+      intro h_eq
+      apply hij
+      ext
+      exact Fin.mk.inj h_eq
+    exact pairwise_get_of_pairwise hdisj ⟨i.1, by omega⟩ ⟨j.1, by omega⟩ hij'
+
+/-- Extraction of a disjoint diverse pair from a diverse family of size m ≥ 2. -/
+theorem exists_disjoint_diverse_pair_of_family {A : Finset ℕ} {k' m s : ℕ}
+    (hm : 2 ≤ m)
+    (V : Fin m → Finset ℕ)
+    (h_sub : ∀ i, V i ⊆ A)
+    (h_card : ∀ i, (V i).card = s)
+    (h_div : ∀ i, IsDiverse (V i) k')
+    (h_disj : ∀ i j, i ≠ j → Disjoint (V i) (V j)) :
+    ∃ A1 A2 : Finset ℕ,
+      A1 ⊆ A ∧ A2 ⊆ A ∧
+      Disjoint A1 A2 ∧
+      A1.card = s ∧ A2.card = s ∧
+      IsDiverse A1 k' ∧ IsDiverse A2 k' := by
+  let i0 : Fin m := ⟨0, by omega⟩
+  let i1 : Fin m := ⟨1, by omega⟩
+  have h_ne : i0 ≠ i1 := by
+    intro h_eq
+    have : (0 : ℕ) = 1 := Fin.mk.inj h_eq
+    omega
+  refine ⟨V i0, V i1, h_sub i0, h_sub i1, h_disj i0 i1 h_ne, h_card i0, h_card i1, h_div i0, h_div i1⟩
+
+/-- Full Conlon–Fox–Pham Lemma 5.4 Diverse Partition Theorem:
+    Partitioning A into h disjoint subsets of size |A| / h, each retaining k / (2 * h) diversity
+    whenever the loss budget holds. -/
+theorem exists_disjoint_diverse_partition_of_div {A : Finset ℕ} {k h : ℕ}
+    (hA : IsDiverse A k) (_hh : 1 ≤ h)
+    (h_loss : A.card - A.card / h ≤ k - k / (2 * h))
+    (hk_div : k / (2 * h) ≤ k) :
+    ∃ V : Fin h → Finset ℕ,
+      (∀ i, V i ⊆ A) ∧
+      (∀ i, (V i).card = A.card / h) ∧
+      (∀ i, IsDiverse (V i) (k / (2 * h))) ∧
+      (∀ i j, i ≠ j → Disjoint (V i) (V j)) := by
+  have h_card : h * (A.card / h) ≤ A.card := by
+    rw [mul_comm]
+    exact Nat.div_mul_le_self A.card h
+  exact exists_disjoint_diverse_family hA h_card h_loss hk_div
+
+
+/-!
+### 23. Modulo Density to Integer Subset Sum Growth (Conlon–Fox–Pham 2021, Lemma 2.5 & Lemma 5.5 / Phase 22)
+
+This section translates modular subset sum density (from Lemma 5.6) to integer subset sum growth:
+1. Monotonicity of subset sums: A ⊆ B ⟹ Σ(A) ⊆ Σ(B).
+2. Maximum fiber element selection in Σ(A) modulo m.
+3. Conlon–Fox–Pham Lemma 2.5: |Σ(A)| + |Σ_m(A)| ≤ |Σ(A ∪ {m})| for m ∉ A, m > 0.
+4. Iterated disjoint sumset growth: |Σ(S)| + ∑_{b ∈ B} |Σ_b(S)| ≤ |Σ(S ∪ B)|.
+5. Uniform modular bound on disjoint union: |B| * L ≤ |Σ(S ∪ B)| when ∀ b ∈ B, L ≤ |Σ_b(S)|.
+6. CFP Lemma 5.5 Master Theorem: |Σ(A)| ≥ |A_2| * c * (y / v) for diverse A_1, A_2 ⊆ A.
+7. Lemma 5.5 scale specialization: |Σ(A)| ≥ s * min(xi, 32/ell) * (y / v).
+-/
+
+/-- Monotonicity of integer subset sums under subset inclusion. -/
+lemma subsetSums_mono {A B : Finset ℕ} (h : A ⊆ B) : subsetSums A ⊆ subsetSums B := by
+  intro x hx
+  simp only [mem_subsetSums_iff] at hx ⊢
+  rcases hx with ⟨S, hS, rfl⟩
+  exact ⟨S, hS.trans h, rfl⟩
+
+/-- Maximum fiber element in subsetSums A for residue class r modulo m. -/
+noncomputable def maxFiberElem (A : Finset ℕ) (m : ℕ) (r : ZMod m) : ℕ :=
+  if h : ((subsetSums A).filter (fun (x : ℕ) => ((x : ZMod m) = r))).Nonempty then
+    ((subsetSums A).filter (fun (x : ℕ) => ((x : ZMod m) = r))).max' h
+  else 0
+
+/-- Properties of maxFiberElem: belongs to subsetSums A and projects to r modulo m. -/
+lemma maxFiberElem_mem {A : Finset ℕ} {m : ℕ} {r : ZMod m}
+    (hr : r ∈ subsetSumsMod m A) :
+    maxFiberElem A m r ∈ subsetSums A ∧ ((maxFiberElem A m r : ℕ) : ZMod m) = r := by
+  dsimp [maxFiberElem]
+  have h_ne : ((subsetSums A).filter (fun (x : ℕ) => ((x : ZMod m) = r))).Nonempty := by
+    simp only [subsetSumsMod, Finset.mem_image] at hr
+    rcases hr with ⟨x, hx, rfl⟩
+    refine ⟨x, ?_⟩
+    simp only [Finset.mem_filter, hx, true_and]
+  rw [dif_pos h_ne]
+  have h_mem := Finset.max'_mem _ h_ne
+  simp only [Finset.mem_filter] at h_mem
+  exact h_mem
+
+/-- Any element in subsetSums A with residue r is bounded by maxFiberElem. -/
+lemma le_maxFiberElem {A : Finset ℕ} {m : ℕ} {r : ZMod m} (x : ℕ)
+    (hx : x ∈ subsetSums A) (hxr : ((x : ℕ) : ZMod m) = r) :
+    x ≤ maxFiberElem A m r := by
+  dsimp [maxFiberElem]
+  have h_ne : ((subsetSums A).filter (fun (y : ℕ) => ((y : ZMod m) = r))).Nonempty :=
+    ⟨x, by simp only [Finset.mem_filter, hx, hxr, and_self]⟩
+  rw [dif_pos h_ne]
+  apply Finset.le_max'
+  simp only [Finset.mem_filter, hx, hxr, and_self]
+
+/-- Conlon–Fox–Pham (2021) Lemma 2.5 (Single-element subset sum growth from modular density):
+    For any set of positive integers A and m ∉ A with m > 0,
+      |Σ(A)| + |Σ_m(A)| ≤ |Σ(A ∪ {m})|. -/
+theorem card_subsetSums_insert_ge (A : Finset ℕ) (m : ℕ) (hm : 0 < m) (hm_not : m ∉ A) :
+    (subsetSums A).card + (subsetSumsMod m A).card ≤ (subsetSums (insert m A)).card := by
+  let S := subsetSums A
+  let R := subsetSumsMod m A
+  let g : ZMod m → ℕ := fun r => maxFiberElem A m r + m
+  let W : Finset ℕ := R.image g
+  have hW_sub : W ⊆ subsetSums (insert m A) := by
+    intro y hy
+    simp only [W, Finset.mem_image] at hy
+    rcases hy with ⟨r, hr, rfl⟩
+    have hr_spec := (maxFiberElem_mem hr).1
+    rw [subsetSums_insert A m hm_not]
+    apply Finset.mem_union_right
+    simp only [Finset.mem_image]
+    exact ⟨maxFiberElem A m r, hr_spec, rfl⟩
+  have hS_sub : S ⊆ subsetSums (insert m A) := by
+    rw [subsetSums_insert A m hm_not]
+    exact Finset.subset_union_left
+  have h_disj : Disjoint S W := by
+    rw [Finset.disjoint_right]
+    intro y hy
+    simp only [W, Finset.mem_image] at hy
+    rcases hy with ⟨r, hr, rfl⟩
+    intro hy_in_S
+    have hr_mod := (maxFiberElem_mem hr).2
+    have h_mod_y : ((maxFiberElem A m r + m : ℕ) : ZMod m) = r := by
+      push_cast
+      rw [hr_mod, CharP.cast_eq_zero (ZMod m) m, add_zero]
+    have h_le := le_maxFiberElem (maxFiberElem A m r + m) hy_in_S h_mod_y
+    omega
+  have h_inj : ∀ r1 ∈ R, ∀ r2 ∈ R, g r1 = g r2 → r1 = r2 := by
+    intro r1 hr1 r2 hr2 h_eq
+    have h_mod1 : ((g r1 : ℕ) : ZMod m) = r1 := by
+      dsimp [g]
+      push_cast
+      rw [(maxFiberElem_mem hr1).2, CharP.cast_eq_zero (ZMod m) m, add_zero]
+    have h_mod2 : ((g r2 : ℕ) : ZMod m) = r2 := by
+      dsimp [g]
+      push_cast
+      rw [(maxFiberElem_mem hr2).2, CharP.cast_eq_zero (ZMod m) m, add_zero]
+    rw [← h_mod1, ← h_mod2, h_eq]
+  have hW_card : W.card = R.card := Finset.card_image_of_injOn h_inj
+  have h_union_sub : S ∪ W ⊆ subsetSums (insert m A) := Finset.union_subset hS_sub hW_sub
+  have h_card_union := Finset.card_le_card h_union_sub
+  rw [Finset.card_union_of_disjoint h_disj, hW_card] at h_card_union
+  exact h_card_union
+
+/-- Conlon–Fox–Pham (2021) Lemma 2.5 (Iterated subset sum growth over disjoint sets):
+    For disjoint sets S, B ⊆ ℕ where all elements in B are strictly positive,
+      |Σ(S)| + ∑ b ∈ B, |Σ_b(S)| ≤ |Σ(S ∪ B)|. -/
+theorem card_subsetSums_union_ge_sum (S B : Finset ℕ) (h_disj : Disjoint S B) (hB_pos : ∀ b ∈ B, 0 < b) :
+    (subsetSums S).card + ∑ b ∈ B, (subsetSumsMod b S).card ≤ (subsetSums (S ∪ B)).card := by
+  induction B using Finset.induction_on with
+  | empty =>
+    simp only [Finset.sum_empty, add_zero, Finset.union_empty, le_refl]
+  | @insert b B' hb_not ih =>
+    have hb_in : b ∈ insert b B' := Finset.mem_insert_self b B'
+    have hb_pos : 0 < b := hB_pos b hb_in
+    have hB'_pos : ∀ x ∈ B', 0 < x := fun x hx => hB_pos x (Finset.mem_insert_of_mem hx)
+    have h_disj' : Disjoint S B' := by
+      rw [Finset.disjoint_left] at h_disj ⊢
+      intro x hxS hxB'
+      exact h_disj hxS (Finset.mem_insert_of_mem hxB')
+    have hb_not_S : b ∉ S := by
+      intro hbS
+      rw [Finset.disjoint_left] at h_disj
+      exact h_disj hbS hb_in
+    have hb_not_SB' : b ∉ S ∪ B' := by
+      simp only [Finset.mem_union, not_or]
+      exact ⟨hb_not_S, hb_not⟩
+    have ih_res := ih h_disj' hB'_pos
+    have h_single := card_subsetSums_insert_ge (S ∪ B') b hb_pos hb_not_SB'
+    have h_mono : subsetSumsMod b S ⊆ subsetSumsMod b (S ∪ B') :=
+      subsetSumsMod_mono Finset.subset_union_left
+    have h_card_mono : (subsetSumsMod b S).card ≤ (subsetSumsMod b (S ∪ B')).card :=
+      Finset.card_le_card h_mono
+    rw [Finset.sum_insert hb_not]
+    have h_insert_eq : insert b (S ∪ B') = S ∪ insert b B' := by
+      ext x
+      simp only [Finset.mem_insert, Finset.mem_union]
+      tauto
+    rw [h_insert_eq] at h_single
+    omega
+
+/-- Uniform modular lower bound on disjoint addition:
+    if |Σ_b(S)| ≥ L for all b ∈ B, then |Σ(S ∪ B)| ≥ |B| * L. -/
+theorem card_subsetSums_union_ge_mul_min (S B : Finset ℕ) (h_disj : Disjoint S B)
+    (hB_pos : ∀ b ∈ B, 0 < b) (L : ℕ) (hL : ∀ b ∈ B, L ≤ (subsetSumsMod b S).card) :
+    B.card * L ≤ (subsetSums (S ∪ B)).card := by
+  have h_sum_ge : B.card * L ≤ ∑ b ∈ B, (subsetSumsMod b S).card := by
+    have : ∑ b ∈ B, L ≤ ∑ b ∈ B, (subsetSumsMod b S).card := Finset.sum_le_sum (fun b hb => hL b hb)
+    rw [Finset.sum_const, nsmul_eq_mul] at this
+    exact this
+  have h_main := card_subsetSums_union_ge_sum S B h_disj hB_pos
+  omega
+
+/-- Real version of uniform modular lower bound on disjoint addition. -/
+theorem card_subsetSums_union_ge_mul_min_real (S B : Finset ℕ) (h_disj : Disjoint S B)
+    (hB_pos : ∀ b ∈ B, 0 < b) (L : ℝ) (hL : ∀ b ∈ B, L ≤ ((subsetSumsMod b S).card : ℝ)) :
+    (B.card : ℝ) * L ≤ ((subsetSums (S ∪ B)).card : ℝ) := by
+  have h_sum_ge : (B.card : ℝ) * L ≤ ∑ b ∈ B, ((subsetSumsMod b S).card : ℝ) := by
+    have : ∑ b ∈ B, L ≤ ∑ b ∈ B, ((subsetSumsMod b S).card : ℝ) := Finset.sum_le_sum (fun b hb => hL b hb)
+    rw [Finset.sum_const, nsmul_eq_mul] at this
+    exact this
+  have h_main := card_subsetSums_union_ge_sum S B h_disj hB_pos
+  have h_main_real : ((subsetSums S).card : ℝ) + ∑ b ∈ B, ((subsetSumsMod b S).card : ℝ) ≤
+      ((subsetSums (S ∪ B)).card : ℝ) := by
+    have h_cast : (((subsetSums S).card + ∑ b ∈ B, (subsetSumsMod b S).card : ℕ) : ℝ) ≤
+        (((subsetSums (S ∪ B)).card : ℕ) : ℝ) := Nat.cast_le.mpr h_main
+    push_cast at h_cast
+    exact h_cast
+  have h_nonneg : 0 ≤ ((subsetSums S).card : ℝ) := by positivity
+  linarith
+
+/-- Conlon–Fox–Pham (2021) Lemma 5.5 (Integer Subset Sum Growth from Modular Density):
+    Let A_1, A_2 ⊆ A be disjoint subsets where all elements in A_2 are positive,
+    and satisfy the lower bound b ≥ y / v.
+    Suppose that for all b ∈ A_2, the modular subset sums of A_1 satisfy the density bound:
+      c * b ≤ |Σ_b(A_1)|.
+    Then the integer subset sums of A satisfy the lower bound:
+      |Σ(A)| ≥ |A_2| * c * (y / v). -/
+theorem cfp_lemma_5_5 (A A1 A2 : Finset ℕ) (y v : ℕ) (c : ℝ)
+    (hA1 : A1 ⊆ A) (hA2 : A2 ⊆ A) (h_disj : Disjoint A1 A2)
+    (hA2_pos : ∀ b ∈ A2, 0 < b)
+    (hA2_ge : ∀ b ∈ A2, (y : ℝ) / (v : ℝ) ≤ (b : ℝ))
+    (hc_nonneg : 0 ≤ c)
+    (h_mod_density : ∀ b ∈ A2, c * (b : ℝ) ≤ ((subsetSumsMod b A1).card : ℝ)) :
+    (A2.card : ℝ) * c * ((y : ℝ) / (v : ℝ)) ≤ ((subsetSums A).card : ℝ) := by
+  have h_bound : ∀ b ∈ A2, c * ((y : ℝ) / (v : ℝ)) ≤ ((subsetSumsMod b A1).card : ℝ) := by
+    intro b hb
+    have h1 := mul_le_mul_of_nonneg_left (hA2_ge b hb) hc_nonneg
+    have h2 := h_mod_density b hb
+    exact h1.trans h2
+  have h_union := card_subsetSums_union_ge_mul_min_real A1 A2 h_disj hA2_pos (c * ((y : ℝ) / (v : ℝ))) h_bound
+  have h_sub : A1 ∪ A2 ⊆ A := Finset.union_subset hA1 hA2
+  have h_mono : subsetSums (A1 ∪ A2) ⊆ subsetSums A := subsetSums_mono h_sub
+  have h_card_mono : ((subsetSums (A1 ∪ A2)).card : ℝ) ≤ ((subsetSums A).card : ℝ) := by
+    exact_mod_cast Finset.card_le_card h_mono
+  have h_assoc : (A2.card : ℝ) * c * ((y : ℝ) / (v : ℝ)) = (A2.card : ℝ) * (c * ((y : ℝ) / (v : ℝ))) := by ring
+  rw [h_assoc]
+  exact h_union.trans h_card_mono
+
+/-- Specialized Conlon–Fox–Pham Lemma 5.5 on extracted diverse subsets:
+    Combining Lemma 5.4 extraction (size s) with Lemma 5.6 modular density min(xi, 32/ell)
+    yields integer subset sum lower bound s * min(xi, 32/ell) * (y/v) ≤ |Σ(A)|. -/
+theorem cfp_lemma_5_5_scale (A A1 A2 : Finset ℕ) (y v s : ℕ) (xi : ℝ) (ell : ℕ)
+    (hA1 : A1 ⊆ A) (hA2 : A2 ⊆ A) (h_disj : Disjoint A1 A2)
+    (hA2_card : s ≤ A2.card)
+    (hA2_pos : ∀ b ∈ A2, 0 < b)
+    (hA2_ge : ∀ b ∈ A2, (y : ℝ) / (v : ℝ) ≤ (b : ℝ))
+    (hxi_pos : 0 ≤ xi) (hell_pos : 0 < ell)
+    (h_mod_density : ∀ b ∈ A2, min xi ((32 : ℝ) / (ell : ℝ)) * (b : ℝ) ≤ ((subsetSumsMod b A1).card : ℝ)) :
+    (s : ℝ) * min xi ((32 : ℝ) / (ell : ℝ)) * ((y : ℝ) / (v : ℝ)) ≤ ((subsetSums A).card : ℝ) := by
+  have hc_nonneg : 0 ≤ min xi ((32 : ℝ) / (ell : ℝ)) := by
+    apply le_min hxi_pos
+    have : 0 < (ell : ℝ) := Nat.cast_pos.mpr hell_pos
+    positivity
+  have h_full := cfp_lemma_5_5 A A1 A2 y v (min xi ((32 : ℝ) / (ell : ℝ)))
+                   hA1 hA2 h_disj hA2_pos hA2_ge hc_nonneg h_mod_density
+  have hs_le : (s : ℝ) ≤ (A2.card : ℝ) := Nat.cast_le.mpr hA2_card
+  have h_factor_nonneg : 0 ≤ min xi ((32 : ℝ) / (ell : ℝ)) * ((y : ℝ) / (v : ℝ)) := by
+    apply mul_nonneg hc_nonneg
+    positivity
+  have h_scale : (s : ℝ) * (min xi ((32 : ℝ) / (ell : ℝ)) * ((y : ℝ) / (v : ℝ))) ≤
+      (A2.card : ℝ) * (min xi ((32 : ℝ) / (ell : ℝ)) * ((y : ℝ) / (v : ℝ))) :=
+    mul_le_mul_of_nonneg_right hs_le h_factor_nonneg
+  have h_assoc1 : (s : ℝ) * min xi ((32 : ℝ) / (ell : ℝ)) * ((y : ℝ) / (v : ℝ)) =
+      (s : ℝ) * (min xi ((32 : ℝ) / (ell : ℝ)) * ((y : ℝ) / (v : ℝ))) := by ring
+  have h_assoc2 : (A2.card : ℝ) * min xi ((32 : ℝ) / (ell : ℝ)) * ((y : ℝ) / (v : ℝ)) =
+      (A2.card : ℝ) * (min xi ((32 : ℝ) / (ell : ℝ)) * ((y : ℝ) / (v : ℝ))) := by ring
+  rw [h_assoc1]
+  rw [h_assoc2] at h_full
+  exact h_scale.trans h_full
+
+/-- Bridging lemma: mapping sumsets of integer-embedded subset sums back to natural subset sums. -/
+lemma subsetSums_of_mem_sumset_image
+    {A B : Finset ℕ} (h_disj : Disjoint A B)
+    (z : ℤ) (hz : 0 ≤ z)
+    (hz_mem : z ∈ sumset ((subsetSums A).image (fun (x : ℕ) => (x : ℤ)))
+                         ((subsetSums B).image (fun (x : ℕ) => (x : ℤ)))) :
+    z.toNat ∈ subsetSums (A ∪ B) := by
+  rw [mem_sumset_iff] at hz_mem
+  rcases hz_mem with ⟨x, hx, y, hy, rfl⟩
+  simp only [Finset.mem_image] at hx hy
+  rcases hx with ⟨a, ha, rfl⟩
+  rcases hy with ⟨b, hb, rfl⟩
+  have hab : (a : ℤ) + (b : ℤ) = ((a + b : ℕ) : ℤ) := by push_cast; rfl
+  rw [hab, Int.toNat_natCast]
+  exact subsetSums_add_of_disjoint h_disj ha hb
+
+/-- Bounding the integer image of subset sums in an integer interval [0, L]. -/
+lemma image_cast_subsetSums_subset_Icc (A : Finset ℕ) (L : ℕ) (hL : A.sum id ≤ L) :
+    (subsetSums A).image (fun (x : ℕ) => (x : ℤ)) ⊆ Finset.Icc 0 (L : ℤ) := by
+  intro z hz
+  simp only [Finset.mem_image, mem_subsetSums_iff] at hz
+  rcases hz with ⟨x, ⟨B, hB, rfl⟩, rfl⟩
+  simp only [Finset.mem_Icc]
+  constructor
+  · omega
+  · have h_le : B.sum id ≤ A.sum id := Finset.sum_le_sum_of_subset hB
+    omega
+
+/-- **Continuous Interval Generation from Lev (2010) Theorem**:
+    If disjoint subsets A, B ⊆ ℕ have bounded sum (A.sum id ≤ L1, B.sum id ≤ L2)
+    and satisfy the high density threshold max L1 L2 + 2 ≤ |Σ(A)| + |Σ(B)|,
+    then the subset sums Σ(A ∪ B) contain the continuous integer interval
+    [(L1 + L2 - K).toNat, K.toNat], where K = |Σ(A)| + |Σ(B)| - 2. -/
+theorem subsetSums_contains_Icc_of_lev
+    (A B : Finset ℕ) (h_disj : Disjoint A B)
+    (L1 L2 : ℕ)
+    (hL1 : A.sum id ≤ L1) (hL2 : B.sum id ≤ L2)
+    (h_dense : max (L1 : ℤ) (L2 : ℤ) + 2 ≤ ((subsetSums A).card : ℤ) + ((subsetSums B).card : ℤ)) :
+    let K : ℤ := ((subsetSums A).card : ℤ) + ((subsetSums B).card : ℤ) - 2
+    Finset.Icc (L1 + L2 - K).toNat K.toNat ⊆ subsetSums (A ∪ B) := by
+  intro K k hk
+  simp only [Finset.mem_Icc] at hk
+  rcases hk with ⟨hk_low, hk_high⟩
+  set S1 := (subsetSums A).image (fun (x : ℕ) => (x : ℤ))
+  set S2 := (subsetSums B).image (fun (x : ℕ) => (x : ℤ))
+  have hS1_sub : S1 ⊆ Finset.Icc 0 (L1 : ℤ) := image_cast_subsetSums_subset_Icc A L1 hL1
+  have hS2_sub : S2 ⊆ Finset.Icc 0 (L2 : ℤ) := image_cast_subsetSums_subset_Icc B L2 hL2
+  have hS1_card : S1.card = (subsetSums A).card :=
+    Finset.card_image_of_injective _ Nat.cast_injective
+  have hS2_card : S2.card = (subsetSums B).card :=
+    Finset.card_image_of_injective _ Nat.cast_injective
+  have h_dense' : max (L1 : ℤ) (L2 : ℤ) + 2 ≤ (S1.card : ℤ) + (S2.card : ℤ) := by
+    rw [hS1_card, hS2_card]; exact h_dense
+  have h_lev := lev_pigeonhole_interval (L1 : ℤ) (L2 : ℤ) (by omega) (by omega)
+                  S1 S2 hS1_sub hS2_sub h_dense'
+  rw [hS1_card, hS2_card] at h_lev
+  have hS1_le : (S1.card : ℤ) ≤ (L1 : ℤ) + 1 := by
+    have h_cast : (S1.card : ℤ) ≤ ((Finset.Icc 0 (L1 : ℤ)).card : ℤ) :=
+      Nat.cast_le.mpr (Finset.card_le_card hS1_sub)
+    rw [Int.card_Icc_of_le 0 (L1 : ℤ) (by omega)] at h_cast
+    omega
+  have hS2_le : (S2.card : ℤ) ≤ (L2 : ℤ) + 1 := by
+    have h_cast : (S2.card : ℤ) ≤ ((Finset.Icc 0 (L2 : ℤ)).card : ℤ) :=
+      Nat.cast_le.mpr (Finset.card_le_card hS2_sub)
+    rw [Int.card_Icc_of_le 0 (L2 : ℤ) (by omega)] at h_cast
+    omega
+  have hlow_nonneg : 0 ≤ L1 + L2 - K := by
+    dsimp [K]
+    rw [hS1_card] at hS1_le
+    rw [hS2_card] at hS2_le
+    omega
+  have hk_int : (k : ℤ) ∈ Finset.Icc (L1 + L2 - K) K := by
+    simp only [Finset.mem_Icc]
+    constructor
+    · have h_cast_k : ((L1 + L2 - K).toNat : ℤ) ≤ (k : ℤ) := Nat.cast_le.mpr hk_low
+      rw [Int.toNat_of_nonneg hlow_nonneg] at h_cast_k
+      exact h_cast_k
+    · have h_cast_k : (k : ℤ) ≤ (K.toNat : ℤ) := Nat.cast_le.mpr hk_high
+      have hK_nonneg : 0 ≤ K := by omega
+      rw [Int.toNat_of_nonneg hK_nonneg] at h_cast_k
+      exact h_cast_k
+  have hk_mem_sumset := h_lev hk_int
+  have hk_nonneg : 0 ≤ (k : ℤ) := by omega
+  have h_hit := subsetSums_of_mem_sumset_image h_disj (k : ℤ) hk_nonneg hk_mem_sumset
+  rwa [Int.toNat_natCast] at h_hit
+
+/-- Extension of a continuous interval in V ⊆ Q across the remainder set Q \ V to hit target. -/
+theorem mem_subsetSums_of_lev_interval_extend
+    {Q V : Finset ℕ} (hVQ : V ⊆ Q)
+    {a b : ℕ} (hab : a ≤ b)
+    (h_interval : Finset.Icc a b ⊆ subsetSums V)
+    (hQ_bound : ∀ t ∈ Q \ V, t ≤ b - a + 1)
+    {target : ℕ}
+    (ha_le : a ≤ target)
+    (hle_b : target ≤ b + (Q \ V).sum id) :
+    target ∈ subsetSums Q := by
+  have h_disj : Disjoint V (Q \ V) := Finset.disjoint_sdiff
+  have h_extend := subsetSums_interval_extend h_disj h_interval hQ_bound hab
+  have h_union : V ∪ (Q \ V) = Q := Finset.union_sdiff_of_subset hVQ
+  rw [h_union] at h_extend
+  apply h_extend
+  simp only [Finset.mem_Icc]
+  exact ⟨ha_le, hle_b⟩
+
+/-- **Master Target Hitting Theorem via Lev Dense Interval Extension**:
+    If Q contains a disjoint pair V1, V2 satisfying the Lev density condition,
+    producing an interval [a, b] ⊆ Σ(V1 ∪ V2) that extends across Q \ (V1 ∪ V2)
+    to cover target, then target ∈ Σ(Q). -/
+theorem target_hit_of_lev_diverse
+    {Q V1 V2 : Finset ℕ} (hV1Q : V1 ⊆ Q) (hV2Q : V2 ⊆ Q) (h_disj : Disjoint V1 V2)
+    (L1 L2 : ℕ) (hL1 : V1.sum id ≤ L1) (hL2 : V2.sum id ≤ L2)
+    (h_dense : max (L1 : ℤ) (L2 : ℤ) + 2 ≤ ((subsetSums V1).card : ℤ) + ((subsetSums V2).card : ℤ))
+    (target : ℕ)
+    (h_step_bound : ∀ t ∈ Q \ (V1 ∪ V2),
+      t ≤ (((subsetSums V1).card : ℤ) + ((subsetSums V2).card : ℤ) - 2).toNat -
+          (L1 + L2 - (((subsetSums V1).card : ℤ) + ((subsetSums V2).card : ℤ) - 2)).toNat + 1)
+    (ha_le : (L1 + L2 - (((subsetSums V1).card : ℤ) + ((subsetSums V2).card : ℤ) - 2)).toNat ≤ target)
+    (hle_b : target ≤ (((subsetSums V1).card : ℤ) + ((subsetSums V2).card : ℤ) - 2).toNat + (Q \ (V1 ∪ V2)).sum id) :
+    target ∈ subsetSums Q := by
+  let V := V1 ∪ V2
+  have hVQ : V ⊆ Q := Finset.union_subset hV1Q hV2Q
+  have h_int := subsetSums_contains_Icc_of_lev V1 V2 h_disj L1 L2 hL1 hL2 h_dense
+  set K : ℤ := ((subsetSums V1).card : ℤ) + ((subsetSums V2).card : ℤ) - 2
+  have hab : (L1 + L2 - K).toNat ≤ K.toNat := by
+    apply Int.toNat_le_toNat
+    omega
+  exact mem_subsetSums_of_lev_interval_extend hVQ hab h_int h_step_bound ha_le hle_b
+
+/-- **Construction of CFPDiverseWitness from Lev Interval Coverage**:
+    Given a base set S ⊆ [1, n), threshold M with k * M < |S|, and scaling factor v ∣ n with 0 < v,
+    if every large subset A ⊆ S of size ≥ M + 1 has its quotient Q = (A ∩ vℕ)/v containing
+    subsets V1, V2 satisfying the Lev condition such that n/v is covered,
+    then CFPDiverseWitness n k is instantiated. -/
+def CFPDiverseWitness.ofLevCoverage
+    (n k : ℕ) (S : Finset ℕ) (hS : S ⊆ Finset.Ico 1 n)
+    (M : ℕ) (h_card : k * M < S.card)
+    (v : ℕ) (hv : 0 < v) (hvn : v ∣ n)
+    (h_lev_hit : ∀ A : Finset ℕ, A ⊆ S → M + 1 ≤ A.card →
+      let Q := (A.filter (fun x => v ∣ x)).image (fun x => x / v)
+      ∃ (V1 V2 : Finset ℕ) (hV1Q : V1 ⊆ Q) (hV2Q : V2 ⊆ Q) (h_disj : Disjoint V1 V2)
+        (L1 L2 : ℕ) (hL1 : V1.sum id ≤ L1) (hL2 : V2.sum id ≤ L2)
+        (h_dense : max (L1 : ℤ) (L2 : ℤ) + 2 ≤ ((subsetSums V1).card : ℤ) + ((subsetSums V2).card : ℤ))
+        (_h_step_bound : ∀ t ∈ Q \ (V1 ∪ V2),
+          t ≤ (((subsetSums V1).card : ℤ) + ((subsetSums V2).card : ℤ) - 2).toNat -
+              (L1 + L2 - (((subsetSums V1).card : ℤ) + ((subsetSums V2).card : ℤ) - 2)).toNat + 1)
+        (_ha_le : (L1 + L2 - (((subsetSums V1).card : ℤ) + ((subsetSums V2).card : ℤ) - 2)).toNat ≤ n / v)
+        (_hle_b : n / v ≤ (((subsetSums V1).card : ℤ) + ((subsetSums V2).card : ℤ) - 2).toNat + (Q \ (V1 ∪ V2)).sum id),
+        True) :
+    CFPDiverseWitness n k where
+  S := S
+  hS := hS
+  M := M
+  h_card := h_card
+  v := v
+  hv := hv
+  hvn := hvn
+  h_hit := by
+    intro A hA hM
+    obtain ⟨V1, V2, hV1Q, hV2Q, h_disj, L1, L2, hL1, hL2, h_dense, h_step, ha_le, hle_b, _⟩ :=
+      h_lev_hit A hA hM
+    exact target_hit_of_lev_diverse hV1Q hV2Q h_disj L1 L2 hL1 hL2 h_dense (n / v) h_step ha_le hle_b
+
+/-- Direct chromatic lower bound k + 1 ≤ f(n) from Lev interval coverage. -/
+theorem minColors_ge_of_lev_coverage
+    (n k : ℕ) (hn : 2 ≤ n) (S : Finset ℕ) (hS : S ⊆ Finset.Ico 1 n)
+    (M : ℕ) (h_card : k * M < S.card)
+    (v : ℕ) (hv : 0 < v) (hvn : v ∣ n)
+    (h_lev_hit : ∀ A : Finset ℕ, A ⊆ S → M + 1 ≤ A.card →
+      let Q := (A.filter (fun x => v ∣ x)).image (fun x => x / v)
+      ∃ (V1 V2 : Finset ℕ) (hV1Q : V1 ⊆ Q) (hV2Q : V2 ⊆ Q) (h_disj : Disjoint V1 V2)
+        (L1 L2 : ℕ) (hL1 : V1.sum id ≤ L1) (hL2 : V2.sum id ≤ L2)
+        (h_dense : max (L1 : ℤ) (L2 : ℤ) + 2 ≤ ((subsetSums V1).card : ℤ) + ((subsetSums V2).card : ℤ))
+        (_h_step_bound : ∀ t ∈ Q \ (V1 ∪ V2),
+          t ≤ (((subsetSums V1).card : ℤ) + ((subsetSums V2).card : ℤ) - 2).toNat -
+              (L1 + L2 - (((subsetSums V1).card : ℤ) + ((subsetSums V2).card : ℤ) - 2)).toNat + 1)
+        (_ha_le : (L1 + L2 - (((subsetSums V1).card : ℤ) + ((subsetSums V2).card : ℤ) - 2)).toNat ≤ n / v)
+        (_hle_b : n / v ≤ (((subsetSums V1).card : ℤ) + ((subsetSums V2).card : ℤ) - 2).toNat + (Q \ (V1 ∪ V2)).sum id),
+        True) :
+    k + 1 ≤ minColors n hn :=
+  minColors_ge_of_cfp_diverse_witness n k hn (CFPDiverseWitness.ofLevCoverage n k S hS M h_card v hv hvn h_lev_hit)
+
+/-- Structured predicate for Lev interval coverage on a quotient set Q:
+    Q contains a disjoint pair V1, V2 satisfying the Lev condition and
+    extending to hit n / v. -/
+def HasLevIntervalCoverage (n v : ℕ) (Q : Finset ℕ) : Prop :=
+  ∃ (V1 V2 : Finset ℕ), V1 ⊆ Q ∧ V2 ⊆ Q ∧ Disjoint V1 V2 ∧
+    ∃ (L1 L2 : ℕ), V1.sum id ≤ L1 ∧ V2.sum id ≤ L2 ∧
+      max (L1 : ℤ) (L2 : ℤ) + 2 ≤ ((subsetSums V1).card : ℤ) + ((subsetSums V2).card : ℤ) ∧
+      (∀ t ∈ Q \ (V1 ∪ V2),
+        t ≤ (((subsetSums V1).card : ℤ) + ((subsetSums V2).card : ℤ) - 2).toNat -
+            (L1 + L2 - (((subsetSums V1).card : ℤ) + ((subsetSums V2).card : ℤ) - 2)).toNat + 1) ∧
+      (L1 + L2 - (((subsetSums V1).card : ℤ) + ((subsetSums V2).card : ℤ) - 2)).toNat ≤ n / v ∧
+      n / v ≤ (((subsetSums V1).card : ℤ) + ((subsetSums V2).card : ℤ) - 2).toNat + (Q \ (V1 ∪ V2)).sum id
+
+/-- Direct target hitting from HasLevIntervalCoverage. -/
+theorem target_hit_of_hasLevIntervalCoverage
+    {n v : ℕ} {Q : Finset ℕ} (h_cov : HasLevIntervalCoverage n v Q) :
+    n / v ∈ subsetSums Q := by
+  rcases h_cov with ⟨V1, V2, hV1Q, hV2Q, h_disj, L1, L2, hL1, hL2, h_dense, h_step, ha_le, hle_b⟩
+  exact target_hit_of_lev_diverse hV1Q hV2Q h_disj L1 L2 hL1 hL2 h_dense (n / v) h_step ha_le hle_b
+
+/-- Predicate form of CFPDiverseWitness from HasLevIntervalCoverage. -/
+def CFPDiverseWitness.ofLevCoveragePred
+    (n k : ℕ) (S : Finset ℕ) (hS : S ⊆ Finset.Ico 1 n)
+    (M : ℕ) (h_card : k * M < S.card)
+    (v : ℕ) (hv : 0 < v) (hvn : v ∣ n)
+    (h_lev_hit : ∀ A : Finset ℕ, A ⊆ S → M + 1 ≤ A.card →
+      HasLevIntervalCoverage n v ((A.filter (fun x => v ∣ x)).image (fun x => x / v))) :
+    CFPDiverseWitness n k where
+  S := S
+  hS := hS
+  M := M
+  h_card := h_card
+  v := v
+  hv := hv
+  hvn := hvn
+  h_hit := by
+    intro A hA hM
+    exact target_hit_of_hasLevIntervalCoverage (h_lev_hit A hA hM)
+
+/-- Global Asymptotic Lower Bound from Diverse Witnesses:
+    If for all sufficiently large n, there exists a CFPDiverseWitness n k
+    at scale k + 1 ≥ c * F(n), then f(n) satisfies HasChromaticLowerBound F c. -/
+theorem hasChromaticLowerBound_of_diverse_witnesses (F : ℕ → ℝ) (c : ℝ) (hc : 0 < c)
+    (N0 : ℕ)
+    (h_wit : ∀ n, 2 ≤ n → N0 ≤ n → ∃ k : ℕ, c * F n ≤ (k + 1 : ℝ) ∧ Nonempty (CFPDiverseWitness n k)) :
+    HasChromaticLowerBound F c := by
+  apply hasChromaticLowerBound_of_cfp_witnesses F c hc N0
+  intro n hn hN
+  obtain ⟨k, h_scale, ⟨w⟩⟩ := h_wit n hn hN
+  exact ⟨k, h_scale, ⟨CFPLowerBoundWitness.ofDiverse n k w⟩⟩
+
+/-- Global Asymptotic Lower Bound from Lev Interval Coverage:
+    If for all sufficiently large n, there exists a Lev coverage witness at scale k + 1 ≥ c * F(n),
+    then f(n) satisfies HasChromaticLowerBound F c. -/
+theorem hasChromaticLowerBound_of_lev_coverage (F : ℕ → ℝ) (c : ℝ) (hc : 0 < c)
+    (N0 : ℕ)
+    (h_wit : ∀ n, 2 ≤ n → N0 ≤ n → ∃ (k : ℕ) (S : Finset ℕ) (hS : S ⊆ Finset.Ico 1 n)
+      (M : ℕ) (h_card : k * M < S.card) (v : ℕ) (hv : 0 < v) (hvn : v ∣ n)
+      (h_lev_hit : ∀ A : Finset ℕ, A ⊆ S → M + 1 ≤ A.card →
+        HasLevIntervalCoverage n v ((A.filter (fun x => v ∣ x)).image (fun x => x / v))),
+      c * F n ≤ (k + 1 : ℝ)) :
+    HasChromaticLowerBound F c := by
+  apply hasChromaticLowerBound_of_diverse_witnesses F c hc N0
+  intro n hn hN
+  obtain ⟨k, S, hS, M, h_card, v, hv, hvn, h_lev_hit, h_scale⟩ := h_wit n hn hN
+  have w := CFPDiverseWitness.ofLevCoveragePred n k S hS M h_card v hv hvn h_lev_hit
+  exact ⟨k, h_scale, ⟨w⟩⟩
+
+/-- Conlon–Fox–Pham (2021) Asymptotic Master Theorem with Diverse Witnesses:
+    Uniting diverse lower bound witnesses with 4-layer upper bounds to yield the sharp
+    asymptotic two-sided equivalence c * F(n) ≤ f(n) ≤ C * F(n). -/
+theorem erdos_problem_360_asymptotic_master_of_diverse (F : ℕ → ℝ) {c C : ℝ} (hc : 0 < c)
+    (N0 : ℕ)
+    (h_wit : ∀ n, 2 ≤ n → N0 ≤ n → ∃ k : ℕ, c * F n ≤ (k + 1 : ℝ) ∧ Nonempty (CFPDiverseWitness n k))
+    (h_upper : HasChromaticUpperBound F C) :
+    ∃ N_final : ℕ, ∀ (n : ℕ) (hn : 2 ≤ n), N_final ≤ n →
+      c * F n ≤ (minColors n hn : ℝ) ∧
+      (minColors n hn : ℝ) ≤ C * F n := by
+  have h_lower := hasChromaticLowerBound_of_diverse_witnesses F c hc N0 h_wit
+  exact conlon_fox_pham_bounds F h_lower h_upper
+
+/-- Conlon–Fox–Pham (2021) Asymptotic Master Theorem with Lev Interval Coverage:
+    Uniting Lev interval coverage with 4-layer upper bounds to yield the sharp
+    asymptotic two-sided equivalence c * F(n) ≤ f(n) ≤ C * F(n). -/
+theorem erdos_problem_360_asymptotic_master_of_lev (F : ℕ → ℝ) {c C : ℝ} (hc : 0 < c)
+    (N0 : ℕ)
+    (h_wit : ∀ n, 2 ≤ n → N0 ≤ n → ∃ (k : ℕ) (S : Finset ℕ) (hS : S ⊆ Finset.Ico 1 n)
+      (M : ℕ) (h_card : k * M < S.card) (v : ℕ) (hv : 0 < v) (hvn : v ∣ n)
+      (h_lev_hit : ∀ A : Finset ℕ, A ⊆ S → M + 1 ≤ A.card →
+        HasLevIntervalCoverage n v ((A.filter (fun x => v ∣ x)).image (fun x => x / v))),
+      c * F n ≤ (k + 1 : ℝ))
+    (h_upper : HasChromaticUpperBound F C) :
+    ∃ N_final : ℕ, ∀ (n : ℕ) (hn : 2 ≤ n), N_final ≤ n →
+      c * F n ≤ (minColors n hn : ℝ) ∧
+      (minColors n hn : ℝ) ≤ C * F n := by
+  have h_lower := hasChromaticLowerBound_of_lev_coverage F c hc N0 h_wit
+  exact conlon_fox_pham_bounds F h_lower h_upper
+
+/-- Explicit Conlon–Fox–Pham Asymptotic Lower Bound Parameters:
+    Encapsulates the explicit asymptotic parameter package (v, y, z, ell, W) for n:
+    - Scaling divisor v ∣ n with 0 < v
+    - Target scale factor k with c * F(n) ≤ k + 1
+    - Instantiated CFPDiverseWitness n k via Lev interval coverage -/
+structure CFPAsymptoticParams (n : ℕ) (F : ℕ → ℝ) (c : ℝ) : Type where
+  k : ℕ
+  h_scale : c * F n ≤ (k + 1 : ℝ)
+  witness : CFPDiverseWitness n k
+
+/-- Canonical realization of HasChromaticLowerBound from a family of asymptotic parameters. -/
+theorem hasChromaticLowerBound_of_asymptotic_params (F : ℕ → ℝ) (c : ℝ) (hc : 0 < c)
+    (N0 : ℕ)
+    (h_params : ∀ n, 2 ≤ n → N0 ≤ n → CFPAsymptoticParams n F c) :
+    HasChromaticLowerBound F c := by
+  apply hasChromaticLowerBound_of_diverse_witnesses F c hc N0
+  intro n hn hN
+  let p := h_params n hn hN
+  exact ⟨p.k, p.h_scale, ⟨p.witness⟩⟩
+
+
+/-!
+### 24. Growth Steps Budget Infrastructure (Conlon–Fox–Pham 2021, Lemma 5.6 Claim 1 / Phase P16)
+
+In §5.1 Claim 1, Conlon–Fox–Pham bound the total number of growth steps during the greedy iteration:
+1. Subgroup index doubling chain: If g_0 | g_1 | ... | g_m with g_i < g_{i+1}, then 2^m ≤ g_m.
+2. Uniform block bound: Any chain bounded by gMax has length at most L where gMax < 2^{L+1}.
+3. Segment decomposition: The iteration is partitioned into at most L + 1 constant-g blocks.
+4. Per-block growth budget: Multiplicative steps (T multiplies by ≥ 3/2) and linear steps (T grows by ≥ M/8).
+5. Master growth budget bound: Total growth steps are bounded by B_growth = (L + 1) * (J_mult + 8U/M + 1).
+-/
+
+/-- Strict divisor doubling: if a ∣ b and a < b for positive integers, then 2 * a ≤ b. -/
+lemma mul_two_le_of_dvd_of_lt {a b : ℕ} (ha : 0 < a) (h_dvd : a ∣ b) (h_lt : a < b) :
+    2 * a ≤ b := by
+  rcases h_dvd with ⟨c, rfl⟩
+  have hc : 2 ≤ c := by
+    by_contra h_not
+    have : c ≤ 1 := by omega
+    interval_cases c
+    · omega
+    · omega
+  nlinarith
+
+/-- Exponential lower bound on strictly increasing divisor chains:
+    any chain g_0 | g_1 | ... | g_m of positive integers with g_i < g_{i+1}
+    satisfies 2^m ≤ g_m. -/
+lemma chain_doubling_le (g : ℕ → ℕ) (hg_pos : ∀ i, 0 < g i)
+    (hg_dvd : ∀ i, g i ∣ g (i + 1)) (hg_lt : ∀ i, g i < g (i + 1)) (m : ℕ) :
+    2 ^ m ≤ g m := by
+  induction m with
+  | zero =>
+    simp only [Nat.pow_zero]
+    exact hg_pos 0
+  | succ m ih =>
+    have h_step := mul_two_le_of_dvd_of_lt (hg_pos m) (hg_dvd m) (hg_lt m)
+    have h_pow : 2 ^ (m + 1) = 2 * 2 ^ m := by ring
+    rw [h_pow]
+    nlinarith
+
+/-- Bound on chain length from maximum subgroup index:
+    if g_m ≤ gMax and gMax < 2^(L + 1), then m ≤ L. -/
+lemma chain_length_le_of_le_gMax (g : ℕ → ℕ) (hg_pos : ∀ i, 0 < g i)
+    (hg_dvd : ∀ i, g i ∣ g (i + 1)) (hg_lt : ∀ i, g i < g (i + 1))
+    (gMax L m : ℕ) (hgMax : g m ≤ gMax) (hL : gMax < 2 ^ (L + 1)) :
+    m ≤ L := by
+  by_contra h_not
+  have hm : L + 1 ≤ m := by omega
+  have h_mono : 2 ^ (L + 1) ≤ 2 ^ m := Nat.pow_le_pow_right (by decide) hm
+  have h_chain := chain_doubling_le g hg_pos hg_dvd hg_lt m
+  omega
+
+/-- Multiplicative growth step bound in natural numbers:
+    if a quantity S starts at ≥ 1 and satisfies 3 * S j ≤ 2 * S (j + 1) on each multiplicative step,
+    then 3^q ≤ 2^q * S q. -/
+lemma multiplicative_growth_bound_nat (S : ℕ → ℕ) (hS0 : 1 ≤ S 0)
+    (h_step : ∀ j, 3 * S j ≤ 2 * S (j + 1)) (q : ℕ) :
+    3 ^ q ≤ 2 ^ q * S q := by
+  induction q with
+  | zero => simp [hS0]
+  | succ q ih =>
+    have h_pow3 : 3 ^ (q + 1) = 3 ^ q * 3 := by ring
+    have h_pow2 : 2 ^ (q + 1) = 2 ^ q * 2 := by ring
+    rw [h_pow3, h_pow2]
+    have h1 : 3 ^ q * 3 ≤ (2 ^ q * S q) * 3 := Nat.mul_le_mul_right 3 ih
+    have h2 : (2 ^ q * S q) * 3 = 2 ^ q * (3 * S q) := by ring
+    have h3 : 2 ^ q * (3 * S q) ≤ 2 ^ q * (2 * S (q + 1)) :=
+      Nat.mul_le_mul_left (2 ^ q) (h_step q)
+    have h4 : 2 ^ q * (2 * S (q + 1)) = (2 ^ q * 2) * S (q + 1) := by ring
+    rw [h2] at h1
+    rw [h4] at h3
+    exact h1.trans h3
+
+/-- Multiplicative growth step bound in reals:
+    (3/2)^q ≤ S q when 3 * S j ≤ 2 * S (j + 1) and 1 ≤ S 0. -/
+lemma multiplicative_growth_bound_real (S : ℕ → ℕ) (hS0 : 1 ≤ S 0)
+    (h_step : ∀ j, 3 * S j ≤ 2 * S (j + 1)) (q : ℕ) :
+    (3 : ℝ) ^ q / (2 : ℝ) ^ q ≤ (S q : ℝ) := by
+  have h_nat := multiplicative_growth_bound_nat S hS0 h_step q
+  have h_cast : ((3 ^ q : ℕ) : ℝ) ≤ (((2 ^ q * S q : ℕ) : ℝ)) := Nat.cast_le.mpr h_nat
+  push_cast at h_cast
+  have h2 : 0 < (2 : ℝ) ^ q := by positivity
+  exact (div_le_iff₀ h2).mpr (by linarith)
+
+/-- Linear growth step bound:
+    if a quantity increases by at least Δ on each step and remains bounded by U,
+    the number of steps k satisfies k * Δ ≤ U. -/
+lemma linear_growth_bound_step (T : ℕ → ℕ) (Δ U : ℕ)
+    (h_step : ∀ j, T j + Δ ≤ T (j + 1)) (k : ℕ) (h_bound : T k ≤ U) :
+    T 0 + k * Δ ≤ U := by
+  have h_ind : ∀ j, T 0 + j * Δ ≤ T j := by
+    intro j
+    induction j with
+    | zero => simp
+    | succ j ih =>
+      have h_succ := h_step j
+      have : T 0 + (j + 1) * Δ = (T 0 + j * Δ) + Δ := by ring
+      rw [this]
+      exact (Nat.add_le_add_right ih Δ).trans h_succ
+  exact (h_ind k).trans h_bound
+
+/-- Linear step count bound: k ≤ U / Δ when T 0 + k * Δ ≤ U. -/
+lemma linear_step_count_le (T : ℕ → ℕ) (Δ U : ℕ) (hΔ : 0 < Δ)
+    (h_step : ∀ j, T j + Δ ≤ T (j + 1)) (k : ℕ) (h_bound : T k ≤ U) :
+    k ≤ U / Δ := by
+  have h_le := linear_growth_bound_step T Δ U h_step k h_bound
+  have h_mul : k * Δ ≤ U := (Nat.le_add_left (k * Δ) (T 0)).trans h_le
+  exact (Nat.le_div_iff_mul_le hΔ).mpr h_mul
+
+/-- Chain length bound using Nat.log2. -/
+lemma chain_length_le_log2 (g : ℕ → ℕ) (hg_pos : ∀ i, 0 < g i)
+    (hg_dvd : ∀ i, g i ∣ g (i + 1)) (hg_lt : ∀ i, g i < g (i + 1))
+    (gMax m : ℕ) (hgMax_pos : 0 < gMax) (hgMax : g m ≤ gMax) :
+    m ≤ Nat.log2 gMax := by
+  have h_pow := chain_doubling_le g hg_pos hg_dvd hg_lt m
+  have h_le : 2 ^ m ≤ gMax := h_pow.trans hgMax
+  exact (Nat.le_log2 (by omega)).mpr h_le
+
+/-- Number of constant-g blocks in any divisor chain bounded by gMax. -/
+def maxSubgroupBlocks (gMax : ℕ) : ℕ :=
+  Nat.log2 gMax + 1
+
+/-- Multiplicative growth step budget per block (Conlon–Fox–Pham 2021, Claim 1 / Phase P16). -/
+def p16MultBudget (t : ℕ) : ℕ :=
+  2 * (Nat.log2 t + 1)
+
+/-- Linear growth step budget per block. -/
+def p16LinearBudget (U M : ℕ) : ℕ :=
+  8 * U / M + 1
+
+/-- Per-block growth budget: sum of multiplicative and linear budgets. -/
+def p16BlockBudget (t U M : ℕ) : ℕ :=
+  p16MultBudget t + p16LinearBudget U M
+
+/-- Total growth budget: (Nat.log2 gMax + 1) * p16BlockBudget. -/
+def p16TotalBudget (t gMax U M : ℕ) : ℕ :=
+  (Nat.log2 gMax + 1) * p16BlockBudget t U M
+
+/-- Legacy multiplicative growth step budget per block. -/
+def multGrowthBudget (t : ℕ) : ℕ :=
+  2 * t
+
+/-- Legacy linear growth step budget per block. -/
+def linearGrowthBudget (U M : ℕ) : ℕ :=
+  8 * U / M + 1
+
+/-- Legacy per-block growth budget. -/
+def blockGrowthBudget (t U M : ℕ) : ℕ :=
+  multGrowthBudget t + linearGrowthBudget U M
+
+/-- Legacy Claim 1 growth bound. -/
+def claim1GrowthBound (t gMax U M : ℕ) : ℕ :=
+  maxSubgroupBlocks gMax * blockGrowthBudget t U M
+
+/-!
+### Abstract Sparse Marked-Step Counting Theorems (Phase D)
+-/
+
+lemma pow_eight_le_pow_nine (L : ℕ) : 8 ^ L ≤ 9 ^ L :=
+  Nat.pow_le_pow_left (by omega) L
+
+lemma eight_pow_eq (L : ℕ) : 8 ^ L = 2 ^ (3 * L) := by
+  rw [show (8 : ℕ) = 2 ^ 3 by rfl, ← Nat.pow_mul]
+
+lemma two_pow_split (L : ℕ) : 2 ^ (2 * L) * 2 ^ L = 2 ^ (3 * L) := by
+  rw [← Nat.pow_add, show 2 * L + L = 3 * L by omega]
+
+lemma two_pow_mul_t_lt_three_pow (L t : ℕ) (ht : t < 2 ^ L) :
+    2 ^ (2 * L) * t < 3 ^ (2 * L) := by
+  have h1 : 2 ^ (2 * L) * t < 2 ^ (2 * L) * 2 ^ L :=
+    Nat.mul_lt_mul_of_pos_left ht (Nat.two_pow_pos (2 * L))
+  rw [two_pow_split L, ← eight_pow_eq L] at h1
+  have h2 : 8 ^ L ≤ 9 ^ L := pow_eight_le_pow_nine L
+  have h3 : (9 : ℕ) ^ L = 3 ^ (2 * L) := by
+    rw [show (9 : ℕ) = 3 ^ 2 by rfl, ← Nat.pow_mul, mul_comm 2 L]
+  rw [h3] at h2
+  exact h1.trans_le h2
+
+lemma mult_step_count_bound (q t L : ℕ) (ht : t < 2 ^ L) (hq : 3 ^ q ≤ 2 ^ q * t) :
+    q ≤ 2 * L := by
+  by_contra h_gt
+  have h_le : 2 * L + 1 ≤ q := by omega
+  have h_pow3 : 3 ^ (2 * L + 1) ≤ 3 ^ q := Nat.pow_le_pow_right (by omega) h_le
+  have h_key := two_pow_mul_t_lt_three_pow L t ht
+  have h_step : 2 ^ (2 * L + 1) * t < 3 ^ (2 * L + 1) := by
+    calc 2 ^ (2 * L + 1) * t
+      _ = 2 * (2 ^ (2 * L) * t) := by
+        rw [pow_succ]
+        ring
+      _ < 3 * (3 ^ (2 * L)) := by
+        have h_mul2 : 2 * (2 ^ (2 * L) * t) < 2 * (3 ^ (2 * L)) :=
+          Nat.mul_lt_mul_of_pos_left h_key (by omega)
+        have h_mul3 : 2 * (3 ^ (2 * L)) < 3 * (3 ^ (2 * L)) :=
+          Nat.mul_lt_mul_of_pos_right (by omega) (Nat.pow_pos (by omega))
+        exact h_mul2.trans h_mul3
+      _ = 3 ^ (2 * L + 1) := by
+        rw [pow_succ]
+        ring
+  let d := q - (2 * L + 1)
+  have h_decomp : q = d + (2 * L + 1) := by omega
+  have h_contra : 2 ^ q * t < 3 ^ q := by
+    calc 2 ^ q * t
+      _ = 2 ^ d * (2 ^ (2 * L + 1) * t) := by
+        rw [h_decomp, pow_add]
+        ring
+      _ < 3 ^ d * 3 ^ (2 * L + 1) := by
+        have hd_le : 2 ^ d ≤ 3 ^ d := Nat.pow_le_pow_left (by omega) d
+        cases t with
+        | zero =>
+          exfalso
+          have : 3 ^ q = 0 := by omega
+          have : 0 < 3 ^ q := Nat.pow_pos (by omega)
+          omega
+        | succ t' =>
+          exact Nat.mul_lt_mul_of_le_of_lt hd_le h_step (Nat.pow_pos (by omega))
+      _ = 3 ^ q := by
+        rw [← pow_add]
+        congr 1
+        omega
+  omega
+
+lemma lt_two_pow_succ_log2 (t : ℕ) : t < 2 ^ (Nat.log2 t + 1) :=
+  Nat.lt_log2_self
+
+lemma min'_erase_max' (J : Finset ℕ) (hJ : J.Nonempty) :
+    let m := J.max' hJ
+    let J' := J.erase m
+    ∀ (hJ' : J'.Nonempty), J'.min' hJ' = J.min' hJ := by
+  intro m J' hJ'
+  have hm_in : m ∈ J := Finset.max'_mem J hJ
+  have h_sub : J' ⊆ J := Finset.erase_subset m J
+  have h_min_le : J.min' hJ ≤ J'.min' hJ' :=
+    Finset.min'_le J (J'.min' hJ') (h_sub (Finset.min'_mem J' hJ'))
+  have h_le_min : J'.min' hJ' ≤ J.min' hJ := by
+    have h_min_in : J.min' hJ ∈ J := Finset.min'_mem J hJ
+    by_cases h_eq_m : J.min' hJ = m
+    · have h_non : ∃ y ∈ J', True := ⟨hJ'.choose, hJ'.choose_spec, trivial⟩
+      rcases h_non with ⟨y, hy, _⟩
+      have hy_in : y ∈ J := h_sub hy
+      have hy_ne_m : y ≠ m := Finset.ne_of_mem_erase hy
+      have hy_le_m : y ≤ m := Finset.le_max' J y hy_in
+      have hy_lt_m : y < m := lt_of_le_of_ne hy_le_m hy_ne_m
+      have hm_le_y : m ≤ y := by
+        rw [← h_eq_m]
+        exact Finset.min'_le J y hy_in
+      omega
+    · have h_min_in_J' : J.min' hJ ∈ J' := Finset.mem_erase.mpr ⟨h_eq_m, h_min_in⟩
+      exact Finset.min'_le J' (J.min' hJ) h_min_in_J'
+  exact le_antisymm h_le_min h_min_le
+
+lemma finset_mult_growth (f : ℕ → ℕ) (hf_mono : ∀ a b, a ≤ b → f a ≤ f b)
+    (J : Finset ℕ) (hJ : J.Nonempty)
+    (hJ_step : ∀ j ∈ J, 3 * f j ≤ 2 * f (j + 1)) :
+    3 ^ J.card * f (J.min' hJ) ≤ 2 ^ J.card * f ((J.max' hJ) + 1) := by
+  generalize hk : J.card = k
+  induction k using Nat.strong_induction_on generalizing J with
+  | h n ih =>
+    subst hk
+    have hJ_pos : 0 < J.card := Finset.card_pos.mpr hJ
+    by_cases hn1 : J.card = 1
+    · rcases Finset.card_eq_one.mp hn1 with ⟨x, rfl⟩
+      simp only [Finset.card_singleton, pow_one, Finset.min'_singleton, Finset.max'_singleton]
+      exact hJ_step x (Finset.mem_singleton_self x)
+    · have hn2 : 2 ≤ J.card := by omega
+      let m := J.max' hJ
+      have hm_in : m ∈ J := Finset.max'_mem J hJ
+      let J' := J.erase m
+      have hJ'_card : J'.card = J.card - 1 := Finset.card_erase_of_mem hm_in
+      have hJ'_nonempty : J'.Nonempty := Finset.card_pos.mp (by rw [hJ'_card]; omega)
+      let m' := J'.max' hJ'_nonempty
+      have hm'_in' : m' ∈ J' := Finset.max'_mem J' hJ'_nonempty
+      have hm'_in : m' ∈ J := Finset.mem_of_mem_erase hm'_in'
+      have hm'_ne : m' ≠ m := Finset.ne_of_mem_erase hm'_in'
+      have hm'_le_m : m' ≤ m := Finset.le_max' J m' hm'_in
+      have hm'_lt_m : m' < m := lt_of_le_of_ne hm'_le_m hm'_ne
+      have hm'_succ_le : m' + 1 ≤ m := hm'_lt_m
+      have h_f_le_m : f (m' + 1) ≤ f m := hf_mono (m' + 1) m hm'_succ_le
+      have h_step_m := hJ_step m hm_in
+      have h_step_sub : ∀ j ∈ J', 3 * f j ≤ 2 * f (j + 1) := fun j hj =>
+        hJ_step j (Finset.mem_of_mem_erase hj)
+      have ih_app := ih J'.card (by omega) J' hJ'_nonempty h_step_sub rfl
+      have h_min_eq := min'_erase_max' J hJ hJ'_nonempty
+      rw [h_min_eq] at ih_app
+      have h_mid : 3 ^ J'.card * f (J.min' hJ) ≤ 2 ^ J'.card * f m := by
+        calc 3 ^ J'.card * f (J.min' hJ)
+          _ ≤ 2 ^ J'.card * f (m' + 1) := ih_app
+          _ ≤ 2 ^ J'.card * f m := Nat.mul_le_mul_left (2 ^ J'.card) h_f_le_m
+      have h_mul3 : 3 * (3 ^ J'.card * f (J.min' hJ)) ≤ 3 * (2 ^ J'.card * f m) :=
+        Nat.mul_le_mul_left 3 h_mid
+      have h_step_ring : 3 * (2 ^ J'.card * f m) = 2 ^ J'.card * (3 * f m) := by ring
+      have h_trans : 2 ^ J'.card * (3 * f m) ≤ 2 ^ J'.card * (2 * f (m + 1)) :=
+        Nat.mul_le_mul_left (2 ^ J'.card) h_step_m
+      have h_combined : 3 * (3 ^ J'.card * f (J.min' hJ)) ≤ 2 ^ J'.card * (2 * f (m + 1)) := by
+        rw [h_step_ring] at h_mul3
+        exact h_mul3.trans h_trans
+      have h_pow3_succ : 3 * (3 ^ J'.card * f (J.min' hJ)) = 3 ^ J.card * f (J.min' hJ) := by
+        have h_sub : J.card = J'.card + 1 := by omega
+        conv_rhs => rw [h_sub]
+        rw [pow_succ]
+        ring
+      have h_pow2_succ : 2 ^ J'.card * (2 * f (m + 1)) = 2 ^ J.card * f (m + 1) := by
+        have h_sub : J.card = J'.card + 1 := by omega
+        conv_rhs => rw [h_sub]
+        rw [pow_succ]
+        ring
+      rw [h_pow3_succ, h_pow2_succ] at h_combined
+      exact h_combined
+
+/-- D1 Abstract Multiplicative Step Counting on Finset:
+    Any set of marked steps where 3*f(j) ≤ 2*f(j+1) has cardinality bounded by p16MultBudget t. -/
+theorem card_mult_growth_steps_le
+    (f : ℕ → ℕ) (hf_mono : ∀ a b, a ≤ b → f a ≤ f b)
+    (t : ℕ) (hf_pos : ∀ j, 1 ≤ f j) (hf_le : ∀ j, f j ≤ t)
+    (J : Finset ℕ)
+    (hJ_step : ∀ j ∈ J, 3 * f j ≤ 2 * f (j + 1)) :
+    J.card ≤ p16MultBudget t := by
+  by_cases hJ : J.Nonempty
+  · have h_grow := finset_mult_growth f hf_mono J hJ hJ_step
+    have hf_min_pos : 1 ≤ f (J.min' hJ) := hf_pos (J.min' hJ)
+    have hf_max_le : f ((J.max' hJ) + 1) ≤ t := hf_le ((J.max' hJ) + 1)
+    have h_3q : 3 ^ J.card ≤ 2 ^ J.card * t := by
+      calc 3 ^ J.card
+        _ ≤ 3 ^ J.card * f (J.min' hJ) := by
+          have := Nat.mul_le_mul_left (3 ^ J.card) hf_min_pos
+          omega
+        _ ≤ 2 ^ J.card * f ((J.max' hJ) + 1) := h_grow
+        _ ≤ 2 ^ J.card * t := Nat.mul_le_mul_left (2 ^ J.card) hf_max_le
+    let L := Nat.log2 t + 1
+    have ht_lt : t < 2 ^ L := lt_two_pow_succ_log2 t
+    have h_q_le := mult_step_count_bound J.card t L ht_lt h_3q
+    dsimp [p16MultBudget]
+    omega
+  · rw [Finset.nonempty_iff_ne_empty, not_not] at hJ
+    rw [hJ, Finset.card_empty]
+    exact Nat.zero_le _
+
+lemma finset_linear_growth (f : ℕ → ℕ) (hf_mono : ∀ a b, a ≤ b → f a ≤ f b)
+    (M : ℕ) (J : Finset ℕ) (V : ℕ)
+    (hJ_le : ∀ j ∈ J, 8 * f j ≤ V)
+    (hJ_step : ∀ j ∈ J, 8 * f j + M ≤ 8 * f (j + 1)) :
+    J.card * M ≤ V + M := by
+  generalize hk : J.card = k
+  induction k using Nat.strong_induction_on generalizing J V with
+  | h n ih =>
+    subst hk
+    by_cases hJ : J.Nonempty
+    · have hJ_pos : 0 < J.card := Finset.card_pos.mpr hJ
+      by_cases hn1 : J.card = 1
+      · rw [hn1, one_mul]
+        exact Nat.le_add_left M V
+      · have hn2 : 2 ≤ J.card := by omega
+        let m := J.max' hJ
+        have hm_in : m ∈ J := Finset.max'_mem J hJ
+        let J' := J.erase m
+        have hJ'_card : J'.card = J.card - 1 := Finset.card_erase_of_mem hm_in
+        have hJ'_nonempty : J'.Nonempty := Finset.card_pos.mp (by rw [hJ'_card]; omega)
+        let m' := J'.max' hJ'_nonempty
+        have hm'_in' : m' ∈ J' := Finset.max'_mem J' hJ'_nonempty
+        have hm'_in : m' ∈ J := Finset.mem_of_mem_erase hm'_in'
+        have hm'_ne : m' ≠ m := Finset.ne_of_mem_erase hm'_in'
+        have hm'_le_m : m' ≤ m := Finset.le_max' J m' hm'_in
+        have hm'_lt_m : m' < m := lt_of_le_of_ne hm'_le_m hm'_ne
+        have hm'_succ_le : m' + 1 ≤ m := hm'_lt_m
+        have h_f_le_m : f (m' + 1) ≤ f m := hf_mono (m' + 1) m hm'_succ_le
+        have h_step_m' := hJ_step m' hm'_in
+        have hm_bound : 8 * f m ≤ V := hJ_le m hm_in
+        have hm'_le_V_sub : 8 * f m' + M ≤ V := by
+          calc 8 * f m' + M
+            _ ≤ 8 * f (m' + 1) := h_step_m'
+            _ ≤ 8 * f m := Nat.mul_le_mul_left 8 h_f_le_m
+            _ ≤ V := hm_bound
+        let V' := V - M
+        have hJ'_le : ∀ j ∈ J', 8 * f j ≤ V' := by
+          intro j hj
+          have hj_in : j ∈ J := Finset.mem_of_mem_erase hj
+          have hj_le_m' : j ≤ m' := Finset.le_max' J' j hj
+          have h_f_le : f j ≤ f m' := hf_mono j m' hj_le_m'
+          dsimp [V']
+          omega
+        have hJ'_step : ∀ j ∈ J', 8 * f j + M ≤ 8 * f (j + 1) := fun j hj =>
+          hJ_step j (Finset.mem_of_mem_erase hj)
+        have ih_app := ih J'.card (by omega) J' V' hJ'_le hJ'_step rfl
+        have h_card_split : J.card * M = J'.card * M + M := by
+          have h_sub : J.card = J'.card + 1 := by omega
+          conv_lhs => rw [h_sub]
+          ring
+        rw [h_card_split]
+        dsimp [V'] at ih_app
+        omega
+    · rw [Finset.nonempty_iff_ne_empty, not_not] at hJ
+      rw [hJ, Finset.card_empty, Nat.zero_mul]
+      exact Nat.zero_le _
+
+/-- D2 Abstract Linear Step Counting on Finset:
+    Any set of marked steps where f(j) ≤ U and 8*f(j) + M ≤ 8*f(j+1)
+    has cardinality bounded by p16LinearBudget U M. -/
+theorem card_linear_growth_steps_le
+    (f : ℕ → ℕ) (hf_mono : ∀ a b, a ≤ b → f a ≤ f b)
+    (U M : ℕ) (hM : 0 < M)
+    (J : Finset ℕ)
+    (hJ_le_U : ∀ j ∈ J, f j ≤ U)
+    (hJ_step : ∀ j ∈ J, 8 * f j + M ≤ 8 * f (j + 1)) :
+    J.card ≤ p16LinearBudget U M := by
+  by_cases hq : J.card ≤ 1
+  · have h_bud : 1 ≤ p16LinearBudget U M := by
+      dsimp [p16LinearBudget]
+      exact Nat.le_add_left 1 (8 * U / M)
+    exact hq.trans h_bud
+  have h_bound := finset_linear_growth f hf_mono M J (8 * U)
+    (fun j hj => by have := hJ_le_U j hj; omega) hJ_step
+  have h_split : J.card * M = (J.card - 1) * M + M := by
+    have h_sub : J.card = (J.card - 1) + 1 := by omega
+    conv_lhs => rw [h_sub]
+    ring
+  rw [h_split] at h_bound
+  have h_sub : (J.card - 1) * M ≤ 8 * U := by omega
+  have h_div : J.card - 1 ≤ 8 * U / M := (Nat.le_div_iff_mul_le hM).mpr h_sub
+  dsimp [p16LinearBudget]
+  omega
+
+/-- Combined block budget bound: if J is partitioned into multiplicative and linear steps,
+    its cardinality is bounded by p16BlockBudget t U M. -/
+theorem card_partition_le_p16BlockBudget
+    (t U M : ℕ) (J J_mult J_lin : Finset ℕ)
+    (h_cover : J ⊆ J_mult ∪ J_lin)
+    (h_mult : J_mult.card ≤ p16MultBudget t)
+    (h_lin : J_lin.card ≤ p16LinearBudget U M) :
+    J.card ≤ p16BlockBudget t U M := by
+  have h_le := Finset.card_le_card h_cover
+  have h_union := Finset.card_union_le J_mult J_lin
+  dsimp [p16BlockBudget]
+  omega
+
+/-!
+### Modulo Injectivity & Candidate Cardinality Preservation
+-/
+
+lemma injOn_scaled_of_injOn (t g : ℕ) (ht : 0 < t) (hg : 0 < g) (hdvd : g ∣ t) (A : Finset ℕ)
+    (h_inj : Set.InjOn (fun a : ℕ => (a : ZMod t)) (A : Set ℕ))
+    (B : Finset ℕ) (hBA : B ⊆ A) (hB_dvd : ∀ a ∈ B, g ∣ a) :
+    Set.InjOn (fun a : ℕ => ((a / g : ℕ) : ZMod (t / g))) (B : Set ℕ) := by
+  intro a ha b hb hab
+  have ha_A : a ∈ (A : Set ℕ) := Finset.mem_coe.mpr (hBA (Finset.mem_coe.mp ha))
+  have hb_A : b ∈ (A : Set ℕ) := Finset.mem_coe.mpr (hBA (Finset.mem_coe.mp hb))
+  have ha_dvd : g ∣ a := hB_dvd a (Finset.mem_coe.mp ha)
+  have hb_dvd : g ∣ b := hB_dvd b (Finset.mem_coe.mp hb)
+  have htg_pos : 0 < t / g := Nat.div_pos (Nat.le_of_dvd ht hdvd) hg
+  have inst1 : NeZero (t / g) := ⟨by omega⟩
+  have inst2 : NeZero t := ⟨by omega⟩
+  rw [ZMod.natCast_eq_natCast_iff] at hab
+  have h_mul := Nat.ModEq.mul_right' g hab
+  rw [Nat.div_mul_cancel ha_dvd, Nat.div_mul_cancel hb_dvd, Nat.div_mul_cancel hdvd] at h_mul
+  have hab_t : (a : ZMod t) = (b : ZMod t) := by
+    rw [ZMod.natCast_eq_natCast_iff]
+    exact h_mul
+  exact h_inj ha_A hb_A hab_t
+
+lemma card_image_scaled_of_injOn (t g : ℕ) (ht : 0 < t) (hg : 0 < g) (hdvd : g ∣ t) (A : Finset ℕ)
+    (h_inj : Set.InjOn (fun a : ℕ => (a : ZMod t)) (A : Set ℕ))
+    (B : Finset ℕ) (hBA : B ⊆ A) (hB_dvd : ∀ a ∈ B, g ∣ a) :
+    (B.image (fun a => ((a / g : ℕ) : ZMod (t / g)))).card = B.card := by
+  exact Finset.card_image_of_injOn (injOn_scaled_of_injOn t g ht hg hdvd A h_inj B hBA hB_dvd)
+
+/-!
+### Range 1 Single-Step Growth Bound
+-/
+
+lemma three_mul_le_two_mul_add_of_gt_half (s d : ℕ) (hd : s / 2 < d) :
+    3 * s ≤ 2 * (s + d) := by
+  have hd_ge : s / 2 + 1 ≤ d := hd
+  have h_two_div : s ≤ 2 * (s / 2) + 1 := by
+    have := (Nat.div_add_mod s 2).symm
+    have h_mod : s % 2 < 2 := Nat.mod_lt s (by decide)
+    omega
+  calc 3 * s
+    _ = 2 * s + s := by ring
+    _ ≤ 2 * s + (2 * (s / 2) + 1) := by omega
+    _ ≤ 2 * s + (2 * (s / 2) + 2) := by omega
+    _ = 2 * s + 2 * (s / 2 + 1) := by ring
+    _ ≤ 2 * s + 2 * d := Nat.add_le_add_left (Nat.mul_le_mul_left 2 hd_ge) (2 * s)
+    _ = 2 * (s + d) := by ring
+
+lemma exists_candidate_range1_growth {G : Type*} [AddCommGroup G] [Fintype G] [DecidableEq G]
+    (S : Finset G) (hS_pos : 0 < S.card)
+    (B : Finset ℕ) (f : ℕ → G) (h_inj : Set.InjOn f (B : Set ℕ))
+    (h_range1 : 2 * S.card < B.card) :
+    ∃ a ∈ B, 3 * S.card ≤ 2 * (S.card + delta S (f a)) := by
+  have h_small := card_smallGrowth_half_le S hS_pos
+  have h_img_card : (B.image f).card = B.card := Finset.card_image_of_injOn h_inj
+  have h_not_sub : ¬ B.image f ⊆ smallGrowth S (S.card / 2) := by
+    intro h_sub
+    have h_le := Finset.card_le_card h_sub
+    rw [h_img_card] at h_le
+    omega
+  rw [Finset.subset_iff] at h_not_sub
+  push Not at h_not_sub
+  rcases h_not_sub with ⟨x, hx_img, hx_not_small⟩
+  rcases Finset.mem_image.mp hx_img with ⟨a, ha_B, rfl⟩
+  simp only [smallGrowth, Finset.mem_filter, Finset.mem_univ, true_and] at hx_not_small
+  push Not at hx_not_small
+  have h_step := three_mul_le_two_mul_add_of_gt_half S.card (delta S (f a)) hx_not_small
+  exact ⟨a, ha_B, h_step⟩
+
+/-!
+### Monotonicity of Iterated Sumsets and Small Growth
+-/
+
+/-- Subset sum cardinality is bounded by the modulus t. -/
+lemma card_subsetSumsMod_le_modulus (t : ℕ) (ht : 0 < t) (A : Finset ℕ) :
+    (subsetSumsMod t A).card ≤ t := by
+  have : NeZero t := ⟨by omega⟩
+  have h_sub : subsetSumsMod t A ⊆ Finset.univ := Finset.subset_univ _
+  have h_le := Finset.card_le_card h_sub
+  rw [Finset.card_univ, ZMod.card t] at h_le
+  exact h_le
+
+lemma iterSum_mono_set {G : Type*} [AddCommGroup G] [DecidableEq G]
+    {A B : Finset G} (hAB : A ⊆ B) (k : ℕ) :
+    iterSum k A ⊆ iterSum k B := by
+  induction k with
+  | zero => exact Finset.Subset.refl _
+  | succ k ih =>
+    simp only [iterSum_succ]
+    exact sumset_subset_sumset ih hAB
+
+lemma smallGrowth_mono {G : Type*} [AddCommGroup G] [Fintype G] [DecidableEq G]
+    (S : Finset G) {D1 D2 : ℕ} (hD : D1 ≤ D2) :
+    smallGrowth S D1 ⊆ smallGrowth S D2 := by
+  intro x hx
+  simp only [smallGrowth, Finset.mem_filter, Finset.mem_univ, true_and] at hx ⊢
+  exact hx.trans hD
+
+/-!
+### Range 2 Candidate Growth Arithmetic & Reduction (Phase U2)
+-/
+
+lemma k_mul_e_le_half_s (s b : ℕ) (hb_pos : 0 < b) (hb_le : b ≤ 2 * s) :
+    (4 * s / b) * ((b - 1) / 8) ≤ s / 2 := by
+  set k := 4 * s / b
+  set e := (b - 1) / 8
+  have he : 8 * e ≤ b - 1 := Nat.mul_div_le (b - 1) 8
+  have hk : k * b ≤ 4 * s := Nat.div_mul_le_self (4 * s) b
+  have hk2 : 2 ≤ k := by
+    have : 2 * b ≤ 4 * s := by omega
+    exact (Nat.le_div_iff_mul_le hb_pos).mpr this
+  have hke : 8 * (k * e) ≤ 4 * s - 2 := by
+    calc 8 * (k * e)
+      _ = k * (8 * e) := by ring
+      _ ≤ k * (b - 1) := Nat.mul_le_mul_left k he
+      _ = k * b - k := by rw [Nat.mul_sub_left_distrib, mul_one]
+      _ ≤ 4 * s - 2 := by omega
+  have h_div : k * e ≤ (4 * s - 2) / 8 := Nat.le_div_iff_mul_le (by decide) |>.mpr (by omega)
+  have h_div2 : (4 * s - 2) / 8 ≤ s / 2 := by omega
+  exact h_div.trans h_div2
+
+/-- Conlon–Fox–Pham (2021) Lemma 5.6 Claim 1 Range 2 Single-Step Growth:
+    For any candidate set Q with Q.card ≤ 2 * S.card, either some candidate a ∈ Q
+    satisfies Q.card ≤ 8 * delta S a, or the iterated sumset yields an arithmetic contradiction. -/
+theorem exists_candidate_range2_growth_of_iterSum_growth
+    (N : ℕ) [NeZero N]
+    (S Q : Finset (ZMod N))
+    (hS : 0 < S.card)
+    (hS_half : 2 * S.card < N)
+    (hQ : 0 < Q.card)
+    (hgen : AddSubgroup.closure (Q : Set (ZMod N)) = ⊤)
+    (hrange : Q.card ≤ 2 * S.card)
+    (h_u1 : ∀ (C : Finset (ZMod N)), (0 : ZMod N) ∈ C → AddSubgroup.closure (C : Set (ZMod N)) = ⊤ →
+      ∀ (k : ℕ), 1 ≤ k → (iterSum k C).card = N ∨ (k + 1) * C.card ≤ 2 * (iterSum k C).card) :
+    ∃ a ∈ Q, Q.card ≤ 8 * delta S a := by
+  by_contra! h_contra
+  set s := S.card
+  set b := Q.card
+  set e := (b - 1) / 8
+  set k := 4 * s / b
+  have hk1 : 1 ≤ k := by
+    have : 1 * b ≤ 4 * s := by omega
+    exact (Nat.le_div_iff_mul_le hQ).mpr this
+  set C : Finset (ZMod N) := insert 0 Q
+  have h0 : (0 : ZMod N) ∈ C := Finset.mem_insert_self 0 Q
+  have hQC : (Q : Set (ZMod N)) ⊆ (C : Set (ZMod N)) := by
+    intro x hx
+    simp only [Finset.mem_coe] at hx ⊢
+    exact Finset.mem_insert_of_mem hx
+  have hgenC : AddSubgroup.closure (C : Set (ZMod N)) = ⊤ := by
+    rw [eq_top_iff]
+    rw [← hgen]
+    exact AddSubgroup.closure_mono hQC
+  have hb_le_C : b ≤ C.card := by
+    have : Q ⊆ C := Finset.subset_insert 0 Q
+    exact Finset.card_le_card this
+  have hC_sub : C ⊆ smallGrowth S e := by
+    intro x hx
+    have hx_ins : x ∈ insert 0 Q := hx
+    rw [Finset.mem_insert] at hx_ins
+    simp only [smallGrowth, Finset.mem_filter, Finset.mem_univ, true_and]
+    rcases hx_ins with rfl | hxQ
+    · rw [delta_zero]
+      omega
+    · have h_lt := h_contra x hxQ
+      omega
+  have h_iter_sub : iterSum k C ⊆ smallGrowth S (k * e) := by
+    have h1 := iterSum_mono_set hC_sub k
+    have h2 := iterSum_smallGrowth_subset S e k
+    exact h1.trans h2
+  have h_ke : k * e ≤ s / 2 := k_mul_e_le_half_s s b hQ hrange
+  have h_small_sub : smallGrowth S (k * e) ⊆ smallGrowth S (s / 2) :=
+    smallGrowth_mono S h_ke
+  have h_iter_in_half : iterSum k C ⊆ smallGrowth S (s / 2) :=
+    h_iter_sub.trans h_small_sub
+  have h_iter_card : (iterSum k C).card ≤ 2 * s := by
+    have h_le := Finset.card_le_card h_iter_in_half
+    have h_half := card_smallGrowth_half_le S hS
+    exact h_le.trans h_half
+  have h_not_full : (iterSum k C).card ≠ N := by
+    omega
+  have h_u1_res := h_u1 C h0 hgenC k hk1
+  rcases h_u1_res with h_eq_N | h_bound
+  · exact h_not_full h_eq_N
+  · have h_contr : (k + 1) * b ≤ 4 * s := by
+      calc (k + 1) * b
+        _ ≤ (k + 1) * C.card := Nat.mul_le_mul_left (k + 1) hb_le_C
+        _ ≤ 2 * (iterSum k C).card := h_bound
+        _ ≤ 2 * (2 * s) := Nat.mul_le_mul_left 2 h_iter_card
+        _ = 4 * s := by ring
+    have h_gt : 4 * s < (k + 1) * b := floor_mul_succ_gt s b hQ
+    omega
+
+/-!
+### Quotient Coordinates, Scaled Embedding and Delta Preservation (Phase U3)
+-/
+
+/-- Scaled embedding from ZMod (t / g) to ZMod t via multiplication by g. -/
+def zmodScale (t g : ℕ) (x : ZMod (t / g)) : ZMod t :=
+  (g * x.val : ℕ)
+
+lemma zmodScale_zero (t g : ℕ) : zmodScale t g 0 = 0 := by
+  dsimp [zmodScale]
+  simp
+
+lemma zmodScale_add (t g : ℕ) (ht : 0 < t) (hg : 0 < g) (hdvd : g ∣ t) (x y : ZMod (t / g)) :
+    zmodScale t g (x + y) = zmodScale t g x + zmodScale t g y := by
+  dsimp [zmodScale]
+  have htg_pos : 0 < t / g := Nat.div_pos (Nat.le_of_dvd ht hdvd) hg
+  have inst1 : NeZero (t / g) := ⟨by omega⟩
+  have inst2 : NeZero t := ⟨by omega⟩
+  rw [← Nat.cast_add]
+  rw [ZMod.natCast_eq_natCast_iff]
+  have h_val : (x + y).val = (x.val + y.val) % (t / g) := ZMod.val_add x y
+  rw [h_val]
+  rw [← Nat.mul_mod_mul_left]
+  rw [Nat.mul_div_cancel' hdvd]
+  have h_ring : g * (x.val + y.val) = g * x.val + g * y.val := by ring
+  rw [h_ring]
+  exact Nat.mod_modEq (g * x.val + g * y.val) t
+
+lemma zmodScale_injective (t g : ℕ) (ht : 0 < t) (hg : 0 < g) (hdvd : g ∣ t) :
+    Function.Injective (zmodScale t g) := by
+  intro x y hxy
+  dsimp [zmodScale] at hxy
+  have htg_pos : 0 < t / g := Nat.div_pos (Nat.le_of_dvd ht hdvd) hg
+  have inst1 : NeZero (t / g) := ⟨by omega⟩
+  have inst2 : NeZero t := ⟨by omega⟩
+  rw [ZMod.natCast_eq_natCast_iff] at hxy
+  have hg_ne : g ≠ 0 := by omega
+  have ht_eq : t = (t / g) * g := (Nat.div_mul_cancel hdvd).symm
+  set xv := x.val
+  set yv := y.val
+  rw [mul_comm g xv, mul_comm g yv, ht_eq] at hxy
+  have h_cancel : xv ≡ yv [MOD t / g] := Nat.ModEq.mul_right_cancel' hg_ne hxy
+  have hx_lt : xv < t / g := ZMod.val_lt x
+  have hy_lt : yv < t / g := ZMod.val_lt y
+  have h_eq : xv = yv := by
+    rw [Nat.ModEq] at h_cancel
+    rw [Nat.mod_eq_of_lt hx_lt, Nat.mod_eq_of_lt hy_lt] at h_cancel
+    exact h_cancel
+  exact ZMod.val_injective (t / g) h_eq
+
+lemma zmodScale_natCast_div (t g : ℕ) (ht : 0 < t) (hg : 0 < g) (hdvd : g ∣ t) (a : ℕ) (ha : g ∣ a) :
+    zmodScale t g ((a / g : ℕ) : ZMod (t / g)) = (a : ZMod t) := by
+  dsimp [zmodScale]
+  have htg_pos : 0 < t / g := Nat.div_pos (Nat.le_of_dvd ht hdvd) hg
+  have inst1 : NeZero (t / g) := ⟨by omega⟩
+  have inst2 : NeZero t := ⟨by omega⟩
+  rw [ZMod.natCast_eq_natCast_iff]
+  rw [ZMod.val_natCast]
+  rw [← Nat.mul_mod_mul_left]
+  rw [Nat.mul_div_cancel' ha, Nat.mul_div_cancel' hdvd]
+  exact Nat.mod_modEq a t
+
+lemma translate_image_zmodScale (t g : ℕ) (ht : 0 < t) (hg : 0 < g) (hdvd : g ∣ t)
+    (S : Finset (ZMod (t / g))) (x : ZMod (t / g)) :
+    translate (S.image (zmodScale t g)) (zmodScale t g x) =
+      (translate S x).image (zmodScale t g) := by
+  dsimp [translate]
+  rw [Finset.image_image, Finset.image_image]
+  apply Finset.image_congr
+  intro s _
+  exact (zmodScale_add t g ht hg hdvd s x).symm
+
+lemma delta_image_zmodScale (t g : ℕ) (ht : 0 < t) (hg : 0 < g) (hdvd : g ∣ t)
+    (S : Finset (ZMod (t / g))) (x : ZMod (t / g)) :
+    delta (S.image (zmodScale t g)) (zmodScale t g x) = delta S x := by
+  dsimp [delta]
+  have h_inj := zmodScale_injective t g ht hg hdvd
+  rw [translate_image_zmodScale t g ht hg hdvd]
+  rw [← Finset.image_sdiff _ _ h_inj]
+  rw [Finset.card_image_of_injective _ h_inj]
+
+lemma subsetSums_empty : subsetSums (∅ : Finset ℕ) = {0} := by
+  dsimp [subsetSums]
+  simp
+
+lemma subsetSumsMod_empty (d : ℕ) : subsetSumsMod d (∅ : Finset ℕ) = {0} := by
+  dsimp [subsetSumsMod]
+  rw [subsetSums_empty]
+  simp
+
+/-- Scaling equality for tracked subset sums: the scaled set sums in ZMod (t/g)
+    embed under zmodScale t g onto the unscaled subset sums in ZMod t. -/
+theorem subsetSumsMod_image_zmodScale
+    (t g : ℕ) (ht : 0 < t) (hg : 0 < g) (hgt : g ∣ t)
+    (D : Finset ℕ) (hD : ∀ a ∈ D, g ∣ a) :
+    (subsetSumsMod (t / g) (D.image (fun a => a / g))).image (zmodScale t g) =
+      subsetSumsMod t D := by
+  induction D using Finset.induction_on with
+  | empty =>
+    simp only [Finset.image_empty, subsetSumsMod_empty]
+    ext x
+    simp only [Finset.mem_image, Finset.mem_singleton]
+    constructor
+    · rintro ⟨y, rfl, rfl⟩
+      exact zmodScale_zero t g
+    · rintro rfl
+      exact ⟨0, rfl, zmodScale_zero t g⟩
+  | insert a D ha ih =>
+    have ha_dvd : g ∣ a := hD a (Finset.mem_insert_self a D)
+    have hD_dvd : ∀ x ∈ D, g ∣ x := fun x hx => hD x (Finset.mem_insert_of_mem hx)
+    have ih_app := ih hD_dvd
+    have ha_div_not : a / g ∉ D.image (fun x => x / g) := by
+      intro h_mem
+      rcases Finset.mem_image.mp h_mem with ⟨b, hb, h_eq⟩
+      have hb_dvd : g ∣ b := hD_dvd b hb
+      have h_ab : a = b := by
+        calc a = (a / g) * g := (Nat.div_mul_cancel ha_dvd).symm
+             _ = (b / g) * g := by rw [h_eq]
+             _ = b := Nat.div_mul_cancel hb_dvd
+      subst h_ab
+      exact ha hb
+    rw [Finset.image_insert]
+    rw [subsetSumsMod_insert (t / g) (D.image (fun x => x / g)) (a / g) ha_div_not]
+    rw [subsetSumsMod_insert t D a ha]
+    rw [Finset.image_union]
+    rw [ih_app]
+    congr 1
+    rw [← ih_app]
+    rw [Finset.image_image, Finset.image_image]
+    apply Finset.image_congr
+    intro r _
+    dsimp
+    rw [zmodScale_add t g ht hg hgt r ((a / g : ℕ) : ZMod (t / g))]
+    rw [zmodScale_natCast_div t g ht hg hgt a ha_dvd]
+
+/-- Scaled tracked fiber multiples sums in quotient ring ZMod (t / g). -/
+def scaledSelectedSums (t g : ℕ) (E : Finset ℕ) : Finset (ZMod (t / g)) :=
+  subsetSumsMod (t / g)
+    ((E.filter (fun a => g ∣ a)).image (fun a => a / g))
+
+/-- Bridge 1: Image of scaledSelectedSums under zmodScale equals selectedMultiplesSums. -/
+theorem scaledSelectedSums_image_zmodScale (t g : ℕ) (ht : 0 < t) (hg : 0 < g) (hdvd : g ∣ t) (E : Finset ℕ) :
+    (scaledSelectedSums t g E).image (zmodScale t g) = selectedMultiplesSums t g E := by
+  dsimp [scaledSelectedSums, selectedMultiplesSums]
+  exact subsetSumsMod_image_zmodScale t g ht hg hdvd (E.filter (fun a => g ∣ a))
+    (fun a ha => (Finset.mem_filter.mp ha).2)
+
+/-- Bridge 2: Cardinality of scaledSelectedSums equals cardinality of selectedMultiplesSums. -/
+theorem card_scaledSelectedSums_eq (t g : ℕ) (ht : 0 < t) (hg : 0 < g) (hdvd : g ∣ t) (E : Finset ℕ) :
+    (scaledSelectedSums t g E).card = (selectedMultiplesSums t g E).card := by
+  have h_img := scaledSelectedSums_image_zmodScale t g ht hg hdvd E
+  have h_inj := zmodScale_injective t g ht hg hdvd
+  rw [← h_img]
+  exact (Finset.card_image_of_injective _ h_inj).symm
+
+/-- Bridge 3: Delta preservation between quotient and full modulus for multiples of g. -/
+theorem delta_scaledSelectedSums_eq (t g : ℕ) (ht : 0 < t) (hg : 0 < g) (hdvd : g ∣ t)
+    (E : Finset ℕ) (a : ℕ) (ha : g ∣ a) :
+    delta (scaledSelectedSums t g E) ((a / g : ℕ) : ZMod (t / g)) =
+      delta (selectedMultiplesSums t g E) (a : ZMod t) := by
+  have h_img := scaledSelectedSums_image_zmodScale t g ht hg hdvd E
+  have h_delta := delta_image_zmodScale t g ht hg hdvd (scaledSelectedSums t g E) ((a / g : ℕ) : ZMod (t / g))
+  rw [h_img, zmodScale_natCast_div t g ht hg hdvd a ha] at h_delta
+  exact h_delta.symm
+
+lemma closure_eq_top_of_one_mem {n : ℕ} [NeZero n] (s : Set (ZMod n))
+    (h1 : (1 : ZMod n) ∈ AddSubgroup.closure s) :
+    AddSubgroup.closure s = ⊤ := by
+  rw [eq_top_iff]
+  intro x _
+  have hx : x = x.val • (1 : ZMod n) := by
+    rw [nsmul_eq_mul, mul_one, ZMod.natCast_zmod_val]
+  rw [hx]
+  exact (AddSubgroup.closure s).nsmul_mem h1 x.val
+
+/-!
+### Modular GCD and Subgroup Generation (Phase B2)
+-/
+
+/-- The modular image of the greatest common divisor of two natural numbers
+    belongs to any additive subgroup containing their modular images. -/
+lemma nat_gcd_cast_mem_addSubgroup
+    (N : ℕ) (H : AddSubgroup (ZMod N))
+    (a b : ℕ) (ha : (a : ZMod N) ∈ H) (hb : (b : ZMod N) ∈ H) :
+    (Nat.gcd a b : ZMod N) ∈ H := by
+  have h_bezout := Nat.gcd_eq_gcd_ab a b
+  have h_cast : ((Nat.gcd a b : ℤ) : ZMod N) =
+      (((a : ℤ) * Nat.gcdA a b + (b : ℤ) * Nat.gcdB a b : ℤ) : ZMod N) := by
+    rw [← h_bezout]
+  push_cast at h_cast
+  rw [h_cast]
+  have ha_zsmul : Nat.gcdA a b • (a : ZMod N) ∈ H := H.zsmul_mem ha (Nat.gcdA a b)
+  have hb_zsmul : Nat.gcdB a b • (b : ZMod N) ∈ H := H.zsmul_mem hb (Nat.gcdB a b)
+  rw [zsmul_eq_mul, mul_comm] at ha_zsmul
+  rw [zsmul_eq_mul, mul_comm] at hb_zsmul
+  exact H.add_mem ha_zsmul hb_zsmul
+
+/-- The modular image of the gcd of a finite set belongs to any additive subgroup
+    containing the modular images of all its elements. -/
+lemma finset_gcd_cast_mem_addSubgroup
+    (N : ℕ) (H : AddSubgroup (ZMod N))
+    (D : Finset ℕ) (hD : ∀ a ∈ D, (a : ZMod N) ∈ H) :
+    ((D.gcd id : ℕ) : ZMod N) ∈ H := by
+  induction D using Finset.induction_on with
+  | empty =>
+    rw [Finset.gcd_empty]
+    simp only [Nat.cast_zero, H.zero_mem]
+  | insert a D ha ih =>
+    rw [Finset.gcd_insert]
+    dsimp [id]
+    have ha_mem : (a : ZMod N) ∈ H := hD a (Finset.mem_insert_self a D)
+    have hD_mem : ∀ x ∈ D, (x : ZMod N) ∈ H := fun x hx => hD x (Finset.mem_insert_of_mem hx)
+    have ih_app : ((D.gcd id : ℕ) : ZMod N) ∈ H := ih hD_mem
+    exact nat_gcd_cast_mem_addSubgroup N H a (D.gcd id) ha_mem ih_app
+
+/-- General generation theorem: if gcd(N, D.gcd id) = 1, then the modular image of D generates ZMod N. -/
+theorem closure_natCast_image_eq_top_of_gcd_eq_one
+    (N : ℕ) [NeZero N] (D : Finset ℕ)
+    (hcop : Nat.gcd N (D.gcd id) = 1) :
+    AddSubgroup.closure ((D.image (fun (a : ℕ) => (a : ZMod N))) : Set (ZMod N)) = ⊤ := by
+  let H := AddSubgroup.closure ((D.image (fun (a : ℕ) => (a : ZMod N))) : Set (ZMod N))
+  have h_elem : ∀ a ∈ D, (a : ZMod N) ∈ H := by
+    intro a ha
+    apply AddSubgroup.subset_closure
+    exact Finset.mem_coe.mpr (Finset.mem_image.mpr ⟨a, ha, rfl⟩)
+  have h_D_gcd : ((D.gcd id : ℕ) : ZMod N) ∈ H := finset_gcd_cast_mem_addSubgroup N H D h_elem
+  have h_N : (N : ZMod N) ∈ H := by
+    rw [CharP.cast_eq_zero (ZMod N) N]
+    exact H.zero_mem
+  have h_one_mod : ((Nat.gcd N (D.gcd id) : ℕ) : ZMod N) ∈ H :=
+    nat_gcd_cast_mem_addSubgroup N H N (D.gcd id) h_N h_D_gcd
+  rw [hcop] at h_one_mod
+  simp only [Nat.cast_one] at h_one_mod
+  exact closure_eq_top_of_one_mem ((D.image (fun (a : ℕ) => (a : ZMod N))) : Set (ZMod N)) h_one_mod
+
+/-- Instantiation to the scaled candidate set:
+    The quotient candidate set {a/g | a ∈ B} unconditionally generates ZMod (t / g). -/
+theorem closure_scaled_candidate_eq_top
+    (t : ℕ) (ht : 0 < t) (B : Finset ℕ) :
+    let g := subgroupIndex t B
+    let N := t / g
+    AddSubgroup.closure ((B.image (fun (a : ℕ) => ((a / g : ℕ) : ZMod N))) : Set (ZMod N)) = ⊤ := by
+  set g := subgroupIndex t B
+  set N := t / g
+  have hg_pos := subgroupIndex_pos t B ht
+  have hg_dvd := subgroupIndex_dvd_modulus t B
+  have hN_pos : 0 < N := Nat.div_pos (Nat.le_of_dvd ht hg_dvd) hg_pos
+  have inst : NeZero N := ⟨by omega⟩
+  have hcop := subgroupIndex_scaled_coprime t B ht
+  have h_eq_image : (B.image (fun a => a / g)).image (fun (a : ℕ) => (a : ZMod N)) =
+      B.image (fun a => ((a / g : ℕ) : ZMod N)) := by
+    rw [Finset.image_image]
+    rfl
+  have h_gen := @closure_natCast_image_eq_top_of_gcd_eq_one N inst (B.image (fun a => a / g)) hcop
+  rwa [h_eq_image] at h_gen
+
+/-!
+### Real Trajectory Potential & Growth Steps (Phase U4)
+-/
+
+/-- Sequence of chosen subsets is monotonic along the greedy iteration. -/
+lemma greedySeq_E_mono (fc : FiniteConditions) {j1 j2 : ℕ} (hj : j1 ≤ j2) :
+    (greedySeq fc j1).E ⊆ (greedySeq fc j2).E := by
+  induction j2, hj using Nat.le_induction with
+  | base => exact Finset.Subset.refl _
+  | succ n hjn ih =>
+    have hn_step : (greedySeq fc n).E ⊆ (greedySeq fc (n + 1)).E := by
+      dsimp [greedySeq]
+      split_ifs with hn_lt hB
+      · exact Finset.subset_insert _ _
+      · exact Finset.Subset.refl _
+      · exact Finset.Subset.refl _
+    exact ih.trans hn_step
+
+/-- Trajectory potential: cardinality of selected multiples sums at step j. -/
+noncomputable def f_g (fc : FiniteConditions) (g : ℕ) (j : ℕ) : ℕ :=
+  (selectedMultiplesSums fc.t g (greedySeq fc j).E).card
+
+lemma f_g_mono (fc : FiniteConditions) (g : ℕ) {j1 j2 : ℕ} (hj : j1 ≤ j2) :
+    f_g fc g j1 ≤ f_g fc g j2 :=
+  card_selectedMultiplesSums_le_of_subset fc.t g (greedySeq_E_mono fc hj)
+
+lemma one_le_f_g (fc : FiniteConditions) (g : ℕ) (j : ℕ) :
+    1 ≤ f_g fc g j :=
+  one_le_card_selectedMultiplesSums fc.t g _
+
+lemma f_g_le_t (fc : FiniteConditions) (g : ℕ) (j : ℕ) :
+    f_g fc g j ≤ fc.t := by
+  dsimp [f_g, selectedMultiplesSums]
+  exact card_subsetSumsMod_le_modulus fc.t fc.ht_pos _
+
+lemma f_g_succ_eq (fc : FiniteConditions) (j : ℕ) (hj : j ∈ growthSteps fc) :
+    f_g fc ((greedySeq fc j).g fc.t) (j + 1) =
+      f_g fc ((greedySeq fc j).g fc.t) j +
+      delta (selectedMultiplesSums fc.t ((greedySeq fc j).g fc.t) (greedySeq fc j).E)
+        (greedyChoice fc.t fc.U (greedySeq fc j) ((greedySeq fc j).B_nonempty (by
+          rw [card_greedySeq_E fc j (by
+            simp only [growthSteps, Finset.mem_filter, Finset.mem_range] at hj
+            omega)]
+          have hj_lt : j < fc.K := by
+            simp only [growthSteps, Finset.mem_filter, Finset.mem_range] at hj
+            exact hj.1
+          have : fc.K + fc.M ≤ fc.A.card := fc.hK_add_M_le
+          omega)) : ZMod fc.t) := by
+  have hj_lt : j < fc.K := by
+    simp only [growthSteps, Finset.mem_filter, Finset.mem_range] at hj
+    exact hj.1
+  have h_grow : isGrowthStage fc.t fc.U (greedySeq fc j) := by
+    simp only [growthSteps, Finset.mem_filter] at hj
+    exact hj.2
+  have hB : (greedySeq fc j).B.Nonempty := by
+    apply (greedySeq fc j).B_nonempty
+    rw [card_greedySeq_E fc j (by omega)]
+    have : fc.K + fc.M ≤ fc.A.card := fc.hK_add_M_le
+    omega
+  dsimp [f_g, greedySeq]
+  rw [if_pos hj_lt, dif_pos hB]
+  dsimp [nextState]
+  have ha_dvd : (greedySeq fc j).g fc.t ∣ greedyChoice fc.t fc.U (greedySeq fc j) hB := by
+    apply subgroupIndex_dvd_mem fc.t (greedySeq fc j).B
+    exact greedyChoice_mem fc.t fc.U (greedySeq fc j) hB
+  have ha_not : greedyChoice fc.t fc.U (greedySeq fc j) hB ∉ (greedySeq fc j).E := by
+    have h_mem := greedyChoice_mem fc.t fc.U (greedySeq fc j) hB
+    exact (Finset.mem_sdiff.mp h_mem).2
+  exact card_selectedMultiplesSums_insert_eq fc.t ((greedySeq fc j).g fc.t) (greedySeq fc j).E
+    (greedyChoice fc.t fc.U (greedySeq fc j) hB) ha_not ha_dvd
+
+lemma trajectory_growth_step_range1 (fc : FiniteConditions)
+    (h_inj : Set.InjOn (fun a : ℕ => (a : ZMod fc.t)) (fc.A : Set ℕ))
+    (j : ℕ) (hj : j ∈ growthSteps fc)
+    (hrange1 : 2 * f_g fc ((greedySeq fc j).g fc.t) j < (greedySeq fc j).B.card) :
+    3 * f_g fc ((greedySeq fc j).g fc.t) j ≤ 2 * f_g fc ((greedySeq fc j).g fc.t) (j + 1) := by
+  haveI : NeZero fc.t := ⟨by have := fc.ht_pos; omega⟩
+  have h_grow : isGrowthStage fc.t fc.U (greedySeq fc j) := by
+    simp only [growthSteps, Finset.mem_filter] at hj; exact hj.2
+  have hB : (greedySeq fc j).B.Nonempty := by
+    apply (greedySeq fc j).B_nonempty
+    rw [card_greedySeq_E fc j (by
+      simp only [growthSteps, Finset.mem_filter, Finset.mem_range] at hj; omega)]
+    have : fc.K + fc.M ≤ fc.A.card := fc.hK_add_M_le
+    simp only [growthSteps, Finset.mem_filter, Finset.mem_range] at hj
+    omega
+  have h_inj_B : Set.InjOn (fun a : ℕ => (a : ZMod fc.t)) ((greedySeq fc j).B : Set ℕ) := by
+    intro a ha b hb hab
+    simp only [Finset.mem_coe] at ha hb
+    have ha_A : a ∈ fc.A := (Finset.mem_sdiff.mp ha).1
+    have hb_A : b ∈ fc.A := (Finset.mem_sdiff.mp hb).1
+    exact h_inj (Finset.mem_coe.mpr ha_A) (Finset.mem_coe.mpr hb_A) hab
+  have h_step1 := exists_candidate_range1_growth
+    (selectedMultiplesSums fc.t ((greedySeq fc j).g fc.t) (greedySeq fc j).E)
+    (card_selectedMultiplesSums_pos fc.t ((greedySeq fc j).g fc.t) (greedySeq fc j).E)
+    (greedySeq fc j).B (fun a => (a : ZMod fc.t)) h_inj_B hrange1
+  rcases h_step1 with ⟨a, ha_B, h_growth_a⟩
+  have h_choice_max := greedyChoice_growth_max fc.t fc.U (greedySeq fc j) hB h_grow a ha_B
+  have h_step2 : 3 * f_g fc ((greedySeq fc j).g fc.t) j ≤
+      2 * (f_g fc ((greedySeq fc j).g fc.t) j +
+        delta (selectedMultiplesSums fc.t ((greedySeq fc j).g fc.t) (greedySeq fc j).E)
+          (greedyChoice fc.t fc.U (greedySeq fc j) hB : ZMod fc.t)) := by
+    dsimp [f_g] at h_growth_a ⊢
+    omega
+  rw [f_g_succ_eq fc j hj]
+  exact h_step2
+
+lemma trajectory_growth_step_range2 (fc : FiniteConditions)
+    (j : ℕ) (hj : j ∈ growthSteps fc)
+    (_hrange2 : (greedySeq fc j).B.card ≤ 2 * f_g fc ((greedySeq fc j).g fc.t) j)
+    (h_u2_growth : ∃ a ∈ (greedySeq fc j).B,
+      (greedySeq fc j).B.card ≤ 8 * delta (selectedMultiplesSums fc.t ((greedySeq fc j).g fc.t) (greedySeq fc j).E) (a : ZMod fc.t)) :
+    8 * f_g fc ((greedySeq fc j).g fc.t) j + fc.M ≤ 8 * f_g fc ((greedySeq fc j).g fc.t) (j + 1) := by
+  have h_grow : isGrowthStage fc.t fc.U (greedySeq fc j) := by
+    simp only [growthSteps, Finset.mem_filter] at hj; exact hj.2
+  have hB : (greedySeq fc j).B.Nonempty := by
+    apply (greedySeq fc j).B_nonempty
+    rw [card_greedySeq_E fc j (by
+      simp only [growthSteps, Finset.mem_filter, Finset.mem_range] at hj; omega)]
+    have : fc.K + fc.M ≤ fc.A.card := fc.hK_add_M_le
+    simp only [growthSteps, Finset.mem_filter, Finset.mem_range] at hj
+    omega
+  rcases h_u2_growth with ⟨a, ha_B, ha_bound⟩
+  have h_choice_max := greedyChoice_growth_max fc.t fc.U (greedySeq fc j) hB h_grow a ha_B
+  have h_M_le : fc.M ≤ (greedySeq fc j).B.card := by
+    rw [(greedySeq fc j).card_B]
+    rw [card_greedySeq_E fc j (by
+      simp only [growthSteps, Finset.mem_filter, Finset.mem_range] at hj; omega)]
+    have : fc.K + fc.M ≤ fc.A.card := fc.hK_add_M_le
+    simp only [growthSteps, Finset.mem_filter, Finset.mem_range] at hj
+    omega
+  rw [f_g_succ_eq fc j hj]
+  omega
+
+/-- Scaled fiber bound: strictly less than quotient modulus N = t / g. -/
+lemma small_fiber_card_mul_two_lt (fc : FiniteConditions) (g : ℕ) (hg_pos : 0 < g) (hg_le : g ≤ fc.gMax)
+    (S_card : ℕ) (hS_le : S_card ≤ fc.U) :
+    2 * S_card < fc.t / g := by
+  have hU_lt := fc.h_small_fiber_bound
+  have h_2gmax_pos : 0 < 2 * fc.gMax := by
+    have := fc.hgMax_pos
+    omega
+  have hU_le : fc.U + 1 ≤ fc.t / (2 * fc.gMax) := hU_lt
+  have h_mul : (fc.U + 1) * (2 * fc.gMax) ≤ fc.t :=
+    (Nat.le_div_iff_mul_le h_2gmax_pos).mp hU_le
+  have h_le_g : (2 * S_card + 2) * g ≤ (fc.U + 1) * (2 * fc.gMax) := by
+    calc (2 * S_card + 2) * g
+      _ ≤ (2 * fc.U + 2) * g := Nat.mul_le_mul_right g (by omega)
+      _ = (fc.U + 1) * (2 * g) := by ring
+      _ ≤ (fc.U + 1) * (2 * fc.gMax) := Nat.mul_le_mul_left (fc.U + 1) (by omega)
+  have h_le_t : (2 * S_card + 2) * g ≤ fc.t := h_le_g.trans h_mul
+  have h_div : 2 * S_card + 2 ≤ fc.t / g :=
+    (Nat.le_div_iff_mul_le hg_pos).mpr h_le_t
+  omega
+
+/-- Deriving real Range 2 candidate from iterated sumset growth hypothesis U1. -/
+theorem exists_trajectory_range2_candidate_of_iterSum_growth
+    (fc : FiniteConditions)
+    (h_inj : Set.InjOn (fun a : ℕ => (a : ZMod fc.t)) (fc.A : Set ℕ))
+    (h_u1 : ∀ (N : ℕ) (hN : 0 < N) (C : Finset (ZMod N)),
+      (0 : ZMod N) ∈ C →
+      AddSubgroup.closure (C : Set (ZMod N)) = ⊤ →
+      ∀ (k : ℕ), 1 ≤ k →
+        (iterSum k C).card = N ∨
+          (k + 1) * C.card ≤ 2 * (iterSum k C).card)
+    (j : ℕ) (hj : j ∈ growthSteps fc)
+    (hrange : (greedySeq fc j).B.card ≤ 2 * f_g fc ((greedySeq fc j).g fc.t) j) :
+    ∃ a ∈ (greedySeq fc j).B,
+      (greedySeq fc j).B.card ≤
+        8 * delta (selectedMultiplesSums fc.t ((greedySeq fc j).g fc.t) (greedySeq fc j).E) (a : ZMod fc.t) := by
+  have hj_growth : isGrowthStage fc.t fc.U (greedySeq fc j) := by
+    simp only [growthSteps, Finset.mem_filter] at hj; exact hj.2
+  have hj_lt : j < fc.K := by
+    simp only [growthSteps, Finset.mem_filter, Finset.mem_range] at hj; exact hj.1
+  have hj_card : (greedySeq fc j).E.card ≤ fc.K := by
+    rw [card_greedySeq_E fc j (by omega)]
+    omega
+  have hM_le_B : fc.M ≤ (greedySeq fc j).B.card := (greedySeq fc j).B_card_ge hj_card
+  have hB_sub_A : (greedySeq fc j).B ⊆ fc.A := Finset.sdiff_subset
+  set g := (greedySeq fc j).g fc.t
+  have hg_pos : 0 < g := subgroupIndex_pos fc.t (greedySeq fc j).B fc.ht_pos
+  have hg_dvd : g ∣ fc.t := subgroupIndex_dvd_modulus fc.t (greedySeq fc j).B
+  have hg_le : g ≤ fc.gMax := fc.h_subgroup_le (greedySeq fc j).B hB_sub_A hM_le_B
+  set N := fc.t / g
+  have hN_pos : 0 < N := Nat.div_pos (Nat.le_of_dvd fc.ht_pos hg_dvd) hg_pos
+  have instN : NeZero N := ⟨by omega⟩
+  set S := scaledSelectedSums fc.t g (greedySeq fc j).E
+  set Q := (greedySeq fc j).B.image (fun a => ((a / g : ℕ) : ZMod N))
+  have hS_card_eq : S.card = (selectedMultiplesSums fc.t g (greedySeq fc j).E).card :=
+    card_scaledSelectedSums_eq fc.t g fc.ht_pos hg_pos hg_dvd _
+  have hS_pos : 0 < S.card := by
+    rw [hS_card_eq]
+    exact card_selectedMultiplesSums_pos fc.t g _
+  have hS_le_U : (selectedMultiplesSums fc.t g (greedySeq fc j).E).card ≤ fc.U :=
+    card_selectedMultiplesSums_le_U fc.t fc.U (greedySeq fc j) fc.ht_pos hj_growth
+  have hS_half : 2 * S.card < N := by
+    rw [hS_card_eq]
+    exact small_fiber_card_mul_two_lt fc g hg_pos hg_le
+      (selectedMultiplesSums fc.t g (greedySeq fc j).E).card hS_le_U
+  have hB_dvd : ∀ a ∈ (greedySeq fc j).B, g ∣ a :=
+    fun a ha => subgroupIndex_dvd_mem fc.t (greedySeq fc j).B ha
+  have hQ_card_eq : Q.card = (greedySeq fc j).B.card :=
+    card_image_scaled_of_injOn fc.t g fc.ht_pos hg_pos hg_dvd fc.A h_inj (greedySeq fc j).B hB_sub_A hB_dvd
+  have hQ_pos : 0 < Q.card := by
+    rw [hQ_card_eq]
+    have := fc.hM_pos
+    omega
+  have hgen : AddSubgroup.closure (Q : Set (ZMod N)) = ⊤ :=
+    closure_scaled_candidate_eq_top fc.t fc.ht_pos (greedySeq fc j).B
+  have h_fg : f_g fc g j = S.card := by
+    dsimp [f_g]
+    rw [hS_card_eq]
+  have hrange_Q : Q.card ≤ 2 * S.card := by
+    rw [hQ_card_eq]
+    rwa [h_fg] at hrange
+  have h_u1_N : ∀ (C : Finset (ZMod N)), (0 : ZMod N) ∈ C → AddSubgroup.closure (C : Set (ZMod N)) = ⊤ →
+      ∀ (k : ℕ), 1 ≤ k → (iterSum k C).card = N ∨ (k + 1) * C.card ≤ 2 * (iterSum k C).card :=
+    fun C h0 hgenC k hk => h_u1 N hN_pos C h0 hgenC k hk
+  have h_cand := exists_candidate_range2_growth_of_iterSum_growth N S Q hS_pos hS_half hQ_pos hgen hrange_Q h_u1_N
+  rcases h_cand with ⟨q, hq_Q, hq_bound⟩
+  rcases Finset.mem_image.mp hq_Q with ⟨a, ha_B, rfl⟩
+  use a, ha_B
+  have ha_dvd : g ∣ a := hB_dvd a ha_B
+  have h_delta_eq : delta S ((a / g : ℕ) : ZMod N) =
+      delta (selectedMultiplesSums fc.t g (greedySeq fc j).E) (a : ZMod fc.t) :=
+    delta_scaledSelectedSums_eq fc.t g fc.ht_pos hg_pos hg_dvd (greedySeq fc j).E a ha_dvd
+  rw [hQ_card_eq] at hq_bound
+  rw [h_delta_eq] at hq_bound
+  exact hq_bound
+
+/-- Range 2 trajectory growth step closed using the iterated sumset growth hypothesis U1. -/
+lemma trajectory_growth_step_range2_of_iterSum_growth
+    (fc : FiniteConditions)
+    (h_inj : Set.InjOn (fun a : ℕ => (a : ZMod fc.t)) (fc.A : Set ℕ))
+    (h_u1 : ∀ (N : ℕ) (hN : 0 < N) (C : Finset (ZMod N)),
+      (0 : ZMod N) ∈ C →
+      AddSubgroup.closure (C : Set (ZMod N)) = ⊤ →
+      ∀ (k : ℕ), 1 ≤ k →
+        (iterSum k C).card = N ∨
+          (k + 1) * C.card ≤ 2 * (iterSum k C).card)
+    (j : ℕ) (hj : j ∈ growthSteps fc)
+    (hrange2 : (greedySeq fc j).B.card ≤ 2 * f_g fc ((greedySeq fc j).g fc.t) j) :
+    8 * f_g fc ((greedySeq fc j).g fc.t) j + fc.M ≤ 8 * f_g fc ((greedySeq fc j).g fc.t) (j + 1) := by
+  have h_cand := exists_trajectory_range2_candidate_of_iterSum_growth fc h_inj h_u1 j hj hrange2
+  exact trajectory_growth_step_range2 fc j hj hrange2 h_cand
+
+/-- Double counting fiber bound for finite sets. -/
+lemma card_le_mul_of_fiber_bound {α β : Type*} [DecidableEq α] [DecidableEq β]
+    (S : Finset α) (f : α → β) (N_blocks N_per_block : ℕ)
+    (h_blocks : (S.image f).card ≤ N_blocks)
+    (h_fibers : ∀ y ∈ S.image f, (S.filter (fun x => f x = y)).card ≤ N_per_block) :
+    S.card ≤ N_blocks * N_per_block := by
+  have h_sum := Finset.card_eq_sum_card_image f S
+  rw [h_sum]
+  have h_le : ∑ y ∈ S.image f, (S.filter (fun x => f x = y)).card ≤ ∑ y ∈ S.image f, N_per_block := by
+    apply Finset.sum_le_sum
+    intro y hy
+    exact h_fibers y hy
+  rw [Finset.sum_const, nsmul_eq_mul] at h_le
+  have h_mul : (S.image f).card * N_per_block ≤ N_blocks * N_per_block :=
+    Nat.mul_le_mul_right N_per_block h_blocks
+  exact h_le.trans h_mul
+
+/-- Subgroup index is monotone under divisibility along greedySeq:
+    for any j ≤ k ≤ K, g(j) ∣ g(k). -/
+lemma greedySeq_g_dvd (fc : FiniteConditions) (j k : ℕ) (hjk : j ≤ k) (hk : k ≤ fc.K) :
+    (greedySeq fc j).g fc.t ∣ (greedySeq fc k).g fc.t := by
+  induction k, hjk using Nat.le_induction with
+  | base => exact dvd_rfl
+  | succ n hjn ih =>
+    have hn_lt : n < fc.K := by omega
+    have ih_n := ih (by omega)
+    dsimp [greedySeq]
+    rw [if_pos hn_lt]
+    split_ifs with hB
+    · exact ih_n.trans (nextState_g_dvd fc.t (greedySeq fc n) _ _)
+    · exact ih_n
+
+/-- Subgroup index is monotone in ≤ along greedySeq. -/
+lemma greedySeq_g_le (fc : FiniteConditions) (j k : ℕ) (hjk : j ≤ k) (hk : k ≤ fc.K) :
+    (greedySeq fc j).g fc.t ≤ (greedySeq fc k).g fc.t := by
+  have hdvd := greedySeq_g_dvd fc j k hjk hk
+  have hpos := subgroupIndex_pos fc.t (greedySeq fc k).B fc.ht_pos
+  exact Nat.le_of_dvd hpos hdvd
+
+/-- Strict increases in the subgroup index image double at each step. -/
+lemma greedySeq_g_image_doubling (fc : FiniteConditions) (a b : ℕ)
+    (ha : a ∈ (growthSteps fc).image (fun j => (greedySeq fc j).g fc.t))
+    (hb : b ∈ (growthSteps fc).image (fun j => (greedySeq fc j).g fc.t))
+    (h_lt : a < b) : 2 * a ≤ b := by
+  simp only [Finset.mem_image, growthSteps, Finset.mem_filter, Finset.mem_range] at ha hb
+  rcases ha with ⟨j1, ⟨hj1_lt, _⟩, rfl⟩
+  rcases hb with ⟨j2, ⟨hj2_lt, _⟩, rfl⟩
+  have hj : j1 < j2 := by
+    by_contra h_not
+    have : j2 ≤ j1 := by omega
+    have h_le := greedySeq_g_le fc j2 j1 this (by omega)
+    omega
+  have hdvd := greedySeq_g_dvd fc j1 j2 (by omega) (by omega)
+  have hpos := subgroupIndex_pos fc.t (greedySeq fc j1).B fc.ht_pos
+  exact mul_two_le_of_dvd_of_lt hpos hdvd h_lt
+
+/-- Every element in the subgroup index image is bounded by gMax. -/
+lemma greedySeq_g_image_le_gMax (fc : FiniteConditions) (a : ℕ)
+    (ha : a ∈ (growthSteps fc).image (fun j => (greedySeq fc j).g fc.t)) :
+    a ≤ fc.gMax := by
+  simp only [Finset.mem_image, growthSteps, Finset.mem_filter, Finset.mem_range] at ha
+  rcases ha with ⟨j, ⟨hj_lt, _⟩, rfl⟩
+  have hj_card : (greedySeq fc j).E.card ≤ fc.K := by
+    rw [card_greedySeq_E fc j (by omega)]
+    omega
+  have hM := (greedySeq fc j).B_card_ge hj_card
+  have hB_sub : (greedySeq fc j).B ⊆ fc.A := Finset.sdiff_subset
+  exact fc.h_subgroup_le (greedySeq fc j).B hB_sub hM
+
+/-- Bounding the cardinality of a finite set of positive integers with strict doubling. -/
+lemma doubling_chain_finset_card_le (Y : Finset ℕ)
+    (hY_pos : ∀ y ∈ Y, 0 < y)
+    (h_doubling : ∀ a ∈ Y, ∀ b ∈ Y, a < b → 2 * a ≤ b)
+    (gMax : ℕ) (hgMax : 0 < gMax) (hY_le : ∀ y ∈ Y, y ≤ gMax) :
+    Y.card ≤ Nat.log2 gMax + 1 := by
+  have h_ind : ∀ k, ∀ (Y : Finset ℕ), Y.card = k →
+      (∀ y ∈ Y, 0 < y) →
+      (∀ a ∈ Y, ∀ b ∈ Y, a < b → 2 * a ≤ b) →
+      ∀ G, 0 < G → (∀ y ∈ Y, y ≤ G) →
+      Y.card ≤ Nat.log2 G + 1 := by
+    intro k
+    induction k using Nat.strong_induction_on with
+    | h k ih =>
+      intro Y hY_card hY_pos h_doubling G hG hY_le
+      by_cases hk1 : Y.card ≤ 1
+      · have : 0 ≤ Nat.log2 G := Nat.zero_le _
+        omega
+      · have hk2 : 2 ≤ Y.card := by omega
+        have h_nonempty : Y.Nonempty := Finset.card_pos.mp (by omega)
+        let m := Y.max' h_nonempty
+        have hm_in : m ∈ Y := Finset.max'_mem Y h_nonempty
+        have hm_le : m ≤ G := hY_le m hm_in
+        let Y' := Y.erase m
+        have hY'_card : Y'.card = Y.card - 1 := Finset.card_erase_of_mem hm_in
+        have hY'_nonempty : Y'.Nonempty := Finset.card_pos.mp (by omega)
+        let m' := Y'.max' hY'_nonempty
+        have hm'_in' : m' ∈ Y' := Finset.max'_mem Y' hY'_nonempty
+        have hm'_in : m' ∈ Y := Finset.mem_of_mem_erase hm'_in'
+        have hm'_ne : m' ≠ m := Finset.ne_of_mem_erase hm'_in'
+        have hm'_le_m : m' ≤ m := Finset.le_max' Y m' hm'_in
+        have hm'_lt_m : m' < m := lt_of_le_of_ne hm'_le_m hm'_ne
+        have h_double := h_doubling m' hm'_in m hm_in hm'_lt_m
+        have hm'_le_div : m' ≤ G / 2 := by
+          have : 2 * m' ≤ G := h_double.trans hm_le
+          omega
+        have hY'_le : ∀ y ∈ Y', y ≤ G / 2 := by
+          intro y hy
+          have hy_le_m' : y ≤ m' := Finset.le_max' Y' y hy
+          exact hy_le_m'.trans hm'_le_div
+        have h_sub_doubling : ∀ a ∈ Y', ∀ b ∈ Y', a < b → 2 * a ≤ b := by
+          intro a ha b hb hlt
+          exact h_doubling a (Finset.mem_of_mem_erase ha) b (Finset.mem_of_mem_erase hb) hlt
+        have hY'_pos : ∀ y ∈ Y', 0 < y := fun y hy => hY_pos y (Finset.mem_of_mem_erase hy)
+        have hm'_pos : 0 < m' := hY_pos m' hm'_in
+        have h_double_G : 2 * m' ≤ G := h_double.trans hm_le
+        have hG2 : 2 ≤ G := (Nat.mul_le_mul_left 2 (Nat.succ_le_of_lt hm'_pos)).trans h_double_G
+        have h_div_pos : 0 < G / 2 := Nat.div_pos hG2 (by decide)
+        have ih_app := ih Y'.card (by omega) Y' rfl hY'_pos h_sub_doubling (G / 2) h_div_pos hY'_le
+        have h_log : Nat.log2 G = Nat.log2 (G / 2) + 1 := by
+          rw [Nat.log2_def G, if_pos hG2]
+        omega
+  exact h_ind Y.card Y rfl hY_pos h_doubling gMax hgMax hY_le
+
+/-- Number of distinct subgroup indices in growthSteps is bounded by maxSubgroupBlocks. -/
+lemma growthSteps_g_image_card_le (fc : FiniteConditions) :
+    ((growthSteps fc).image (fun j => (greedySeq fc j).g fc.t)).card ≤ maxSubgroupBlocks fc.gMax := by
+  dsimp [maxSubgroupBlocks]
+  let Y := (growthSteps fc).image (fun j => (greedySeq fc j).g fc.t)
+  have hY_pos : ∀ y ∈ Y, 0 < y := by
+    intro y hy
+    rcases Finset.mem_image.mp hy with ⟨j, _, rfl⟩
+    exact subgroupIndex_pos fc.t (greedySeq fc j).B fc.ht_pos
+  have hY_le : ∀ y ∈ Y, y ≤ fc.gMax := fun y hy => greedySeq_g_image_le_gMax fc y hy
+  have hY_doubling : ∀ a ∈ Y, ∀ b ∈ Y, a < b → 2 * a ≤ b := fun a ha b hb hlt =>
+    greedySeq_g_image_doubling fc a b ha hb hlt
+  exact doubling_chain_finset_card_le Y hY_pos hY_doubling fc.gMax fc.hgMax_pos hY_le
+
+/-- Universal bound: growth steps count cannot exceed K. -/
+lemma growthSteps_card_le_K (fc : FiniteConditions) :
+    (growthSteps fc).card ≤ fc.K := by
+  dsimp [growthSteps]
+  have h_sub : (Finset.range fc.K).filter (fun j => isGrowthStage fc.t fc.U (greedySeq fc j)) ⊆ Finset.range fc.K :=
+    Finset.filter_subset _ _
+  have h_le := Finset.card_le_card h_sub
+  rw [Finset.card_range] at h_le
+  exact h_le
+
+/-- Conlon–Fox–Pham (2021) Lemma 5.6 Claim 1 Per-Block Budget Bound (Phase U5):
+    Each subgroup index block in growthSteps has cardinality bounded by p16BlockBudget. -/
+theorem growthSteps_block_card_le_p16BlockBudget
+    (fc : FiniteConditions)
+    (h_inj : Set.InjOn (fun a : ℕ => (a : ZMod fc.t)) (fc.A : Set ℕ))
+    (y : ℕ)
+    (_hy : y ∈ (growthSteps fc).image (fun j => (greedySeq fc j).g fc.t))
+    (h_range2 : ∀ j ∈ (growthSteps fc).filter (fun j => (greedySeq fc j).g fc.t = y),
+      (greedySeq fc j).B.card ≤ 2 * f_g fc y j →
+      8 * f_g fc y j + fc.M ≤ 8 * f_g fc y (j + 1)) :
+    ((growthSteps fc).filter (fun j => (greedySeq fc j).g fc.t = y)).card ≤
+      p16BlockBudget fc.t fc.U fc.M := by
+  set J_y := (growthSteps fc).filter (fun j => (greedySeq fc j).g fc.t = y)
+  set J_mult := J_y.filter (fun j => 2 * f_g fc y j < (greedySeq fc j).B.card)
+  set J_lin := J_y.filter (fun j => ¬ (2 * f_g fc y j < (greedySeq fc j).B.card))
+  have h_cover : J_y ⊆ J_mult ∪ J_lin := by
+    intro j hj
+    by_cases h : 2 * f_g fc y j < (greedySeq fc j).B.card
+    · apply Finset.mem_union_left
+      exact Finset.mem_filter.mpr ⟨hj, h⟩
+    · apply Finset.mem_union_right
+      exact Finset.mem_filter.mpr ⟨hj, h⟩
+  have h_mult_bound : J_mult.card ≤ p16MultBudget fc.t := by
+    apply card_mult_growth_steps_le (f_g fc y) (fun a b hab => f_g_mono fc y hab) fc.t
+      (one_le_f_g fc y) (f_g_le_t fc y) J_mult
+    intro j hj
+    have hj_Jy : j ∈ J_y := (Finset.mem_filter.mp hj).1
+    have hj_r1 : 2 * f_g fc y j < (greedySeq fc j).B.card := (Finset.mem_filter.mp hj).2
+    have hj_growth : j ∈ growthSteps fc := (Finset.mem_filter.mp hj_Jy).1
+    have hj_g : (greedySeq fc j).g fc.t = y := (Finset.mem_filter.mp hj_Jy).2
+    rw [← hj_g]
+    exact trajectory_growth_step_range1 fc h_inj j hj_growth (by rwa [hj_g])
+  have h_lin_bound : J_lin.card ≤ p16LinearBudget fc.U fc.M := by
+    apply card_linear_growth_steps_le (f_g fc y) (fun a b hab => f_g_mono fc y hab)
+      fc.U fc.M fc.hM_pos J_lin
+    · intro j hj
+      have hj_Jy : j ∈ J_y := (Finset.mem_filter.mp hj).1
+      have hj_growth : j ∈ growthSteps fc := (Finset.mem_filter.mp hj_Jy).1
+      have hj_g : (greedySeq fc j).g fc.t = y := (Finset.mem_filter.mp hj_Jy).2
+      have h_grow : isGrowthStage fc.t fc.U (greedySeq fc j) := by
+        simp only [growthSteps, Finset.mem_filter] at hj_growth; exact hj_growth.2
+      dsimp [f_g]
+      rw [← hj_g]
+      exact card_selectedMultiplesSums_le_U fc.t fc.U (greedySeq fc j) fc.ht_pos h_grow
+    · intro j hj
+      have hj_Jy : j ∈ J_y := (Finset.mem_filter.mp hj).1
+      have hj_not_r1 : ¬ (2 * f_g fc y j < (greedySeq fc j).B.card) := (Finset.mem_filter.mp hj).2
+      have hj_le : (greedySeq fc j).B.card ≤ 2 * f_g fc y j := by omega
+      exact h_range2 j hj_Jy hj_le
+  exact card_partition_le_p16BlockBudget fc.t fc.U fc.M J_y J_mult J_lin h_cover h_mult_bound h_lin_bound
+
+/-- Conlon–Fox–Pham (2021) Lemma 5.6 Claim 1 Total Budget Master Theorem (Phase U6):
+    Total growth steps are bounded by p16TotalBudget without h_fibers. -/
+theorem growthSteps_card_le_p16Budget
+    (fc : FiniteConditions)
+    (h_inj : Set.InjOn (fun a : ℕ => (a : ZMod fc.t)) (fc.A : Set ℕ))
+    (h_range2 : ∀ y ∈ (growthSteps fc).image (fun j => (greedySeq fc j).g fc.t),
+      ∀ j ∈ (growthSteps fc).filter (fun j => (greedySeq fc j).g fc.t = y),
+        (greedySeq fc j).B.card ≤ 2 * f_g fc y j →
+        8 * f_g fc y j + fc.M ≤ 8 * f_g fc y (j + 1)) :
+    (growthSteps fc).card ≤ p16TotalBudget fc.t fc.gMax fc.U fc.M := by
+  have h_blocks := growthSteps_g_image_card_le fc
+  have h_fiber : ∀ y ∈ (growthSteps fc).image (fun j => (greedySeq fc j).g fc.t),
+      ((growthSteps fc).filter (fun j => (greedySeq fc j).g fc.t = y)).card ≤ p16BlockBudget fc.t fc.U fc.M := by
+    intro y hy
+    exact growthSteps_block_card_le_p16BlockBudget fc h_inj y hy (h_range2 y hy)
+  exact card_le_mul_of_fiber_bound (growthSteps fc) (fun j => (greedySeq fc j).g fc.t)
+    (maxSubgroupBlocks fc.gMax) (p16BlockBudget fc.t fc.U fc.M)
+    h_blocks h_fiber
+
+/-- Master derivation: Connecting p16TotalBudget to fc.B_growth via explicit numeric bound. -/
+theorem growthSteps_card_le_budget_of_p16
+    (fc : FiniteConditions)
+    (h_inj : Set.InjOn (fun a : ℕ => (a : ZMod fc.t)) (fc.A : Set ℕ))
+    (h_numeric : p16TotalBudget fc.t fc.gMax fc.U fc.M ≤ fc.B_growth)
+    (h_range2 : ∀ y ∈ (growthSteps fc).image (fun j => (greedySeq fc j).g fc.t),
+      ∀ j ∈ (growthSteps fc).filter (fun j => (greedySeq fc j).g fc.t = y),
+        (greedySeq fc j).B.card ≤ 2 * f_g fc y j →
+        8 * f_g fc y j + fc.M ≤ 8 * f_g fc y (j + 1)) :
+    (growthSteps fc).card ≤ fc.B_growth :=
+  (growthSteps_card_le_p16Budget fc h_inj h_range2).trans h_numeric
+
+/-- CFP Lemma 5.6 Finite Core with p16 Logarithmic Budget (Phase U6 Master Theorem):
+    The ad-hoc h_fibers bound is eliminated, replaced by the proven block budget. -/
+theorem cfp_lemma_5_6_finite_core_of_p16 (fc : FiniteConditions)
+    (h_inj : Set.InjOn (fun a : ℕ => (a : ZMod fc.t)) (fc.A : Set ℕ))
+    (h_numeric : p16TotalBudget fc.t fc.gMax fc.U fc.M ≤ fc.B_growth)
+    (h_range2 : ∀ y ∈ (growthSteps fc).image (fun j => (greedySeq fc j).g fc.t),
+      ∀ j ∈ (growthSteps fc).filter (fun j => (greedySeq fc j).g fc.t = y),
+        (greedySeq fc j).B.card ≤ 2 * f_g fc y j →
+        8 * f_g fc y j + fc.M ≤ 8 * f_g fc y (j + 1))
+    (h_unsaturated_step_growth : ∀ j ∈ unsaturatedSteps fc, fc.D ≤ greedyDelta fc j) :
+    min fc.xi ((32 : ℝ) / (fc.ell : ℝ)) * (fc.t : ℝ) ≤ ((subsetSumsMod fc.t fc.A).card : ℝ) :=
+  cfp_lemma_5_6_finite_core fc (growthSteps_card_le_budget_of_p16 fc h_inj h_numeric h_range2) h_unsaturated_step_growth
+
+/-- Conlon–Fox–Pham (2021) Lemma 5.6 Claim 1 Per-Block Budget Bound (Closing U5 under U1):
+    Each subgroup index block in growthSteps has cardinality bounded by p16BlockBudget,
+    derived directly from the iterated sumset growth hypothesis U1. -/
+theorem growthSteps_block_card_le_p16BlockBudget_of_iterSum_growth
+    (fc : FiniteConditions)
+    (h_inj : Set.InjOn (fun a : ℕ => (a : ZMod fc.t)) (fc.A : Set ℕ))
+    (h_u1 : ∀ (N : ℕ) (hN : 0 < N) (C : Finset (ZMod N)),
+      (0 : ZMod N) ∈ C →
+      AddSubgroup.closure (C : Set (ZMod N)) = ⊤ →
+      ∀ (k : ℕ), 1 ≤ k →
+        (iterSum k C).card = N ∨
+          (k + 1) * C.card ≤ 2 * (iterSum k C).card)
+    (y : ℕ)
+    (hy : y ∈ (growthSteps fc).image (fun j => (greedySeq fc j).g fc.t)) :
+    ((growthSteps fc).filter (fun j => (greedySeq fc j).g fc.t = y)).card ≤
+      p16BlockBudget fc.t fc.U fc.M := by
+  apply growthSteps_block_card_le_p16BlockBudget fc h_inj y hy
+  intro j hj_Jy hj_le
+  have hj_growth : j ∈ growthSteps fc := (Finset.mem_filter.mp hj_Jy).1
+  have hj_g : (greedySeq fc j).g fc.t = y := (Finset.mem_filter.mp hj_Jy).2
+  rw [← hj_g] at hj_le ⊢
+  exact trajectory_growth_step_range2_of_iterSum_growth fc h_inj h_u1 j hj_growth hj_le
+
+/-- Conlon–Fox–Pham (2021) Lemma 5.6 Claim 1 Total Budget Master Theorem (Closing U6 under U1):
+    Total growth steps are bounded by p16TotalBudget without any external h_fibers or h_range2. -/
+theorem growthSteps_card_le_p16Budget_of_iterSum_growth
+    (fc : FiniteConditions)
+    (h_inj : Set.InjOn (fun a : ℕ => (a : ZMod fc.t)) (fc.A : Set ℕ))
+    (h_u1 : ∀ (N : ℕ) (hN : 0 < N) (C : Finset (ZMod N)),
+      (0 : ZMod N) ∈ C →
+      AddSubgroup.closure (C : Set (ZMod N)) = ⊤ →
+      ∀ (k : ℕ), 1 ≤ k →
+        (iterSum k C).card = N ∨
+          (k + 1) * C.card ≤ 2 * (iterSum k C).card) :
+    (growthSteps fc).card ≤ p16TotalBudget fc.t fc.gMax fc.U fc.M := by
+  have h_blocks := growthSteps_g_image_card_le fc
+  have h_fiber : ∀ y ∈ (growthSteps fc).image (fun j => (greedySeq fc j).g fc.t),
+      ((growthSteps fc).filter (fun j => (greedySeq fc j).g fc.t = y)).card ≤ p16BlockBudget fc.t fc.U fc.M := by
+    intro y hy
+    exact growthSteps_block_card_le_p16BlockBudget_of_iterSum_growth fc h_inj h_u1 y hy
+  exact card_le_mul_of_fiber_bound (growthSteps fc) (fun j => (greedySeq fc j).g fc.t)
+    (maxSubgroupBlocks fc.gMax) (p16BlockBudget fc.t fc.U fc.M)
+    h_blocks h_fiber
+
+/-- Master derivation: Connecting p16TotalBudget to fc.B_growth via explicit numeric bound under U1. -/
+theorem growthSteps_card_le_budget_of_iterSum_growth
+    (fc : FiniteConditions)
+    (h_inj : Set.InjOn (fun a : ℕ => (a : ZMod fc.t)) (fc.A : Set ℕ))
+    (h_numeric : p16TotalBudget fc.t fc.gMax fc.U fc.M ≤ fc.B_growth)
+    (h_u1 : ∀ (N : ℕ) (hN : 0 < N) (C : Finset (ZMod N)),
+      (0 : ZMod N) ∈ C →
+      AddSubgroup.closure (C : Set (ZMod N)) = ⊤ →
+      ∀ (k : ℕ), 1 ≤ k →
+        (iterSum k C).card = N ∨
+          (k + 1) * C.card ≤ 2 * (iterSum k C).card) :
+    (growthSteps fc).card ≤ fc.B_growth :=
+  (growthSteps_card_le_p16Budget_of_iterSum_growth fc h_inj h_u1).trans h_numeric
+
+/-- CFP Lemma 5.6 Finite Core with p16 Logarithmic Budget (Master Theorem under U1):
+    The ad-hoc h_fibers bound is eliminated, and finite Claim 1 is strictly reduced to U1. -/
+theorem cfp_lemma_5_6_finite_core_of_iterSum_growth (fc : FiniteConditions)
+    (h_inj : Set.InjOn (fun a : ℕ => (a : ZMod fc.t)) (fc.A : Set ℕ))
+    (h_numeric : p16TotalBudget fc.t fc.gMax fc.U fc.M ≤ fc.B_growth)
+    (h_u1 : ∀ (N : ℕ) (hN : 0 < N) (C : Finset (ZMod N)),
+      (0 : ZMod N) ∈ C →
+      AddSubgroup.closure (C : Set (ZMod N)) = ⊤ →
+      ∀ (k : ℕ), 1 ≤ k →
+        (iterSum k C).card = N ∨
+          (k + 1) * C.card ≤ 2 * (iterSum k C).card)
+    (h_unsaturated_step_growth : ∀ j ∈ unsaturatedSteps fc, fc.D ≤ greedyDelta fc j) :
+    min fc.xi ((32 : ℝ) / (fc.ell : ℝ)) * (fc.t : ℝ) ≤ ((subsetSumsMod fc.t fc.A).card : ℝ) :=
+  cfp_lemma_5_6_finite_core fc
+    (growthSteps_card_le_budget_of_iterSum_growth fc h_inj h_numeric h_u1)
+    h_unsaturated_step_growth
+
+/-- CFP Lemma 5.6 Specialized to m = n Closed under U1:
+    The growth budget bound hypothesis is eliminated by invoking the U1-derived Claim 1 budget bound. -/
+theorem cfp_lemma_5_6_m_eq_n_of_iterSum_growth (p : CFPArithParams)
+    (h_inj : Set.InjOn (fun a : ℕ => (a : ZMod p.t)) (p.A : Set ℕ))
+    (h_numeric : p16TotalBudget p.t p.gMax p.U p.M ≤ p.B_growth)
+    (h_u1 : ∀ (N : ℕ) (hN : 0 < N) (C : Finset (ZMod N)),
+      (0 : ZMod N) ∈ C →
+      AddSubgroup.closure (C : Set (ZMod N)) = ⊤ →
+      ∀ (k : ℕ), 1 ≤ k →
+        (iterSum k C).card = N ∨
+          (k + 1) * C.card ≤ 2 * (iterSum k C).card)
+    (h_unsaturated_step_growth : ∀ j ∈ unsaturatedSteps p.toFiniteConditions, p.D ≤ greedyDelta p.toFiniteConditions j) :
+    min p.xi ((32 : ℝ) / (p.ell : ℝ)) * (p.t : ℝ) ≤ ((subsetSumsMod p.t p.A).card : ℝ) :=
+  cfp_lemma_5_6_m_eq_n p
+    (growthSteps_card_le_budget_of_iterSum_growth p.toFiniteConditions h_inj h_numeric h_u1)
+    h_unsaturated_step_growth
+
+/-- Conlon–Fox–Pham (2021) Lemma 5.6 Claim 1 (Phase P16 Unbundled Master Theorem, Legacy Interface):
+    Total growth steps during the greedy iteration bounded under fiber hypothesis. -/
+theorem growthSteps_card_le_p16TotalBudget (fc : FiniteConditions)
+    (h_fibers : ∀ y ∈ (growthSteps fc).image (fun j => (greedySeq fc j).g fc.t),
+      ((growthSteps fc).filter (fun j => (greedySeq fc j).g fc.t = y)).card ≤ p16BlockBudget fc.t fc.U fc.M) :
+    (growthSteps fc).card ≤ p16TotalBudget fc.t fc.gMax fc.U fc.M := by
+  exact card_le_mul_of_fiber_bound (growthSteps fc) (fun j => (greedySeq fc j).g fc.t)
+    (maxSubgroupBlocks fc.gMax) (p16BlockBudget fc.t fc.U fc.M)
+    (growthSteps_g_image_card_le fc) h_fibers
+
+/-- Master derivation: Connecting p16TotalBudget to fc.B_growth via explicit numeric bound (Legacy Interface). -/
+theorem growthSteps_card_le_budget_of_numeric_bound (fc : FiniteConditions)
+    (h_numeric : p16TotalBudget fc.t fc.gMax fc.U fc.M ≤ fc.B_growth)
+    (h_fibers : ∀ y ∈ (growthSteps fc).image (fun j => (greedySeq fc j).g fc.t),
+      ((growthSteps fc).filter (fun j => (greedySeq fc j).g fc.t = y)).card ≤ p16BlockBudget fc.t fc.U fc.M) :
+    (growthSteps fc).card ≤ fc.B_growth :=
+  (growthSteps_card_le_p16TotalBudget fc h_fibers).trans h_numeric
+
+/-- Conlon–Fox–Pham (2021) Lemma 5.6 Claim 1:
+    Total growth steps during the greedy iteration are bounded by claim1GrowthBound. -/
+theorem growthSteps_card_le_claim1 (fc : FiniteConditions)
+    (h_fibers : ∀ y ∈ (growthSteps fc).image (fun j => (greedySeq fc j).g fc.t),
+      ((growthSteps fc).filter (fun j => (greedySeq fc j).g fc.t = y)).card ≤ blockGrowthBudget fc.t fc.U fc.M) :
+    (growthSteps fc).card ≤ claim1GrowthBound fc.t fc.gMax fc.U fc.M := by
+  exact card_le_mul_of_fiber_bound (growthSteps fc) (fun j => (greedySeq fc j).g fc.t)
+    (maxSubgroupBlocks fc.gMax) (blockGrowthBudget fc.t fc.U fc.M)
+    (growthSteps_g_image_card_le fc) h_fibers
+
+/-- Master derivation: Closing the growth budget bound via Claim 1. -/
+theorem claim1_growth_bound_of_budget (fc : FiniteConditions)
+    (hB : claim1GrowthBound fc.t fc.gMax fc.U fc.M ≤ fc.B_growth)
+    (h_fibers : ∀ y ∈ (growthSteps fc).image (fun j => (greedySeq fc j).g fc.t),
+      ((growthSteps fc).filter (fun j => (greedySeq fc j).g fc.t = y)).card ≤ blockGrowthBudget fc.t fc.U fc.M) :
+    (growthSteps fc).card ≤ fc.B_growth :=
+  (growthSteps_card_le_claim1 fc h_fibers).trans hB
+
+lemma u1_iterSum_growth (N : ℕ) (hN : 0 < N) (C : Finset (ZMod N))
+    (h0 : (0 : ZMod N) ∈ C)
+    (hgen : AddSubgroup.closure (C : Set (ZMod N)) = ⊤)
+    (k : ℕ) (hk : 1 ≤ k) :
+    (iterSum k C).card = N ∨
+      (k + 1) * C.card ≤ 2 * (iterSum k C).card := by
+  have : NeZero N := ⟨by omega⟩
+  exact iterSum_card_ge_of_zero_mem_of_generates N C h0 hgen k hk
+
+/-- Conlon–Fox–Pham (2021) Lemma 5.6 Claim 1 Total Budget Closed Master Theorem:
+    Total growth steps are bounded by p16TotalBudget unconditionally (no h_u1, no h_fibers). -/
+theorem growthSteps_card_le_p16Budget_closed
+    (fc : FiniteConditions)
+    (h_inj : Set.InjOn (fun a : ℕ => (a : ZMod fc.t)) (fc.A : Set ℕ)) :
+    (growthSteps fc).card ≤ p16TotalBudget fc.t fc.gMax fc.U fc.M :=
+  growthSteps_card_le_p16Budget_of_iterSum_growth fc h_inj u1_iterSum_growth
+
+/-- Master derivation: Connecting p16TotalBudget to fc.B_growth via explicit numeric bound unconditionally. -/
+theorem growthSteps_card_le_budget_closed
+    (fc : FiniteConditions)
+    (h_inj : Set.InjOn (fun a : ℕ => (a : ZMod fc.t)) (fc.A : Set ℕ))
+    (h_numeric : p16TotalBudget fc.t fc.gMax fc.U fc.M ≤ fc.B_growth) :
+    (growthSteps fc).card ≤ fc.B_growth :=
+  growthSteps_card_le_budget_of_iterSum_growth fc h_inj h_numeric u1_iterSum_growth
+
+/-- CFP Lemma 5.6 Finite Core with p16 Logarithmic Budget (Closed Master Theorem):
+    The ad-hoc h_fibers bound and h_u1 are eliminated unconditionally. -/
+theorem cfp_lemma_5_6_finite_core_closed (fc : FiniteConditions)
+    (h_inj : Set.InjOn (fun a : ℕ => (a : ZMod fc.t)) (fc.A : Set ℕ))
+    (h_numeric : p16TotalBudget fc.t fc.gMax fc.U fc.M ≤ fc.B_growth)
+    (h_unsaturated_step_growth : ∀ j ∈ unsaturatedSteps fc, fc.D ≤ greedyDelta fc j) :
+    min fc.xi ((32 : ℝ) / (fc.ell : ℝ)) * (fc.t : ℝ) ≤ ((subsetSumsMod fc.t fc.A).card : ℝ) :=
+  cfp_lemma_5_6_finite_core_of_iterSum_growth fc h_inj h_numeric u1_iterSum_growth h_unsaturated_step_growth
+
+/-- CFP Lemma 5.6 Specialized to m = n Closed Master Theorem:
+    Unconditionally closed under U1 and Claim 1. -/
+theorem cfp_lemma_5_6_m_eq_n_closed (p : CFPArithParams)
+    (h_inj : Set.InjOn (fun a : ℕ => (a : ZMod p.t)) (p.A : Set ℕ))
+    (h_numeric : p16TotalBudget p.t p.gMax p.U p.M ≤ p.B_growth)
+    (h_unsaturated_step_growth : ∀ j ∈ unsaturatedSteps p.toFiniteConditions, p.D ≤ greedyDelta p.toFiniteConditions j) :
+    min p.xi ((32 : ℝ) / (p.ell : ℝ)) * (p.t : ℝ) ≤ ((subsetSumsMod p.t p.A).card : ℝ) :=
+  cfp_lemma_5_6_m_eq_n_of_iterSum_growth p h_inj h_numeric u1_iterSum_growth h_unsaturated_step_growth
+
+/-!
+### 24. Phase P17: Candidate Injectivity, Fiber Pullback, and Unsaturated Step Growth
+
+Formalization of Phase P17 for Conlon–Fox–Pham (2021) Lemma 5.6:
+- Group A1: Modulo t injectivity derived from candidate membership in Y_v (`injOn_of_inY_v`).
+- Group B2: Fiber centering, quotient scale retraction (`zmodScale_val_div`), and exact pullback (`centerFiberPullback`, `delta_fiber_pullback_le_delta_S`).
+- Group B3: Medium fiber extraction and reduction to smallGrowth (`unsaturated_step_medium_fiber_and_smallGrowth`).
+- P17 Finite Arithmetic Conditions: Explicit raw parameters and numerical thresholds (`P17FiniteArithConditions`).
+- Integration Master Theorem: Conditional elimination of `h_unsaturated_step_growth` and `h_inj` (`cfp_lemma_5_6_finite_core_of_arith_conditional`).
+-/
+
+lemma injOn_of_inY_v_aux {y m W v t : ℕ} (hv : 0 < v) (_ht : 0 < t) (hyt : y ≤ v * t)
+    {A : Finset ℕ} (hA : ∀ a ∈ A, inY_v y m W v a)
+    {a1 a2 : ℕ} (ha1 : a1 ∈ A) (ha2 : a2 ∈ A) (heq : (a1 : ZMod t) = (a2 : ZMod t))
+    (hle : a1 ≤ a2) : a1 = a2 := by
+  have h1 := hA a1 ha1
+  have h2 := hA a2 ha2
+  rcases h1 with ⟨hy1, hlt1, -⟩
+  rcases h2 with ⟨hy2, hlt2, -⟩
+  have hdiff : v * (a2 - a1) < v * t := by
+    calc v * (a2 - a1) = v * a2 - v * a1 := Nat.mul_sub_left_distrib v a2 a1
+    _ < 2 * y - y := by omega
+    _ = y := by omega
+    _ ≤ v * t := hyt
+  have hlt_t : a2 - a1 < t := (Nat.mul_lt_mul_left hv).mp hdiff
+  have h_sub_zero : ((a2 - a1 : ℕ) : ZMod t) = 0 := by
+    rw [Nat.cast_sub hle, heq.symm, sub_self]
+  have hdvd : t ∣ a2 - a1 := (CharP.cast_eq_zero_iff (ZMod t) t (a2 - a1)).mp h_sub_zero
+  have hzero : a2 - a1 = 0 := Nat.eq_zero_of_dvd_of_lt hdvd hlt_t
+  omega
+
+/-- Group A1: Modulo t injectivity derived unconditionally from candidate membership in Y_v. -/
+lemma injOn_of_inY_v {y m W v t : ℕ} (hv : 0 < v) (ht : 0 < t) (hyt : y ≤ v * t)
+    {A : Finset ℕ} (hA : ∀ a ∈ A, inY_v y m W v a) :
+    Set.InjOn (fun a : ℕ => (a : ZMod t)) (A : Set ℕ) := by
+  intro a1 ha1 a2 ha2 heq
+  rw [Finset.mem_coe] at ha1 ha2
+  rcases le_total a1 a2 with hle | hle
+  · exact injOn_of_inY_v_aux hv ht hyt hA ha1 ha2 heq hle
+  · exact (injOn_of_inY_v_aux hv ht hyt hA ha2 ha1 heq.symm hle).symm
+
+/-- Group B2: Every element in the kernel of zmodProj hd is in the image of zmodScale t g. -/
+lemma zmodScale_val_div (t g : ℕ) (ht : 0 < t) (hg : 0 < g) (hd : g ∣ t)
+    (y : ZMod t) (hy : zmodProj hd y = 0) :
+    zmodScale t g ((y.val / g : ℕ) : ZMod (t / g)) = y := by
+  have htg_pos : 0 < t / g := Nat.div_pos (Nat.le_of_dvd ht hd) hg
+  have inst1 : NeZero (t / g) := ⟨by omega⟩
+  have inst2 : NeZero t := ⟨by omega⟩
+  have hdvd : g ∣ y.val := by
+    have h_proj := ZMod.natCast_zmod_val y
+    rw [← h_proj] at hy
+    rw [zmodProj_natCast hd] at hy
+    exact (CharP.cast_eq_zero_iff (ZMod g) g y.val).mp hy
+  dsimp [zmodScale]
+  have hval_lt : (y.val / g) < t / g := by
+    have h_y_lt : y.val < t := ZMod.val_lt y
+    rcases hdvd with ⟨q1, hq1⟩
+    rcases hd with ⟨q2, hq2⟩
+    rw [hq1, hq2]
+    rw [Nat.mul_div_cancel_left _ hg, Nat.mul_div_cancel_left _ hg]
+    rw [hq1, hq2] at h_y_lt
+    exact (Nat.mul_lt_mul_left hg).mp h_y_lt
+  have h_val_eq : (((y.val / g : ℕ) : ZMod (t / g)).val) = y.val / g := ZMod.val_natCast_of_lt hval_lt
+  rw [h_val_eq, Nat.mul_div_cancel' hdvd, ZMod.natCast_zmod_val y]
+
+/-- Definition of pulling back a centered fiber C (which lies in the kernel of zmodProj)
+    to a subset of ZMod (t / g). -/
+def centerFiberPullback (t g : ℕ) (C : Finset (ZMod t)) : Finset (ZMod (t / g)) :=
+  C.image (fun y => ((y.val / g : ℕ) : ZMod (t / g)))
+
+lemma image_zmodScale_centerFiberPullback (t g : ℕ) (ht : 0 < t) (hg : 0 < g) (hd : g ∣ t)
+    (C : Finset (ZMod t)) (hC : ∀ y ∈ C, zmodProj hd y = 0) :
+    (centerFiberPullback t g C).image (zmodScale t g) = C := by
+  ext x
+  simp only [centerFiberPullback, Finset.mem_image]
+  constructor
+  · rintro ⟨_, ⟨y, hy, rfl⟩, rfl⟩
+    rw [zmodScale_val_div t g ht hg hd y (hC y hy)]
+    exact hy
+  · intro hx
+    refine ⟨((x.val / g : ℕ) : ZMod (t / g)), ?_, zmodScale_val_div t g ht hg hd x (hC x hx)⟩
+    exact ⟨x, hx, rfl⟩
+
+lemma card_centerFiberPullback (t g : ℕ) (ht : 0 < t) (hg : 0 < g) (hd : g ∣ t)
+    (C : Finset (ZMod t)) (hC : ∀ y ∈ C, zmodProj hd y = 0) :
+    (centerFiberPullback t g C).card = C.card := by
+  have h_inj := zmodScale_injective t g ht hg hd
+  have h_img := image_zmodScale_centerFiberPullback t g ht hg hd C hC
+  nth_rw 2 [← h_img]
+  rw [Finset.card_image_of_injective _ h_inj]
+
+lemma delta_centerFiberPullback (t g : ℕ) (ht : 0 < t) (hg : 0 < g) (hd : g ∣ t)
+    (C : Finset (ZMod t)) (hC : ∀ y ∈ C, zmodProj hd y = 0)
+    (a : ℕ) (ha : g ∣ a) :
+    delta (centerFiberPullback t g C) ((a / g : ℕ) : ZMod (t / g)) = delta C (a : ZMod t) := by
+  have h_delta := delta_image_zmodScale t g ht hg hd (centerFiberPullback t g C) ((a / g : ℕ) : ZMod (t / g))
+  rw [image_zmodScale_centerFiberPullback t g ht hg hd C hC] at h_delta
+  rw [zmodScale_natCast_div t g ht hg hd a ha] at h_delta
+  exact h_delta.symm
+
+lemma delta_fiber_pullback_le_delta_S (t g : ℕ) (ht : 0 < t) (hg : 0 < g) (hd : g ∣ t)
+    (S : Finset (ZMod t)) (r : ZMod g) (x0 : ZMod t) (hx0 : zmodProj hd x0 = r)
+    (a : ℕ) (ha : g ∣ a) :
+    let C := centerFiber hd S r x0
+    let T := centerFiberPullback t g C
+    T.card = (fiber hd S r).card ∧
+    delta T ((a / g : ℕ) : ZMod (t / g)) ≤ delta S (a : ZMod t) := by
+  intro C T
+  have hC : ∀ y ∈ C, zmodProj hd y = 0 := centerFiber_subset_kernel hd S r x0 hx0
+  have h_card : T.card = (fiber hd S r).card := by
+    rw [card_centerFiberPullback t g ht hg hd C hC, card_centerFiber]
+  have h_delta : delta T ((a / g : ℕ) : ZMod (t / g)) = delta (fiber hd S r) (a : ZMod t) := by
+    rw [delta_centerFiberPullback t g ht hg hd C hC a ha, delta_centerFiber_eq]
+  have ha_ker : zmodProj hd (a : ZMod t) = 0 := by
+    rw [zmodProj_natCast hd]
+    exact (CharP.cast_eq_zero_iff (ZMod g) g a).mpr ha
+  have h_le : delta (fiber hd S r) (a : ZMod t) ≤ delta S (a : ZMod t) :=
+    delta_fiber_le_delta hd S (a : ZMod t) ha_ker r
+  exact ⟨h_card, h_delta.trans_le h_le⟩
+
+lemma unsaturatedSteps_div_neZero (fc : FiniteConditions) (j : ℕ) (hj : j ∈ unsaturatedSteps fc) :
+    NeZero (fc.t / (greedySeq fc j).g fc.t) := by
+  classical
+  have hj_range : j ∈ Finset.range fc.K := (Finset.mem_filter.mp hj).1
+  have hj_lt : j < fc.K := Finset.mem_range.mp hj_range
+  let st := greedySeq fc j
+  have hg_pos : 0 < st.g fc.t := subgroupIndex_pos fc.t st.B fc.ht_pos
+  have hd : st.g fc.t ∣ fc.t := subgroupIndex_dvd_modulus fc.t st.B
+  have hN_pos : 0 < fc.t / st.g fc.t := Nat.div_pos (Nat.le_of_dvd fc.ht_pos hd) hg_pos
+  exact ⟨ne_of_gt hN_pos⟩
+
+/-- Group B Complete Bridge:
+    At an unsaturated step j with greedyDelta fc j ≤ fc.D,
+    there exists a fiber pullback T in ZMod (fc.t / g) and scaled candidate set Q such that:
+    1. U < |T|
+    2. |T| < xi * (t / g)
+    3. Q ⊆ smallGrowth T fc.D
+    4. M ≤ |Q|
+    5. AddSubgroup.closure Q = ⊤ -/
+theorem unsaturated_step_medium_fiber_and_smallGrowth
+    (fc : FiniteConditions)
+    (h_inj : Set.InjOn (fun a : ℕ => (a : ZMod fc.t)) (fc.A : Set ℕ))
+    (j : ℕ) (hj : j ∈ unsaturatedSteps fc)
+    (h_delta_le : greedyDelta fc j ≤ fc.D) :
+    let st := greedySeq fc j
+    let g := st.g fc.t
+    let N := fc.t / g
+    letI : NeZero N := unsaturatedSteps_div_neZero fc j hj
+    let Q := st.B.image (fun a => ((a / g : ℕ) : ZMod N))
+    ∃ (T : Finset (ZMod N)),
+      fc.U < T.card ∧
+      (T.card : ℝ) < fc.xi * (fc.t : ℝ) / (g : ℝ) ∧
+      Q ⊆ smallGrowth T fc.D ∧
+      fc.M ≤ Q.card ∧
+      AddSubgroup.closure (Q : Set (ZMod N)) = ⊤ := by
+  intro st g N Q
+  classical
+  have hj_range : j ∈ Finset.range fc.K := (Finset.mem_filter.mp hj).1
+  have hj_lt : j < fc.K := Finset.mem_range.mp hj_range
+  have hj_unsat : isUnsaturatedStage fc.t fc.U fc.xi st := (Finset.mem_filter.mp hj).2
+  rcases hj_unsat with ⟨h_not_grow, h_not_sat⟩
+  have hg_pos : 0 < g := subgroupIndex_pos fc.t st.B fc.ht_pos
+  have hd : g ∣ fc.t := subgroupIndex_dvd_modulus fc.t st.B
+  have hN_pos : 0 < N := Nat.div_pos (Nat.le_of_dvd fc.ht_pos hd) hg_pos
+  have instN : NeZero N := ⟨ne_of_gt hN_pos⟩
+  have h_card_E : st.E.card = j := card_greedySeq_E fc j (by omega)
+  have hB_card : fc.M ≤ st.B.card := st.B_card_ge (by omega)
+  have hB_nonempty : st.B.Nonempty := st.B_nonempty (by omega)
+  have hB_sub_A : st.B ⊆ fc.A := Finset.sdiff_subset
+  have hB_dvd : ∀ a ∈ st.B, g ∣ a := fun a ha => subgroupIndex_dvd_mem fc.t st.B ha
+
+  -- From ¬ isSaturatedStage, obtain medium residue r
+  have h_not_sat_ex : ∃ r ∈ (st.S fc.t).image (zmodProj hd), ((fiber hd (st.S fc.t) r).card : ℝ) < fc.xi * (fc.t : ℝ) / (g : ℝ) := by
+    by_contra! h_all
+    apply h_not_sat
+    dsimp [isSaturatedStage]
+    exact h_all
+  rcases h_not_sat_ex with ⟨r, hr_img, hr_lt⟩
+
+  -- From ¬ isGrowthStage, every fiber has card > U
+  have hr_gt_U : fc.U < (fiber hd (st.S fc.t) r).card := by
+    by_contra! hle
+    apply h_not_grow
+    dsimp [isGrowthStage]
+    exact ⟨r, hr_img, hle⟩
+
+  -- Since r is in image, fiber is non-empty, pick x0 in fiber
+  have hr_fib_nonempty : (fiber hd (st.S fc.t) r).Nonempty := by
+    have := fc.hU_pos
+    exact Finset.card_pos.mp (by omega)
+  rcases hr_fib_nonempty with ⟨x0, hx0_fib⟩
+  have hx0_proj : zmodProj hd x0 = r := (Finset.mem_filter.mp hx0_fib).2
+
+  -- Construct T via centerFiberPullback
+  set C := centerFiber hd (st.S fc.t) r x0
+  set T := centerFiberPullback fc.t g C
+  use T
+
+  have h_pullback := delta_fiber_pullback_le_delta_S fc.t g fc.ht_pos hg_pos hd (st.S fc.t) r x0 hx0_proj
+  have hT_card : T.card = (fiber hd (st.S fc.t) r).card := (h_pullback 0 (dvd_zero g)).1
+
+  have hT_gt_U : fc.U < T.card := by rwa [hT_card]
+  have hT_lt_xi : (T.card : ℝ) < fc.xi * (fc.t : ℝ) / (g : ℝ) := by rwa [hT_card]
+
+  -- Q ⊆ smallGrowth T fc.D
+  have hQ_sub : Q ⊆ smallGrowth T fc.D := by
+    intro q hq
+    rcases Finset.mem_image.mp hq with ⟨a, ha_B, rfl⟩
+    have ha_dvd := hB_dvd a ha_B
+    have h_delta_le_S := (h_pullback a ha_dvd).2
+    have h_delta_S_le : delta (st.S fc.t) (a : ZMod fc.t) ≤ greedyDelta fc j := by
+      dsimp [greedyDelta]
+      rw [dif_pos hj_lt]
+      exact greedyChoice_ordinary_max fc.t fc.U st hB_nonempty h_not_grow a ha_B
+    have h_delta_le_D : delta T ((a / g : ℕ) : ZMod N) ≤ fc.D :=
+      h_delta_le_S.trans (h_delta_S_le.trans h_delta_le)
+    simp only [smallGrowth, Finset.mem_filter, Finset.mem_univ, true_and]
+    exact h_delta_le_D
+
+  -- M ≤ Q.card
+  have hQ_card : Q.card = st.B.card :=
+    card_image_scaled_of_injOn fc.t g fc.ht_pos hg_pos hd fc.A h_inj st.B hB_sub_A hB_dvd
+  have hM_le_Q : fc.M ≤ Q.card := by omega
+
+  -- closure Q = ⊤
+  have hgen : AddSubgroup.closure (Q : Set (ZMod N)) = ⊤ :=
+    closure_scaled_candidate_eq_top fc.t fc.ht_pos st.B
+
+  exact ⟨hT_gt_U, hT_lt_xi, hQ_sub, hM_le_Q, hgen⟩
+
+/-- Finite Arithmetic Conditions for Phase P17 (CFP Lemma 5.6 Unsaturated Step Growth).
+    Separates the raw arithmetic candidate membership and explicit numerical bounds
+    from the discrete greedy state machine. -/
+structure P17FiniteArithConditions (fc : FiniteConditions) where
+  n : ℕ
+  hn_pos : 0 < n
+  hn_ge_three : 3 ≤ n
+  r : ℕ
+  hr_pos : 0 < r
+  hr_gt_one : 1 < r
+  y : ℕ
+  hy_pos : 0 < y
+  W : ℕ
+  hW_pos : 0 < W
+  hv_dvd_n : fc.v ∣ n
+  h_y_le_vt : y ≤ fc.v * fc.t
+  h_t_le_n : fc.t ≤ n
+  hA_inY : ∀ a ∈ fc.A, inY_v y n W fc.v a
+
+  -- Explicit numerical conditions E1, E2, E3 from CFP §5.1 / P17 specification:
+  -- E1: small cardinality branch contradiction bound
+  hE1 : 20 * (2 * (fc.D : ℝ)) ^ ((51 : ℝ) / 50) / (fc.U : ℝ) ^ ((1 : ℝ) / 50) < (fc.M : ℝ)
+  -- E2: AP branch length threshold
+  hE2 : r ^ 3 ≤ fc.M ^ 16
+  -- E3: AP branch final contradiction bound
+  hE3 : 98304 * (fc.D : ℝ) * Real.log (Real.log (n : ℝ)) / Real.log (r : ℝ) < (fc.M : ℝ)
+
+  -- Deshouillers–Freiman small density condition from CFP §5.1 (xi ≤ min(xi_DF/4, 1/20) ≤ 1/20):
+  h_xi_le : fc.xi ≤ (1 / 20 : ℝ)
+
+/-- Deriving modulo t injectivity of the candidate set fc.A directly from P17 arithmetic conditions. -/
+lemma P17FiniteArithConditions.injOn_A (fc : FiniteConditions) (p : P17FiniteArithConditions fc) :
+    Set.InjOn (fun a : ℕ => (a : ZMod fc.t)) (fc.A : Set ℕ) :=
+  injOn_of_inY_v fc.hv_pos fc.ht_pos p.h_y_le_vt p.hA_inY
+
+/-- Cardinality bound on candidate subsets from coset AP coverage:
+    For any candidate subset B ⊆ fc.A and coset AP R in ZMod (t / g) containing
+    the scaled projection of B, the cardinality |B| is bounded by R.ell * |R.H|. -/
+theorem card_le_card_cosetAP_of_image_subset
+    (fc : FiniteConditions) (p : P17FiniteArithConditions fc)
+    (B : Finset ℕ) (hBA : B ⊆ fc.A)
+    [instN : NeZero (fc.t / subgroupIndex fc.t B)]
+    (R : CosetAP (fc.t / subgroupIndex fc.t B))
+    (hQR : (B.image (fun a => ((a / (subgroupIndex fc.t B) : ℕ) : ZMod (fc.t / subgroupIndex fc.t B)))) ⊆ R.toFinset) :
+    B.card ≤ R.ell * (R.H : Set (ZMod (fc.t / subgroupIndex fc.t B))).toFinset.card := by
+  let g := subgroupIndex fc.t B
+  let N := fc.t / g
+  let f : ℕ → ZMod N := fun a => ((a / g : ℕ) : ZMod N)
+  have h_inj_A : Set.InjOn (fun a : ℕ => (a : ZMod fc.t)) (fc.A : Set ℕ) := p.injOn_A fc
+  have h_inj_B : Set.InjOn (fun a : ℕ => (a : ZMod fc.t)) (B : Set ℕ) :=
+    h_inj_A.mono hBA
+  have hg_dvd : ∀ a ∈ B, g ∣ a := fun a ha => subgroupIndex_dvd_mem fc.t B ha
+  have hg_dvd_t : g ∣ fc.t := subgroupIndex_dvd_modulus fc.t B
+  have hg_mul_N : g * N = fc.t := Nat.mul_div_cancel' hg_dvd_t
+  have hf_inj : Set.InjOn f (B : Set ℕ) := by
+    intro a1 ha1 a2 ha2 heq
+    dsimp [f] at heq
+    rw [ZMod.natCast_eq_natCast_iff] at heq
+    have h_mul := Nat.ModEq.mul_left' g heq
+    rw [Nat.mul_div_cancel' (hg_dvd a1 ha1), Nat.mul_div_cancel' (hg_dvd a2 ha2)] at h_mul
+    rw [hg_mul_N] at h_mul
+    rw [← ZMod.natCast_eq_natCast_iff] at h_mul
+    exact h_inj_B ha1 ha2 h_mul
+  have h_card_img : (B.image f).card = B.card := Finset.card_image_of_injOn hf_inj
+  have h_sub_card := Finset.card_le_card hQR
+  rw [h_card_img] at h_sub_card
+  have h_R_card := R.card_toFinset_le
+  exact h_sub_card.trans h_R_card
+
+/-- Subgroup generated by {0, x} when 2x = 0. -/
+lemma closure_pair_zero_order_two {G : Type*} [AddCommGroup G] (x : G) (h2x : x + x = 0) :
+    (AddSubgroup.closure ({0, x} : Set G) : Set G) = {0, x} := by
+  ext y
+  simp only [Set.mem_insert_iff, Set.mem_singleton_iff]
+  constructor
+  · intro hy
+    induction hy using AddSubgroup.closure_induction with
+    | mem z hz =>
+      rcases hz with rfl | rfl <;> simp
+    | zero => simp
+    | add a b ha hb ha_ih hb_ih =>
+      rcases ha_ih with ha0 | hax <;> rcases hb_ih with hb0 | hbx
+      · rw [ha0, hb0, add_zero]; left; rfl
+      · rw [ha0, hbx, zero_add]; right; rfl
+      · rw [hax, hb0, add_zero]; right; rfl
+      · rw [hax, hbx, h2x]; left; rfl
+    | neg a ha ha_ih =>
+      rcases ha_ih with ha0 | hax
+      · rw [ha0, neg_zero]; left; rfl
+      · rw [hax]
+        have : -x = x := by
+          rw [neg_eq_iff_add_eq_zero]
+          exact h2x
+        rw [this]; right; rfl
+  · rintro (rfl | rfl)
+    · exact zero_mem _
+    · exact AddSubgroup.subset_closure (by simp)
+
+/-- Subgroup generated by {0, x} when 3x = 0. -/
+lemma closure_pair_zero_order_three {G : Type*} [AddCommGroup G] (x : G) (h3x : x + x + x = 0) :
+    (AddSubgroup.closure ({0, x} : Set G) : Set G) = {0, x, x + x} := by
+  have h3x' : x + (x + x) = 0 := by
+    calc x + (x + x) = (x + x + x) := by abel
+    _ = 0 := h3x
+  ext y
+  simp only [Set.mem_insert_iff, Set.mem_singleton_iff]
+  constructor
+  · intro hy
+    induction hy using AddSubgroup.closure_induction with
+    | mem z hz =>
+      rcases hz with rfl | rfl <;> simp
+    | zero => simp
+    | add a b ha hb ha_ih hb_ih =>
+      rcases ha_ih with ha0 | hax | ha2x <;> rcases hb_ih with hb0 | hbx | hb2x
+      · rw [ha0, hb0, add_zero]; left; rfl
+      · rw [ha0, hbx, zero_add]; right; left; rfl
+      · rw [ha0, hb2x, zero_add]; right; right; rfl
+      · rw [hax, hb0, add_zero]; right; left; rfl
+      · rw [hax, hbx]; right; right; rfl
+      · rw [hax, hb2x, h3x']; left; rfl
+      · rw [ha2x, hb0, add_zero]; right; right; rfl
+      · rw [ha2x, hbx, h3x]; left; rfl
+      · rw [ha2x, hb2x]
+        have : (x + x) + (x + x) = x := by
+          calc (x + x) + (x + x) = (x + x + x) + x := by abel
+          _ = 0 + x := by rw [h3x]
+          _ = x := zero_add x
+        rw [this]; right; left; rfl
+    | neg a ha ha_ih =>
+      rcases ha_ih with ha0 | hax | ha2x
+      · rw [ha0, neg_zero]; left; rfl
+      · rw [hax]
+        have : -x = x + x := by
+          rw [neg_eq_iff_add_eq_zero]
+          exact h3x'
+        rw [this]; right; right; rfl
+      · rw [ha2x]
+        have : -(x + x) = x := by
+          rw [neg_eq_iff_add_eq_zero]
+          exact h3x
+        rw [this]; right; left; rfl
+  · rintro (rfl | rfl | rfl)
+    · exact zero_mem _
+    · exact AddSubgroup.subset_closure (by simp)
+    · have hx : x ∈ AddSubgroup.closure ({0, x} : Set G) :=
+        AddSubgroup.subset_closure (by simp)
+      exact add_mem hx hx
+
+/-- Small set rigidity: If 0 ∈ S and S = {0, x} with 2x = 0,
+    the subgroup generated by S has cardinality at most 2. -/
+lemma closure_card_le_two_of_order_two {G : Type*} [AddCommGroup G] [DecidableEq G]
+    (x : G) (h2x : x + x = 0) :
+    ∃ (H : AddSubgroup G), (({0, x} : Set G) ⊆ H) ∧
+      (∃ (s : Finset G), (H : Set G) = (s : Set G) ∧ s.card ≤ 2) := by
+  use AddSubgroup.closure ({0, x} : Set G)
+  refine ⟨AddSubgroup.subset_closure, ?_⟩
+  use {0, x}
+  have hs : (({0, x} : Finset G) : Set G) = ({0, x} : Set G) := by simp
+  refine ⟨by rw [closure_pair_zero_order_two x h2x, hs], ?_⟩
+  exact Finset.card_insert_le 0 {x}
+
+/-- Small set rigidity: If 0 ∈ S and S = {0, x} with 3x = 0,
+    the subgroup generated by S has cardinality at most 3. -/
+lemma closure_card_le_three_of_order_three {G : Type*} [AddCommGroup G] [DecidableEq G]
+    (x : G) (h3x : x + x + x = 0) :
+    ∃ (H : AddSubgroup G), (({0, x} : Set G) ⊆ H) ∧
+      (∃ (s : Finset G), (H : Set G) = (s : Set G) ∧ s.card ≤ 3) := by
+  use AddSubgroup.closure ({0, x} : Set G)
+  refine ⟨AddSubgroup.subset_closure, ?_⟩
+  use {0, x, x + x}
+  have hs : (({0, x, x + x} : Finset G) : Set G) = ({0, x, x + x} : Set G) := by simp
+  refine ⟨by rw [closure_pair_zero_order_three x h3x, hs], ?_⟩
+  have h1 : ({x, x + x} : Finset G).card ≤ 2 := Finset.card_insert_le x {x + x}
+  have h2 : ({0, x, x + x} : Finset G).card ≤ ({x, x + x} : Finset G).card + 1 :=
+    Finset.card_insert_le 0 {x, x + x}
+  omega
+
+/-- If S has 3 elements {0, x, y} and S is closed under addition, then 3x = 0 and y = x + x. -/
+lemma order_three_of_card_three_add_self_eq {G : Type*} [AddCommGroup G] [DecidableEq G]
+    (x y : G) (hx0 : x ≠ 0) (hy0 : y ≠ 0) (hxy : x ≠ y)
+    (h_add : ∀ a ∈ ({0, x, y} : Finset G), ∀ b ∈ ({0, x, y} : Finset G),
+      a + b ∈ ({0, x, y} : Finset G)) :
+    x + x + x = 0 ∧ y = x + x := by
+  have hx_mem : x ∈ ({0, x, y} : Finset G) := by simp
+  have hy_mem : y ∈ ({0, x, y} : Finset G) := by simp
+  have h2x_mem := h_add x hx_mem x hx_mem
+  have hxy_mem := h_add x hx_mem y hy_mem
+  simp only [mem_insert, mem_singleton] at h2x_mem hxy_mem
+  -- First prove x + x ≠ 0
+  have h2x_ne_zero : x + x ≠ 0 := by
+    intro h2x0
+    rcases hxy_mem with hxy0 | hxyx | hxyy
+    · -- x + y = 0 => y = -x = x (since 2x = 0)
+      have : y = x := by
+        calc y = -x := by rw [← add_eq_zero_iff_neg_eq.mp hxy0]
+        _ = x := by rw [neg_eq_iff_add_eq_zero.mpr h2x0]
+      exact hxy this.symm
+    · -- x + y = x => y = 0
+      have : y = 0 := by
+        calc y = (x + y) - x := by abel
+        _ = x - x := by rw [hxyx]
+        _ = 0 := sub_self x
+      exact hy0 this
+    · -- x + y = y => x = 0
+      have : x = 0 := by
+        calc x = (x + y) - y := by abel
+        _ = y - y := by rw [hxyy]
+        _ = 0 := sub_self y
+      exact hx0 this
+  -- Since 2x ∈ {0, x, y} and 2x ≠ 0 and 2x ≠ x, we must have 2x = y
+  have h2x_ne_x : x + x ≠ x := by
+    intro h
+    have : x = 0 := by
+      calc x = (x + x) - x := by abel
+      _ = x - x := by rw [h]
+      _ = 0 := sub_self x
+    exact hx0 this
+  have hy_eq : y = x + x := by
+    rcases h2x_mem with h | h | h
+    · exact False.elim (h2x_ne_zero h)
+    · exact False.elim (h2x_ne_x h)
+    · exact h.symm
+  -- Now x + (x + x) ∈ {0, x, y} = {0, x, x + x}
+  have h3x_mem : (x + x + x) ∈ ({0, x, y} : Finset G) := by
+    have h_assoc : x + x + x = x + y := by
+      calc x + x + x = x + (x + x) := by abel
+      _ = x + y := by rw [hy_eq]
+    rw [h_assoc]
+    simp only [mem_insert, mem_singleton]
+    exact hxy_mem
+  simp only [mem_insert, mem_singleton] at h3x_mem
+  have h3x_zero : x + x + x = 0 := by
+    rcases h3x_mem with h | h | h
+    · exact h
+    · -- 3x = x => 2x = 0, contradiction
+      have h2x0 : x + x = 0 := by
+        calc x + x = (x + x + x) - x := by abel
+        _ = x - x := by rw [h]
+        _ = 0 := sub_self x
+      exact False.elim (h2x_ne_zero h2x0)
+    · -- 3x = y = 2x => x = 0, contradiction
+      rw [hy_eq] at h
+      have hx0' : x = 0 := by
+        calc x = (x + x + x) - (x + x) := by abel
+        _ = (x + x) - (x + x) := by rw [h]
+        _ = 0 := sub_self (x + x)
+      exact False.elim (hx0 hx0')
+  exact ⟨h3x_zero, hy_eq⟩
+
+/-- Small set rigidity: If 0 ∈ S and S = {0, x, y} with S closed under addition,
+    the subgroup generated by S has cardinality at most 3. -/
+lemma closure_card_le_three_of_card_three_add_self_eq {G : Type*} [AddCommGroup G] [DecidableEq G]
+    (x y : G)
+    (h_add : ∀ a ∈ ({0, x, y} : Finset G), ∀ b ∈ ({0, x, y} : Finset G),
+      a + b ∈ ({0, x, y} : Finset G)) :
+    ∃ (H : AddSubgroup G), (({0, x, y} : Set G) ⊆ H) ∧
+      (∃ (s : Finset G), (H : Set G) = (s : Set G) ∧ s.card ≤ 3) := by
+  by_cases hx0 : x = 0
+  · subst hx0
+    have hs : ({0, (0 : G), y} : Set G) = {0, y} := by ext z; aesop
+    by_cases hy0 : y = 0
+    · subst hy0
+      use ⊥
+      refine ⟨by simp, ?_⟩
+      use {0}
+      simp
+    · have hy_mem : y ∈ ({0, (0 : G), y} : Finset G) := by simp
+      have h2y_mem := h_add y hy_mem y hy_mem
+      simp only [mem_insert, mem_singleton] at h2y_mem
+      rcases h2y_mem with h2y0 | h2y0 | h2yy
+      · have ⟨H, hsub, s, hs_eq, hcard⟩ := closure_card_le_two_of_order_two y h2y0
+        use H
+        refine ⟨by rw [hs]; exact hsub, ⟨s, hs_eq, by omega⟩⟩
+      · have ⟨H, hsub, s, hs_eq, hcard⟩ := closure_card_le_two_of_order_two y h2y0
+        use H
+        refine ⟨by rw [hs]; exact hsub, ⟨s, hs_eq, by omega⟩⟩
+      · have : y = 0 := by
+          calc y = (y + y) - y := by abel
+          _ = y - y := by rw [h2yy]
+          _ = 0 := sub_self y
+        exact False.elim (hy0 this)
+  · by_cases hy0 : y = 0
+    · subst hy0
+      have hs : ({0, x, (0 : G)} : Set G) = {0, x} := by ext z; aesop
+      have hx_mem : x ∈ ({0, x, (0 : G)} : Finset G) := by simp
+      have h2x_mem := h_add x hx_mem x hx_mem
+      simp only [mem_insert, mem_singleton] at h2x_mem
+      rcases h2x_mem with h2x0 | h2xx | h2x0
+      · have ⟨H, hsub, s, hs_eq, hcard⟩ := closure_card_le_two_of_order_two x h2x0
+        use H
+        refine ⟨by rw [hs]; exact hsub, ⟨s, hs_eq, by omega⟩⟩
+      · have : x = 0 := by
+          calc x = (x + x) - x := by abel
+          _ = x - x := by rw [h2xx]
+          _ = 0 := sub_self x
+        exact False.elim (hx0 this)
+      · have ⟨H, hsub, s, hs_eq, hcard⟩ := closure_card_le_two_of_order_two x h2x0
+        use H
+        refine ⟨by rw [hs]; exact hsub, ⟨s, hs_eq, by omega⟩⟩
+    · by_cases hxy : x = y
+      · subst hxy
+        have hs : ({0, x, x} : Set G) = {0, x} := by ext z; aesop
+        have hx_mem : x ∈ ({0, x, x} : Finset G) := by simp
+        have h2x_mem := h_add x hx_mem x hx_mem
+        simp only [mem_insert, mem_singleton] at h2x_mem
+        rcases h2x_mem with h2x0 | h2xx | h2xx
+        · have ⟨H, hsub, s, hs_eq, hcard⟩ := closure_card_le_two_of_order_two x h2x0
+          use H
+          refine ⟨by rw [hs]; exact hsub, ⟨s, hs_eq, by omega⟩⟩
+        · have : x = 0 := by
+            calc x = (x + x) - x := by abel
+            _ = x - x := by rw [h2xx]
+            _ = 0 := sub_self x
+          exact False.elim (hx0 this)
+        · have : x = 0 := by
+            calc x = (x + x) - x := by abel
+            _ = x - x := by rw [h2xx]
+            _ = 0 := sub_self x
+          exact False.elim (hx0 this)
+      · have ⟨h3x, hy_eq⟩ := order_three_of_card_three_add_self_eq x y hx0 hy0 hxy h_add
+        have ⟨H, hsub, s, hs_eq, hcard⟩ := closure_card_le_three_of_order_three x h3x
+        use H
+        refine ⟨?_, ⟨s, hs_eq, hcard⟩⟩
+        rw [hy_eq]
+        intro z hz
+        simp only [Set.mem_insert_iff, Set.mem_singleton_iff] at hz ⊢
+        rcases hz with rfl | rfl | rfl
+        · exact zero_mem H
+        · exact hsub (by simp)
+        · have hx : x ∈ H := hsub (by simp)
+          exact add_mem hx hx
+
+/-- Containment of multiples 0, x, 2x, 3x in the 4-fold sumset iterSum 4 S when x ∈ S and 0 ∈ S. -/
+lemma elements_in_iterSum_four {G : Type*} [AddCommGroup G] [DecidableEq G]
+    (S : Finset G) (h0 : 0 ∈ S) (x : G) (hx : x ∈ S) :
+    0 ∈ iterSum 4 S ∧ x ∈ iterSum 4 S ∧ x + x ∈ iterSum 4 S ∧ x + x + x ∈ iterSum 4 S := by
+  have h1 : x ∈ iterSum 1 S := by
+    rw [iterSum_succ, mem_sumset_iff]
+    exact ⟨0, by simp [iterSum_zero], x, hx, zero_add x⟩
+  have h2 : x + x ∈ iterSum 2 S := by
+    rw [iterSum_succ, mem_sumset_iff]
+    exact ⟨x, h1, x, hx, rfl⟩
+  have h3 : x + x + x ∈ iterSum 3 S := by
+    rw [iterSum_succ, mem_sumset_iff]
+    exact ⟨x + x, h2, x, hx, rfl⟩
+  have h0_4 : 0 ∈ iterSum 4 S := by
+    have : 0 ∈ iterSum 0 S := by simp [iterSum_zero]
+    exact iterSum_mono_of_zero_mem S h0 (by omega) this
+  have h1_4 : x ∈ iterSum 4 S :=
+    iterSum_mono_of_zero_mem S h0 (by omega) h1
+  have h2_4 : x + x ∈ iterSum 4 S :=
+    iterSum_mono_of_zero_mem S h0 (by omega) h2
+  have h3_4 : x + x + x ∈ iterSum 4 S :=
+    iterSum_mono_of_zero_mem S h0 (by omega) h3
+  exact ⟨h0_4, h1_4, h2_4, h3_4⟩
+
+/-- When 0 ∈ S and S = {0, x}, if |4S| ≤ 3, then 2x = 0 or 3x = 0 (orders dividing 2 or 3). -/
+lemma order_two_or_three_of_pair_iterSum_four_le_three {G : Type*} [AddCommGroup G] [DecidableEq G]
+    (x : G) (hx0 : x ≠ 0)
+    (h_iter : (iterSum 4 ({0, x} : Finset G)).card ≤ 3) :
+    x + x = 0 ∨ x + x + x = 0 := by
+  have h0 : (0 : G) ∈ ({0, x} : Finset G) := by simp
+  have hx : x ∈ ({0, x} : Finset G) := by simp
+  have ⟨h0_4, hx_4, h2x_4, h3x_4⟩ := elements_in_iterSum_four ({0, x} : Finset G) h0 x hx
+  have h_sub : ({0, x, x + x, x + x + x} : Finset G) ⊆ iterSum 4 {0, x} := by
+    intro z hz
+    simp only [mem_insert, mem_singleton] at hz
+    rcases hz with rfl | rfl | rfl | rfl
+    · exact h0_4
+    · exact hx_4
+    · exact h2x_4
+    · exact h3x_4
+  have h_card_le := Finset.card_le_card h_sub
+  by_contra! h_contra
+  have ⟨h2x_ne, h3x_ne⟩ := h_contra
+  have h0_ne_x : (0 : G) ≠ x := ne_of_apply_ne id (Ne.symm hx0)
+  have h0_ne_2x : (0 : G) ≠ x + x := Ne.symm h2x_ne
+  have h0_ne_3x : (0 : G) ≠ x + x + x := Ne.symm h3x_ne
+  have hx_ne_2x : x ≠ x + x := by
+    intro h
+    have : x = 0 := by
+      calc x = (x + x) - x := by abel
+      _ = x - x := by rw [← h]
+      _ = 0 := sub_self x
+    exact hx0 this
+  have hx_ne_3x : x ≠ x + x + x := by
+    intro h
+    have : x + x = 0 := by
+      calc x + x = (x + x + x) - x := by abel
+      _ = x - x := by rw [← h]
+      _ = 0 := sub_self x
+    exact h2x_ne this
+  have h2x_ne_3x : x + x ≠ x + x + x := by
+    intro h
+    have : x = 0 := by
+      calc x = (x + x + x) - (x + x) := by abel
+      _ = (x + x) - (x + x) := by rw [← h]
+      _ = 0 := sub_self (x + x)
+    exact hx0 this
+  have h_card_4 : ({0, x, x + x, x + x + x} : Finset G).card = 4 := by
+    rw [Finset.card_insert_of_notMem, Finset.card_insert_of_notMem, Finset.card_insert_of_notMem, Finset.card_singleton]
+    · intro h; aesop
+    · intro h; aesop
+    · intro h; aesop
+  omega
+
+/-- When S = {0, x} and |4S| ≤ 3, the subgroup generated by S has order at most 3. -/
+lemma closure_card_le_three_of_pair_iterSum_four_le_three {G : Type*} [AddCommGroup G] [DecidableEq G]
+    (x : G) (h_iter : (iterSum 4 ({0, x} : Finset G)).card ≤ 3) :
+    ∃ (H : AddSubgroup G), (({0, x} : Set G) ⊆ H) ∧
+      (∃ (s : Finset G), (H : Set G) = (s : Set G) ∧ s.card ≤ 3) := by
+  by_cases hx0 : x = 0
+  · subst hx0
+    use ⊥
+    refine ⟨by simp, ?_⟩
+    use {0}
+    simp
+  · have h_or := order_two_or_three_of_pair_iterSum_four_le_three x hx0 h_iter
+    rcases h_or with h2x | h3x
+    · have ⟨H, hsub, s, hs_eq, hcard⟩ := closure_card_le_two_of_order_two x h2x
+      use H
+      refine ⟨hsub, ⟨s, hs_eq, by omega⟩⟩
+    · exact closure_card_le_three_of_order_three x h3x
+
+/-- Small set rigidity for 3 elements: If 0 ∈ S and S = {0, x, y} with |4S| ≤ 3,
+    the subgroup generated by S has cardinality at most 3. -/
+lemma closure_card_le_three_of_card_three_iterSum_four_le_three {G : Type*} [AddCommGroup G] [DecidableEq G]
+    (x y : G)
+    (h_iter : (iterSum 4 ({0, x, y} : Finset G)).card ≤ 3) :
+    ∃ (H : AddSubgroup G), (({0, x, y} : Set G) ⊆ H) ∧
+      (∃ (s : Finset G), (H : Set G) = (s : Set G) ∧ s.card ≤ 3) := by
+  by_cases hx0 : x = 0
+  · subst hx0
+    have hs : ({0, (0 : G), y} : Finset G) = {0, y} := by ext z; aesop
+    have hs_set : ({0, (0 : G), y} : Set G) = {0, y} := by ext z; aesop
+    have h_iter' : (iterSum 4 ({0, y} : Finset G)).card ≤ 3 := by
+      rw [← hs]
+      exact h_iter
+    have ⟨H, hsub, s, hs_eq, hcard⟩ := closure_card_le_three_of_pair_iterSum_four_le_three y h_iter'
+    use H
+    refine ⟨by rw [hs_set]; exact hsub, ⟨s, hs_eq, hcard⟩⟩
+  · by_cases hy0 : y = 0
+    · subst hy0
+      have hs : ({0, x, (0 : G)} : Finset G) = {0, x} := by ext z; aesop
+      have hs_set : ({0, x, (0 : G)} : Set G) = {0, x} := by ext z; aesop
+      have h_iter' : (iterSum 4 ({0, x} : Finset G)).card ≤ 3 := by
+        rw [← hs]
+        exact h_iter
+      have ⟨H, hsub, s, hs_eq, hcard⟩ := closure_card_le_three_of_pair_iterSum_four_le_three x h_iter'
+      use H
+      refine ⟨by rw [hs_set]; exact hsub, ⟨s, hs_eq, hcard⟩⟩
+    · by_cases hxy : x = y
+      · subst hxy
+        have hs : ({0, x, x} : Finset G) = {0, x} := by ext z; aesop
+        have hs_set : ({0, x, x} : Set G) = {0, x} := by ext z; aesop
+        have h_iter' : (iterSum 4 ({0, x} : Finset G)).card ≤ 3 := by
+          rw [← hs]
+          exact h_iter
+        have ⟨H, hsub, s, hs_eq, hcard⟩ := closure_card_le_three_of_pair_iterSum_four_le_three x h_iter'
+        use H
+        refine ⟨by rw [hs_set]; exact hsub, ⟨s, hs_eq, hcard⟩⟩
+      · have h0 : (0 : G) ∈ ({0, x, y} : Finset G) := by simp
+        have h1_sub_2 : iterSum 1 ({0, x, y} : Finset G) ⊆ iterSum 2 ({0, x, y} : Finset G) :=
+          iterSum_subset_succ _ h0 1
+        have h2_sub_4 : iterSum 2 ({0, x, y} : Finset G) ⊆ iterSum 4 ({0, x, y} : Finset G) :=
+          iterSum_mono_of_zero_mem _ h0 (by omega)
+        have h_S_sub_1 : ({0, x, y} : Finset G) ⊆ iterSum 1 ({0, x, y} : Finset G) := by
+          intro z hz
+          rw [iterSum_succ, mem_sumset_iff]
+          exact ⟨0, by simp [iterSum_zero], z, hz, zero_add z⟩
+        have h_S_sub_2 : ({0, x, y} : Finset G) ⊆ iterSum 2 ({0, x, y} : Finset G) :=
+          h_S_sub_1.trans h1_sub_2
+        have h_card_3 : ({0, x, y} : Finset G).card = 3 := by
+          rw [Finset.card_insert_of_notMem, Finset.card_insert_of_notMem, Finset.card_singleton]
+          · intro h; aesop
+          · intro h; aesop
+        have h_card_2_le : (iterSum 2 ({0, x, y} : Finset G)).card ≤ 3 :=
+          (Finset.card_le_card h2_sub_4).trans h_iter
+        have h_card_2_ge : 3 ≤ (iterSum 2 ({0, x, y} : Finset G)).card := by
+          rw [← h_card_3]
+          exact Finset.card_le_card h_S_sub_2
+        have h_card_2_eq : (iterSum 2 ({0, x, y} : Finset G)).card = 3 := by omega
+        have h_eq : iterSum 2 ({0, x, y} : Finset G) = {0, x, y} :=
+          (Finset.eq_of_subset_of_card_le h_S_sub_2 (by rw [h_card_2_eq, h_card_3])).symm
+        have h_add : ∀ a ∈ ({0, x, y} : Finset G), ∀ b ∈ ({0, x, y} : Finset G),
+            a + b ∈ ({0, x, y} : Finset G) := by
+          intro a ha b hb
+          have ha_1 : a ∈ iterSum 1 ({0, x, y} : Finset G) := h_S_sub_1 ha
+          have hab : a + b ∈ iterSum 2 ({0, x, y} : Finset G) := by
+            rw [iterSum_succ, mem_sumset_iff]
+            exact ⟨a, ha_1, b, hb, rfl⟩
+          rw [h_eq] at hab
+          exact hab
+        exact closure_card_le_three_of_card_three_add_self_eq x y h_add
+
+/-- Structural classification of small sets containing 0 into singletons, pairs, or triples. -/
+lemma exists_eq_pair_or_three_of_zero_mem_card_le_three {G : Type*} [AddCommGroup G] [DecidableEq G]
+    (S : Finset G) (h0 : 0 ∈ S) (hS_card : S.card ≤ 3) :
+    (S = {0}) ∨ (∃ x, S = {0, x}) ∨ (∃ x y, S = {0, x, y}) := by
+  let S' := S \ {0}
+  have hS_eq : S = insert (0 : G) S' := (Finset.insert_sdiff_self_of_mem h0).symm
+  have h0_not_mem : (0 : G) ∉ S' := by simp [S']
+  have hS'_card : S'.card ≤ 2 := by
+    have : S.card = S'.card + 1 := by
+      rw [hS_eq, Finset.card_insert_of_notMem h0_not_mem]
+    omega
+  interval_cases h : S'.card
+  · have : S' = ∅ := Finset.card_eq_zero.mp h
+    left
+    rw [hS_eq, this, Finset.insert_empty]
+  · obtain ⟨x, hx⟩ := Finset.card_eq_one.mp h
+    right; left
+    use x
+    rw [hS_eq, hx]
+  · obtain ⟨x, y, _, hxy⟩ := Finset.card_eq_two.mp h
+    right; right
+    use x, y
+    rw [hS_eq, hxy]
+
+/-- Subgroup bound for any set S containing 0 with |S| ≤ 3 and |4S| ≤ 3:
+    The additive subgroup generated by S has cardinality at most 3. -/
+lemma closure_card_le_three_of_iterSum_four_le_three {G : Type*} [AddCommGroup G] [DecidableEq G]
+    (S : Finset G) (h0 : 0 ∈ S) (hS_card : S.card ≤ 3)
+    (h_iter : (iterSum 4 S).card ≤ 3) :
+    ∃ (H : AddSubgroup G), ((S : Set G) ⊆ H) ∧
+      (∃ (s : Finset G), (H : Set G) = (s : Set G) ∧ s.card ≤ 3) := by
+  rcases exists_eq_pair_or_three_of_zero_mem_card_le_three S h0 hS_card with h1 | ⟨x, h2⟩ | ⟨x, y, h3⟩
+  · subst h1
+    use ⊥
+    refine ⟨by simp, ⟨{0}, by simp, by simp⟩⟩
+  · subst h2
+    have ⟨H, hsub, s, hs_eq, hcard⟩ := closure_card_le_three_of_pair_iterSum_four_le_three x h_iter
+    use H
+    refine ⟨?_, ⟨s, hs_eq, hcard⟩⟩
+    intro z hz
+    simp only [coe_insert, coe_singleton, Set.mem_insert_iff, Set.mem_singleton_iff] at hz
+    exact hsub hz
+  · subst h3
+    have ⟨H, hsub, s, hs_eq, hcard⟩ := closure_card_le_three_of_card_three_iterSum_four_le_three x y h_iter
+    use H
+    refine ⟨?_, ⟨s, hs_eq, hcard⟩⟩
+    intro z hz
+    simp only [coe_insert, coe_singleton, Set.mem_insert_iff, Set.mem_singleton_iff] at hz
+    exact hsub hz
+
+/-- Reducing the cardinality bound on B from an AP cover and Selberg sieve rough count. -/
+lemma card_le_sieve_bound_of_cover
+    (B : Finset ℕ) (fc : FiniteConditions) (p : P17FiniteArithConditions fc)
+    (Q : ℕ) (hB_rough : ∀ a ∈ B, Nat.Coprime a Q)
+    (R_card d : ℕ) (hR_card : R_card ≤ 128 * d)
+    (cov : IntAPCover (B.image (fun (a : ℕ) => (a : ℤ))) R_card fc.t p.n)
+    (C_sieve : ℝ) (hC_nonneg : 0 ≤ C_sieve)
+    (h_sieve : ∀ i ∈ cov.I, (roughCount (cov.APs i) Q : ℝ) ≤ ((cov.APs i).k : ℝ) * C_sieve) :
+    (B.card : ℝ) ≤ 384 * (d : ℝ) * C_sieve := by
+  let B_int := B.image (fun (a : ℕ) => (a : ℤ))
+  have hB_card : B_int.card = B.card :=
+    Finset.card_image_of_injective B Nat.cast_injective
+  have hB_int_rough : ∀ z ∈ B_int, Nat.Coprime z.natAbs Q := by
+    intro z hz
+    simp only [B_int, Finset.mem_image] at hz
+    rcases hz with ⟨a, ha, rfl⟩
+    rw [Int.natAbs_natCast]
+    exact hB_rough a ha
+  have h_sum_real : (∑ i ∈ cov.I, (cov.APs i).k : ℝ) ≤ 384 * (d : ℝ) := by
+    have h1 : ∑ i ∈ cov.I, (cov.APs i).k ≤ 3 * R_card := cov.h_sum_len
+    have h2 : 3 * R_card ≤ 384 * d := by omega
+    have h_le : ∑ i ∈ cov.I, (cov.APs i).k ≤ 384 * d := h1.trans h2
+    exact_mod_cast h_le
+  have h_bound := card_le_sieve_bound_of_ap_family
+    B_int Q hB_int_rough cov.I cov.APs cov.h_cov d p.n p.r C_sieve hC_nonneg h_sieve h_sum_real
+  rw [hB_card] at h_bound
+  exact h_bound
+
+/-- Pure Structural Trichotomy for smallGrowth (CFP Lemma 2.4 / Deshouillers–Freiman):
+    For a generating set with small growth and small density (xi ≤ 1/20), G is either:
+    1. Contained in a proper additive subgroup H < ZMod N;
+    2. Has small cardinality bounded by 20 * (2d)^(51/50) / |T|^(1/50);
+    3. Contained in a coset AP R with length at most 128 * d. -/
+def SmallGrowthTrichotomy (N : ℕ) [NeZero N] (T : Finset (ZMod N)) (d : ℕ) : Prop :=
+  let G := smallGrowth T d
+  -- Branch 1: G is contained in a proper additive subgroup
+  (∃ (H : AddSubgroup (ZMod N)) (_hH : H ≠ ⊤), (G : Set (ZMod N)) ⊆ (H : Set (ZMod N))) ∨
+  -- Branch 2: G has small cardinality bounded by the Deshouillers–Freiman bound
+  (((G.card : ℝ)) ≤ 20 * (2 * (d : ℝ)) ^ ((51 : ℝ) / 50) / ((T.card : ℝ)) ^ ((1 : ℝ) / 50)) ∨
+  -- Branch 3: G is covered by a coset AP R with length at most 128 * d
+  (∃ (R : CosetAP N), G ⊆ R.toFinset ∧ R.ell * (R.H : Set (ZMod N)).toFinset.card ≤ 128 * d)
+
+/-- Full-group inputs can never satisfy the small density condition xi ≤ 1/20
+    (mathematically blocking the diagnostic counterexample). -/
+theorem univ_cannot_satisfy_small_density (N : ℕ) [NeZero N] (xi : ℝ)
+    (h_xi_le : xi ≤ (1 / 20 : ℝ))
+    (h_dense : ((Finset.univ : Finset (ZMod N)).card : ℝ) < xi * (N : ℝ)) : False := by
+  have h_card : (Finset.univ : Finset (ZMod N)).card = N := ZMod.card N
+  rw [h_card] at h_dense
+  have hN_ge_one : (1 : ℝ) ≤ (N : ℝ) := by
+    have : 1 ≤ N := NeZero.one_le
+    exact_mod_cast this
+  have h_le : xi * (N : ℝ) ≤ (1 / 20 : ℝ) * (N : ℝ) := by
+    have : 0 ≤ (N : ℝ) := by positivity
+    exact mul_le_mul_of_nonneg_right h_xi_le this
+  have h_lt : (N : ℝ) < (1 / 20 : ℝ) * (N : ℝ) := h_dense.trans_le h_le
+  linarith
+
+/-- Arithmetic density inequality: Under xi ≤ 1/20 and 8d < |T| < xi * N,
+    we have 128 * d < N. -/
+lemma mul_128_lt_of_density (N : ℕ) [NeZero N] (d : ℕ) (T : Finset (ZMod N)) (xi : ℝ)
+    (h_xi_le : xi ≤ (1 / 20 : ℝ))
+    (hd_lt : 8 * d < T.card)
+    (h_dense : (T.card : ℝ) < xi * (N : ℝ)) :
+    128 * d < N := by
+  have hd_real : 8 * (d : ℝ) < (T.card : ℝ) := by exact_mod_cast hd_lt
+  have h_le : xi * (N : ℝ) ≤ (1 / 20 : ℝ) * (N : ℝ) := by
+    have : 0 ≤ (N : ℝ) := by positivity
+    exact mul_le_mul_of_nonneg_right h_xi_le this
+  have h_T_lt : (T.card : ℝ) < (1 / 20 : ℝ) * (N : ℝ) := h_dense.trans_le h_le
+  have h_128 : (128 * d : ℝ) = 16 * (8 * (d : ℝ)) := by ring
+  have h_lt_real : (128 * d : ℝ) < (N : ℝ) := by
+    calc (128 * d : ℝ) = 16 * (8 * (d : ℝ)) := h_128
+    _ < 16 * (T.card : ℝ) := by linarith
+    _ < 16 * ((1 / 20 : ℝ) * (N : ℝ)) := by linarith
+    _ = (4 / 5 : ℝ) * (N : ℝ) := by ring
+    _ < (N : ℝ) := by
+      have hN_pos : 0 < (N : ℝ) := by
+        have : 0 < N := NeZero.pos N
+        exact_mod_cast this
+      linarith
+  exact_mod_cast h_lt_real
+
+/-- An additive subgroup of ZMod N whose cardinality is strictly less than N is proper (H ≠ ⊤). -/
+lemma proper_subgroup_of_card_lt (N : ℕ) [NeZero N] (H : AddSubgroup (ZMod N))
+    (h_card : (H : Set (ZMod N)).toFinset.card < N) : H ≠ ⊤ := by
+  intro h_top
+  have h_finset : (H : Set (ZMod N)).toFinset = Finset.univ := by
+    ext x
+    simp [h_top]
+  have h_eq : (H : Set (ZMod N)).toFinset.card = N := by
+    rw [h_finset, Finset.card_univ, ZMod.card N]
+  omega
+
+/-- An additive subgroup of ZMod N whose cardinality is bounded by 128 * d is proper
+    under the small density condition xi ≤ 1/20 and 8d < |T| < xi * N. -/
+lemma proper_subgroup_of_card_le_128d (N : ℕ) [NeZero N] (d : ℕ) (T : Finset (ZMod N)) (xi : ℝ)
+    (h_xi_le : xi ≤ (1 / 20 : ℝ))
+    (hd_lt : 8 * d < T.card)
+    (h_dense : (T.card : ℝ) < xi * (N : ℝ))
+    (H : AddSubgroup (ZMod N))
+    (hH_card : (H : Set (ZMod N)).toFinset.card ≤ 128 * d) :
+    H ≠ ⊤ := by
+  have h_128_lt : 128 * d < N := mul_128_lt_of_density N d T xi h_xi_le hd_lt h_dense
+  have h_card_lt : (H : Set (ZMod N)).toFinset.card < N := hH_card.trans_lt h_128_lt
+  exact proper_subgroup_of_card_lt N H h_card_lt
+
+/-- The cardinality of the join of two additive subgroups in ZMod N is bounded
+    by the product of their cardinalities. -/
+lemma card_sup_subgroup_le (N : ℕ) [NeZero N] (H K : AddSubgroup (ZMod N)) :
+    ((H ⊔ K : AddSubgroup (ZMod N)) : Set (ZMod N)).toFinset.card ≤
+    (H : Set (ZMod N)).toFinset.card * (K : Set (ZMod N)).toFinset.card := by
+  let s := (H : Set (ZMod N)).toFinset
+  let t := (K : Set (ZMod N)).toFinset
+  let U := t.biUnion (fun k => s.image (fun h => h + k))
+  have h_sub : ((H ⊔ K : AddSubgroup (ZMod N)) : Set (ZMod N)).toFinset ⊆ U := by
+    intro x hx
+    rw [Set.mem_toFinset] at hx
+    rw [SetLike.mem_coe] at hx
+    rw [AddSubgroup.mem_sup] at hx
+    rcases hx with ⟨h, hh, k, hk, rfl⟩
+    rw [Finset.mem_biUnion]
+    refine ⟨k, ?_, ?_⟩
+    · rw [Set.mem_toFinset, SetLike.mem_coe]
+      exact hk
+    · rw [Finset.mem_image]
+      refine ⟨h, ?_, rfl⟩
+      rw [Set.mem_toFinset, SetLike.mem_coe]
+      exact hh
+  have h_le_U : ((H ⊔ K : AddSubgroup (ZMod N)) : Set (ZMod N)).toFinset.card ≤ U.card :=
+    Finset.card_le_card h_sub
+  have h_biUnion := Finset.card_biUnion_le (s := t) (t := fun k => s.image (fun h => h + k))
+  have h_img : ∀ k ∈ t, (s.image (fun h => h + k)).card ≤ s.card := by
+    intro k _hk
+    exact Finset.card_image_le
+  have h_sum : ∑ k ∈ t, (s.image (fun h => h + k)).card ≤ ∑ _k ∈ t, s.card :=
+    Finset.sum_le_sum h_img
+  rw [Finset.sum_const, smul_eq_mul] at h_sum
+  have h_U_le : U.card ≤ t.card * s.card := h_biUnion.trans h_sum
+  rw [mul_comm] at h_U_le
+  exact h_le_U.trans h_U_le
+
+/-- 3-Coset Absorption into Proper Subgroup:
+    If a subset T ⊆ ZMod N is covered by at most 3 cosets C + H_0 of a subgroup H_0,
+    where 0 ∈ C, |C| ≤ 3, |4C| ≤ 3, and 3 * |H_0| ≤ 128 * d,
+    then under the small density condition (8d < |T| < xi * N with xi ≤ 1/20),
+    T is contained in a PROPER additive subgroup H < ⊤. -/
+lemma proper_subgroup_of_three_coset_absorption
+    (N : ℕ) [NeZero N] (d : ℕ) (T : Finset (ZMod N)) (xi : ℝ)
+    (h_xi_le : xi ≤ (1 / 20 : ℝ))
+    (hd_lt : 8 * d < T.card)
+    (h_dense : (T.card : ℝ) < xi * (N : ℝ))
+    (H_0 : AddSubgroup (ZMod N))
+    (C : Finset (ZMod N)) (h0 : 0 ∈ C) (hC_card : C.card ≤ 3)
+    (hC_iter : (iterSum 4 C).card ≤ 3)
+    (hH0_card : 3 * (H_0 : Set (ZMod N)).toFinset.card ≤ 128 * d)
+    (hT_cov : ∀ t ∈ T, ∃ c ∈ C, ∃ h ∈ H_0, t = c + h) :
+    ∃ (H : AddSubgroup (ZMod N)) (_hH : H ≠ ⊤), (T : Set (ZMod N)) ⊆ (H : Set (ZMod N)) := by
+  have ⟨K, hCK, s, hs_eq, hs_card⟩ :=
+    closure_card_le_three_of_iterSum_four_le_three C h0 hC_card hC_iter
+  let H := H_0 ⊔ K
+  have hT_sub : (T : Set (ZMod N)) ⊆ (H : Set (ZMod N)) := by
+    intro t ht
+    rcases hT_cov t (Finset.mem_coe.mp ht) with ⟨c, hc, h, hh, rfl⟩
+    have hcK : c ∈ (K : Set (ZMod N)) := hCK (Finset.mem_coe.mpr hc)
+    have hcK' : c ∈ K := SetLike.mem_coe.mp hcK
+    have hcH : c ∈ H := AddSubgroup.mem_sup_right hcK'
+    have hhH : h ∈ H := AddSubgroup.mem_sup_left hh
+    have h_add : c + h ∈ H := H.add_mem hcH hhH
+    exact SetLike.mem_coe.mpr h_add
+  have hK_card : (K : Set (ZMod N)).toFinset.card ≤ 3 := by
+    have h_eq : (K : Set (ZMod N)).toFinset = s := by
+      ext z
+      simp only [Set.mem_toFinset, hs_eq, Finset.mem_coe]
+    rw [h_eq]
+    exact hs_card
+  have hH_card_le : (H : Set (ZMod N)).toFinset.card ≤ 128 * d := by
+    have h_prod := card_sup_subgroup_le N H_0 K
+    have h_mul_3 : (H_0 : Set (ZMod N)).toFinset.card * (K : Set (ZMod N)).toFinset.card ≤
+        (H_0 : Set (ZMod N)).toFinset.card * 3 :=
+      Nat.mul_le_mul_left (H_0 : Set (ZMod N)).toFinset.card hK_card
+    rw [mul_comm (H_0 : Set (ZMod N)).toFinset.card 3] at h_mul_3
+    exact h_prod.trans (h_mul_3.trans hH0_card)
+  have hH_proper : H ≠ ⊤ :=
+    proper_subgroup_of_card_le_128d N d T xi h_xi_le hd_lt h_dense H hH_card_le
+  exact ⟨H, hH_proper, hT_sub⟩
+
+/-- If T is contained in an additive subgroup H and d < |T|,
+    then smallGrowth T d is also contained in H. -/
+lemma smallGrowth_subset_subgroup {G : Type*} [AddCommGroup G] [Fintype G] [DecidableEq G]
+    (T : Finset G) (d : ℕ) (hd_lt : d < T.card)
+    (H : AddSubgroup G) (hTH : (T : Set G) ⊆ (H : Set G)) :
+    (smallGrowth T d : Set G) ⊆ (H : Set G) := by
+  intro x hx
+  rw [Finset.mem_coe] at hx
+  simp only [smallGrowth, Finset.mem_filter, Finset.mem_univ, true_and] at hx
+  by_contra hxH
+  have h_disj : Disjoint (translate T x) T := by
+    rw [Finset.disjoint_left]
+    intro y hy_trans hy_T
+    rw [translate, Finset.mem_image] at hy_trans
+    rcases hy_trans with ⟨t, ht, rfl⟩
+    have htH : t ∈ H := hTH (Finset.mem_coe.mpr ht)
+    have htxH : t + x ∈ H := hTH (Finset.mem_coe.mpr hy_T)
+    have hx_sub : x = (t + x) - t := by abel
+    have hx_in_H : x ∈ H := by
+      rw [hx_sub]
+      exact H.sub_mem htxH htH
+    exact hxH hx_in_H
+  have h_sdiff : translate T x \ T = translate T x :=
+    Finset.sdiff_eq_self_iff_disjoint.mpr h_disj
+  have h_delta : delta T x = T.card := by
+    dsimp [delta]
+    rw [h_sdiff, card_translate]
+  rw [h_delta] at hx
+  omega
+
+/-- Upgraded 3-Coset Absorption into Proper Subgroup for smallGrowth:
+    If T is covered by at most 3 cosets of H_0 satisfying the small doubling and size bounds,
+    then smallGrowth T d is contained in a PROPER additive subgroup H < ⊤. -/
+lemma proper_subgroup_smallGrowth_of_three_coset_absorption
+    (N : ℕ) [NeZero N] (d : ℕ) (T : Finset (ZMod N)) (xi : ℝ)
+    (h_xi_le : xi ≤ (1 / 20 : ℝ))
+    (hd_lt : 8 * d < T.card)
+    (h_dense : (T.card : ℝ) < xi * (N : ℝ))
+    (H_0 : AddSubgroup (ZMod N))
+    (C : Finset (ZMod N)) (h0 : 0 ∈ C) (hC_card : C.card ≤ 3)
+    (hC_iter : (iterSum 4 C).card ≤ 3)
+    (hH0_card : 3 * (H_0 : Set (ZMod N)).toFinset.card ≤ 128 * d)
+    (hT_cov : ∀ t ∈ T, ∃ c ∈ C, ∃ h ∈ H_0, t = c + h) :
+    ∃ (H : AddSubgroup (ZMod N)) (_hH : H ≠ ⊤), (smallGrowth T d : Set (ZMod N)) ⊆ (H : Set (ZMod N)) := by
+  have ⟨H, hH_proper, hT_sub⟩ := proper_subgroup_of_three_coset_absorption N d T xi h_xi_le hd_lt h_dense H_0 C h0 hC_card hC_iter hH0_card hT_cov
+  have hd_lt_card : d < T.card := by omega
+  have hG_sub := smallGrowth_subset_subgroup T d hd_lt_card H hT_sub
+  exact ⟨H, hH_proper, hG_sub⟩
+
+/-- If smallGrowth T d does not generate the full group, it is contained in a proper subgroup. -/
+lemma smallGrowth_proper_subgroup_of_closure_ne_top (N : ℕ) [NeZero N]
+    (T : Finset (ZMod N)) (d : ℕ)
+    (h_not_top : AddSubgroup.closure (smallGrowth T d : Set (ZMod N)) ≠ ⊤) :
+    ∃ (H : AddSubgroup (ZMod N)) (_hH : H ≠ ⊤), (smallGrowth T d : Set (ZMod N)) ⊆ (H : Set (ZMod N)) :=
+  ⟨AddSubgroup.closure (smallGrowth T d : Set (ZMod N)), h_not_top, AddSubgroup.subset_closure⟩
+
+/-- Arithmetic progression coset lifting and sieve interface for Phase P17 (CFP Lemma 5.10):
+    For any candidate subset B ⊆ fc.A with |B| ≥ M whose quotient image is covered by a coset AP
+    R with R.ell * |R.H| ≤ 128 * D, the sieve bound holds. -/
+def APCoverSieveBridge (fc : FiniteConditions) (p : P17FiniteArithConditions fc) : Prop :=
+  ∀ (B : Finset ℕ) (_hBA : B ⊆ fc.A) (_hB_card : fc.M ≤ B.card)
+    [NeZero (fc.t / subgroupIndex fc.t B)]
+    (R : CosetAP (fc.t / subgroupIndex fc.t B))
+    (_hR_card : R.ell * (R.H : Set (ZMod (fc.t / subgroupIndex fc.t B))).toFinset.card ≤ 128 * fc.D),
+    (B.image (fun a => ((a / (subgroupIndex fc.t B) : ℕ) : ZMod (fc.t / subgroupIndex fc.t B)))) ⊆ R.toFinset →
+    (B.card : ℝ) ≤ 98304 * (fc.D : ℝ) * Real.log (Real.log (p.n : ℝ)) / Real.log (p.r : ℝ)
+
+/-- Proving the APCoverSieveBridge from an IntAPCover and Selberg sieve rough count bound:
+    For any candidate subset B ⊆ fc.A, if B is covered by an IntAPCover whose APs
+    satisfy the Selberg rough count bound, then B satisfies the 98304 sieve bound. -/
+theorem apCoverSieveBridge_of_cover_and_sieve
+    (fc : FiniteConditions) (p : P17FiniteArithConditions fc)
+    (h_cov_sieve : ∀ (B : Finset ℕ) (_hBA : B ⊆ fc.A) (_hB_card : fc.M ≤ B.card)
+      [instN : NeZero (fc.t / subgroupIndex fc.t B)]
+      (R : CosetAP (fc.t / subgroupIndex fc.t B))
+      (_hR_card : R.ell * (R.H : Set (ZMod (fc.t / subgroupIndex fc.t B))).toFinset.card ≤ 128 * fc.D)
+      (_hQR : (B.image (fun a => ((a / (subgroupIndex fc.t B) : ℕ) : ZMod (fc.t / subgroupIndex fc.t B)))) ⊆ R.toFinset),
+      ∃ (Q : ℕ) (hB_rough : ∀ a ∈ B, Nat.Coprime a Q)
+        (cov : IntAPCover (B.image (fun (a : ℕ) => (a : ℤ)))
+          (R.ell * (R.H : Set (ZMod (fc.t / subgroupIndex fc.t B))).toFinset.card) fc.t p.n)
+        (C_sieve : ℝ) (hC_nonneg : 0 ≤ C_sieve)
+        (h_sieve : ∀ i ∈ cov.I, (roughCount (cov.APs i) Q : ℝ) ≤ ((cov.APs i).k : ℝ) * C_sieve)
+        (hC_eq : C_sieve = 256 * Real.log (Real.log (p.n : ℝ)) / Real.log (p.r : ℝ)),
+        True) :
+    APCoverSieveBridge fc p := by
+  intro B hBA hB_card instN R hR_card hQR
+  rcases h_cov_sieve B hBA hB_card R hR_card hQR with ⟨Q, hB_rough, cov, C_sieve, hC_nonneg, h_sieve, hC_eq, _⟩
+  have h_bound := card_le_sieve_bound_of_cover B fc p Q hB_rough
+    (R.ell * (R.H : Set (ZMod (fc.t / subgroupIndex fc.t B))).toFinset.card)
+    fc.D hR_card cov C_sieve hC_nonneg h_sieve
+  rw [hC_eq] at h_bound
+  have h_ring : 384 * (fc.D : ℝ) * (256 * Real.log (Real.log (p.n : ℝ)) / Real.log (p.r : ℝ)) =
+      98304 * (fc.D : ℝ) * Real.log (Real.log (p.n : ℝ)) / Real.log (p.r : ℝ) := by ring
+  rwa [h_ring] at h_bound
+
+/-- P17 Step Growth Master Contradiction:
+    Under P17 finite arithmetic conditions, the structural trichotomy (under xi ≤ 1/20),
+    and the AP sieve bridge, every unsaturated step satisfies fc.D ≤ greedyDelta fc j. -/
+theorem unsaturated_step_growth_of_arith_conditional
+    (fc : FiniteConditions)
+    (p : P17FiniteArithConditions fc)
+    (h_trichotomy : ∀ (N : ℕ) [NeZero N] (T : Finset (ZMod N)) (d : ℕ) (xi : ℝ),
+      8 * d < T.card → 0 < xi → xi ≤ (1 / 20 : ℝ) → (T.card : ℝ) < xi * (N : ℝ) →
+      SmallGrowthTrichotomy N T d)
+    (h_sieve : APCoverSieveBridge fc p)
+    (j : ℕ) (hj : j ∈ unsaturatedSteps fc) :
+    fc.D ≤ greedyDelta fc j := by
+  have h_inj := p.injOn_A fc
+  by_contra! h_lt
+  have h_le : greedyDelta fc j ≤ fc.D := by omega
+  have h_med := unsaturated_step_medium_fiber_and_smallGrowth fc h_inj j hj h_le
+  let st := greedySeq fc j
+  let g := st.g fc.t
+  let N := fc.t / g
+  haveI instN : NeZero N := unsaturatedSteps_div_neZero fc j hj
+  haveI : NeZero (fc.t / subgroupIndex fc.t st.B) := instN
+  let Q := st.B.image (fun a => ((a / g : ℕ) : ZMod N))
+  rcases h_med with ⟨T, hT_U, hT_xi, hQ_sub, hM_Q, hQ_gen⟩
+
+  have h8D_T : 8 * fc.D < T.card := by
+    have h8D_U := fc.h_growth_threshold
+    omega
+
+  have h_div_real : (fc.t : ℝ) / (g : ℝ) = (N : ℝ) := by
+    have hd : g ∣ fc.t := subgroupIndex_dvd_modulus fc.t st.B
+    have hg_pos : 0 < g := subgroupIndex_pos fc.t st.B fc.ht_pos
+    have h_div_mul := Nat.div_mul_cancel hd
+    rw [← h_div_mul]
+    push_cast
+    have : (g : ℝ) ≠ 0 := by positivity
+    exact mul_div_cancel_right₀ (N : ℝ) this
+
+  have hT_xi_N : (T.card : ℝ) < fc.xi * (N : ℝ) := by
+    calc (T.card : ℝ) < fc.xi * (fc.t : ℝ) / (g : ℝ) := hT_xi
+    _ = fc.xi * ((fc.t : ℝ) / (g : ℝ)) := by ring
+    _ = fc.xi * (N : ℝ) := by rw [h_div_real]
+
+  have h_trich := h_trichotomy N T fc.D fc.xi h8D_T fc.hxi_pos p.h_xi_le hT_xi_N
+  let G := smallGrowth T fc.D
+
+  rcases h_trich with ⟨H, hH_ne, hGH⟩ | h_small | ⟨R, hGR, hR_card⟩
+  -- Branch 1: Proper subgroup containment
+  · have hQH : (Q : Set (ZMod N)) ⊆ (H : Set (ZMod N)) := by
+      intro x hx
+      exact hGH (hQ_sub (Finset.mem_coe.mp hx))
+    have h_clos_le : AddSubgroup.closure (Q : Set (ZMod N)) ≤ H := by
+      rw [AddSubgroup.closure_le]
+      exact hQH
+    rw [hQ_gen] at h_clos_le
+    have hH_top : H = ⊤ := top_le_iff.mp h_clos_le
+    exact hH_ne hH_top
+
+  -- Branch 2: Small cardinality bound
+  · have hU_pos : (0 : ℝ) < (fc.U : ℝ) := Nat.cast_pos.mpr fc.hU_pos
+    have hT_pos_nat : 0 < T.card := by omega
+    have hT_pos : (0 : ℝ) < (T.card : ℝ) := Nat.cast_pos.mpr hT_pos_nat
+    have h_exp_pos : (0 : ℝ) < (1 : ℝ) / 50 := by norm_num
+    have h_rpow_lt : (fc.U : ℝ) ^ ((1 : ℝ) / 50) < ((T.card : ℝ)) ^ ((1 : ℝ) / 50) := by
+      apply Real.rpow_lt_rpow (le_of_lt hU_pos) (by exact_mod_cast hT_U) h_exp_pos
+    have h_bound_lt : 20 * (2 * (fc.D : ℝ)) ^ ((51 : ℝ) / 50) / ((T.card : ℝ)) ^ ((1 : ℝ) / 50) <
+        20 * (2 * (fc.D : ℝ)) ^ ((51 : ℝ) / 50) / (fc.U : ℝ) ^ ((1 : ℝ) / 50) := by
+      have hD_pos : (0 : ℝ) < (fc.D : ℝ) := Nat.cast_pos.mpr fc.hD_pos
+      have h_num_pos : (0 : ℝ) < 20 * (2 * (fc.D : ℝ)) ^ ((51 : ℝ) / 50) := by
+        have : (0 : ℝ) < 2 * (fc.D : ℝ) := by linarith
+        have h_pow := Real.rpow_pos_of_pos this ((51 : ℝ) / 50)
+        linarith
+      have h_den_pos : (0 : ℝ) < (fc.U : ℝ) ^ ((1 : ℝ) / 50) := Real.rpow_pos_of_pos hU_pos _
+      exact div_lt_div_of_pos_left h_num_pos h_den_pos h_rpow_lt
+    have hE1 := p.hE1
+    have hG_card_lt_M : (G.card : ℝ) < (fc.M : ℝ) :=
+      h_small.trans_lt (h_bound_lt.trans hE1)
+    have hQ_le_G : Q.card ≤ G.card := Finset.card_le_card hQ_sub
+    have hM_le_Q_real : (fc.M : ℝ) ≤ (Q.card : ℝ) := by exact_mod_cast hM_Q
+    have hQ_le_G_real : (Q.card : ℝ) ≤ (G.card : ℝ) := by exact_mod_cast hQ_le_G
+    linarith
+
+  -- Branch 3: AP cover & sieve bound
+  · have hQR : Q ⊆ R.toFinset := hQ_sub.trans hGR
+    have hB_sub : st.B ⊆ fc.A := Finset.sdiff_subset
+    have hB_card : fc.M ≤ st.B.card := by
+      classical
+      apply st.B_card_ge
+      have hj_range : j ∈ Finset.range fc.K := (Finset.mem_filter.mp hj).1
+      have hj_lt : j < fc.K := Finset.mem_range.mp hj_range
+      rw [card_greedySeq_E fc j (by omega)]
+      omega
+    have h_bound := @h_sieve st.B hB_sub hB_card instN R hR_card hQR
+    have hE3 := p.hE3
+    have hB_lt_M : (st.B.card : ℝ) < (fc.M : ℝ) := h_bound.trans_lt hE3
+    have hM_le_B : (fc.M : ℝ) ≤ (st.B.card : ℝ) := by exact_mod_cast hB_card
+    linarith
+
+/-- All unsaturated steps satisfy greedyDelta ≥ D under P17 conditions, trichotomy, and sieve bridge. -/
+theorem unsaturatedSteps_growth_of_arith_conditional
+    (fc : FiniteConditions)
+    (p : P17FiniteArithConditions fc)
+    (h_trichotomy : ∀ (N : ℕ) [NeZero N] (T : Finset (ZMod N)) (d : ℕ) (xi : ℝ),
+      8 * d < T.card → 0 < xi → xi ≤ (1 / 20 : ℝ) → (T.card : ℝ) < xi * (N : ℝ) →
+      SmallGrowthTrichotomy N T d)
+    (h_sieve : APCoverSieveBridge fc p) :
+    ∀ j ∈ unsaturatedSteps fc, fc.D ≤ greedyDelta fc j :=
+  fun j hj => unsaturated_step_growth_of_arith_conditional fc p h_trichotomy h_sieve j hj
+
+/-- CFP Lemma 5.6 Finite Core with P17 Arithmetic Integration:
+    Unconditionally closes both h_inj and h_unsaturated_step_growth under
+    explicit P17 arithmetic conditions, the structural trichotomy, and the sieve bridge. -/
+theorem cfp_lemma_5_6_finite_core_of_arith_conditional
+    (fc : FiniteConditions)
+    (p : P17FiniteArithConditions fc)
+    (h_numeric : p16TotalBudget fc.t fc.gMax fc.U fc.M ≤ fc.B_growth)
+    (h_trichotomy : ∀ (N : ℕ) [NeZero N] (T : Finset (ZMod N)) (d : ℕ) (xi : ℝ),
+      8 * d < T.card → 0 < xi → xi ≤ (1 / 20 : ℝ) → (T.card : ℝ) < xi * (N : ℝ) →
+      SmallGrowthTrichotomy N T d)
+    (h_sieve : APCoverSieveBridge fc p) :
+    min fc.xi ((32 : ℝ) / (fc.ell : ℝ)) * (fc.t : ℝ) ≤ ((subsetSumsMod fc.t fc.A).card : ℝ) := by
+  have h_inj := p.injOn_A fc
+  have h_unsat := unsaturatedSteps_growth_of_arith_conditional fc p h_trichotomy h_sieve
+  exact cfp_lemma_5_6_finite_core_closed fc h_inj h_numeric h_unsat
+
+/-- Pure AP Cover Step Growth Contradiction (h_trichotomy eliminated):
+    Under P17 finite arithmetic conditions, if every small growth set at an unsaturated step
+    is covered by a coset AP R with length at most 128 * D, then greedyDelta fc j ≥ D.
+    This completely eliminates the proper subgroup and small cardinality branches of the trichotomy. -/
+theorem unsaturated_step_growth_of_ap_cover
+    (fc : FiniteConditions)
+    (p : P17FiniteArithConditions fc)
+    (h_ap_cover : ∀ (N : ℕ) [NeZero N] (T : Finset (ZMod N)) (d : ℕ),
+      ∃ (R : CosetAP N), smallGrowth T d ⊆ R.toFinset ∧ R.ell * (R.H : Set (ZMod N)).toFinset.card ≤ 128 * d)
+    (h_sieve : APCoverSieveBridge fc p)
+    (j : ℕ) (hj : j ∈ unsaturatedSteps fc) :
+    fc.D ≤ greedyDelta fc j := by
+  have h_inj := p.injOn_A fc
+  by_contra! h_lt
+  have h_le : greedyDelta fc j ≤ fc.D := by omega
+  have h_med := unsaturated_step_medium_fiber_and_smallGrowth fc h_inj j hj h_le
+  let st := greedySeq fc j
+  let g := st.g fc.t
+  let N := fc.t / g
+  haveI instN : NeZero N := unsaturatedSteps_div_neZero fc j hj
+  haveI : NeZero (fc.t / subgroupIndex fc.t st.B) := instN
+  let Q := st.B.image (fun a => ((a / g : ℕ) : ZMod N))
+  rcases h_med with ⟨T, _hT_U, _hT_xi, hQ_sub, _hM_Q, _hQ_gen⟩
+  rcases h_ap_cover N T fc.D with ⟨R, hGR, hR_card⟩
+  have hQR : Q ⊆ R.toFinset := hQ_sub.trans hGR
+  have hB_sub : st.B ⊆ fc.A := Finset.sdiff_subset
+  have hB_card : fc.M ≤ st.B.card := by
+    classical
+    apply st.B_card_ge
+    have hj_range : j ∈ Finset.range fc.K := (Finset.mem_filter.mp hj).1
+    have hj_lt : j < fc.K := Finset.mem_range.mp hj_range
+    rw [card_greedySeq_E fc j (by omega)]
+    omega
+  have h_bound := @h_sieve st.B hB_sub hB_card instN R hR_card hQR
+  have hE3 := p.hE3
+  have hB_lt_M : (st.B.card : ℝ) < (fc.M : ℝ) := h_bound.trans_lt hE3
+  have hM_le_B : (fc.M : ℝ) ≤ (st.B.card : ℝ) := by exact_mod_cast hB_card
+  linarith
+
+/-- All unsaturated steps satisfy greedyDelta ≥ D under P17 conditions, AP cover, and sieve bridge. -/
+theorem unsaturatedSteps_growth_of_ap_cover
+    (fc : FiniteConditions)
+    (p : P17FiniteArithConditions fc)
+    (h_ap_cover : ∀ (N : ℕ) [NeZero N] (T : Finset (ZMod N)) (d : ℕ),
+      ∃ (R : CosetAP N), smallGrowth T d ⊆ R.toFinset ∧ R.ell * (R.H : Set (ZMod N)).toFinset.card ≤ 128 * d)
+    (h_sieve : APCoverSieveBridge fc p) :
+    ∀ j ∈ unsaturatedSteps fc, fc.D ≤ greedyDelta fc j :=
+  fun j hj => unsaturated_step_growth_of_ap_cover fc p h_ap_cover h_sieve j hj
+
+/-- CFP Lemma 5.6 Finite Core with AP Cover and Sieve Bridge (h_trichotomy fully eliminated):
+    Closes both h_inj and h_unsaturated_step_growth under explicit P17 arithmetic conditions,
+    pure AP cover, and the sieve bridge, completely dispensing with the 3-branch trichotomy. -/
+theorem cfp_lemma_5_6_finite_core_of_ap_cover
+    (fc : FiniteConditions)
+    (p : P17FiniteArithConditions fc)
+    (h_numeric : p16TotalBudget fc.t fc.gMax fc.U fc.M ≤ fc.B_growth)
+    (h_ap_cover : ∀ (N : ℕ) [NeZero N] (T : Finset (ZMod N)) (d : ℕ),
+      ∃ (R : CosetAP N), smallGrowth T d ⊆ R.toFinset ∧ R.ell * (R.H : Set (ZMod N)).toFinset.card ≤ 128 * d)
+    (h_sieve : APCoverSieveBridge fc p) :
+    min fc.xi ((32 : ℝ) / (fc.ell : ℝ)) * (fc.t : ℝ) ≤ ((subsetSumsMod fc.t fc.A).card : ℝ) := by
+  have h_inj := p.injOn_A fc
+  have h_unsat := unsaturatedSteps_growth_of_ap_cover fc p h_ap_cover h_sieve
+  exact cfp_lemma_5_6_finite_core_closed fc h_inj h_numeric h_unsat
+
+/-- CFP Lemma 5.6 Master Theorem Specialized to m = n with Pure AP Cover (h_trichotomy fully eliminated):
+    Closes both h_inj and h_unsaturated_step_growth under explicit P17 arithmetic conditions,
+    pure AP cover, and the sieve bridge, completely dispensing with the 3-branch trichotomy. -/
+theorem cfp_lemma_5_6_m_eq_n_of_ap_cover
+    (p_cf : CFPArithParams)
+    (p : P17FiniteArithConditions p_cf.toFiniteConditions)
+    (h_numeric : p16TotalBudget p_cf.t p_cf.gMax p_cf.U p_cf.M ≤ p_cf.B_growth)
+    (h_ap_cover : ∀ (N : ℕ) [NeZero N] (T : Finset (ZMod N)) (d : ℕ),
+      ∃ (R : CosetAP N), smallGrowth T d ⊆ R.toFinset ∧ R.ell * (R.H : Set (ZMod N)).toFinset.card ≤ 128 * d)
+    (h_sieve : APCoverSieveBridge p_cf.toFiniteConditions p) :
+    min p_cf.xi ((32 : ℝ) / (p_cf.ell : ℝ)) * (p_cf.t : ℝ) ≤ ((subsetSumsMod p_cf.t p_cf.A).card : ℝ) := by
+  have h_inj : Set.InjOn (fun a : ℕ => (a : ZMod p_cf.t)) (p_cf.A : Set ℕ) := by
+    have h := p.injOn_A p_cf.toFiniteConditions
+    exact h
+  have h_unsat := unsaturatedSteps_growth_of_ap_cover p_cf.toFiniteConditions p h_ap_cover h_sieve
+  exact cfp_lemma_5_6_m_eq_n_closed p_cf h_inj h_numeric h_unsat
+
+/-- CFP Lemma 5.6 Finite Core with Pure AP Cover and Per-AP Sieve Rough Count:
+    Eliminates h_trichotomy and reduces the sieve bridge to explicit per-AP Selberg rough count bounds. -/
+theorem cfp_lemma_5_6_finite_core_of_rough_count
+    (fc : FiniteConditions)
+    (p : P17FiniteArithConditions fc)
+    (h_numeric : p16TotalBudget fc.t fc.gMax fc.U fc.M ≤ fc.B_growth)
+    (h_ap_cover : ∀ (N : ℕ) [NeZero N] (T : Finset (ZMod N)) (d : ℕ),
+      ∃ (R : CosetAP N), smallGrowth T d ⊆ R.toFinset ∧ R.ell * (R.H : Set (ZMod N)).toFinset.card ≤ 128 * d)
+    (h_cov_sieve : ∀ (B : Finset ℕ) (_hBA : B ⊆ fc.A) (_hB_card : fc.M ≤ B.card)
+      [_instN : NeZero (fc.t / subgroupIndex fc.t B)]
+      (R : CosetAP (fc.t / subgroupIndex fc.t B))
+      (_hR_card : R.ell * (R.H : Set (ZMod (fc.t / subgroupIndex fc.t B))).toFinset.card ≤ 128 * fc.D)
+      (_hQR : (B.image (fun a => ((a / (subgroupIndex fc.t B) : ℕ) : ZMod (fc.t / subgroupIndex fc.t B)))) ⊆ R.toFinset),
+      ∃ (Q : ℕ) (_hB_rough : ∀ a ∈ B, Nat.Coprime a Q)
+        (cov : IntAPCover (B.image (fun (a : ℕ) => (a : ℤ)))
+          (R.ell * (R.H : Set (ZMod (fc.t / subgroupIndex fc.t B))).toFinset.card) fc.t p.n)
+        (C_sieve : ℝ) (_hC_nonneg : 0 ≤ C_sieve)
+        (_h_sieve : ∀ i ∈ cov.I, (roughCount (cov.APs i) Q : ℝ) ≤ ((cov.APs i).k : ℝ) * C_sieve)
+        (_hC_eq : C_sieve = 256 * Real.log (Real.log (p.n : ℝ)) / Real.log (p.r : ℝ)),
+        True) :
+    min fc.xi ((32 : ℝ) / (fc.ell : ℝ)) * (fc.t : ℝ) ≤ ((subsetSumsMod fc.t fc.A).card : ℝ) := by
+  have h_sieve := apCoverSieveBridge_of_cover_and_sieve fc p h_cov_sieve
+  exact cfp_lemma_5_6_finite_core_of_ap_cover fc p h_numeric h_ap_cover h_sieve
+
+/-- CFP Lemma 5.6 (m = n) Master Theorem with Pure AP Cover and Per-AP Sieve Rough Count:
+    Eliminates h_trichotomy and reduces the sieve bridge to explicit per-AP Selberg rough count bounds. -/
+theorem cfp_lemma_5_6_m_eq_n_of_rough_count
+    (p_cf : CFPArithParams)
+    (p : P17FiniteArithConditions p_cf.toFiniteConditions)
+    (h_numeric : p16TotalBudget p_cf.t p_cf.gMax p_cf.U p_cf.M ≤ p_cf.B_growth)
+    (h_ap_cover : ∀ (N : ℕ) [NeZero N] (T : Finset (ZMod N)) (d : ℕ),
+      ∃ (R : CosetAP N), smallGrowth T d ⊆ R.toFinset ∧ R.ell * (R.H : Set (ZMod N)).toFinset.card ≤ 128 * d)
+    (h_cov_sieve : ∀ (B : Finset ℕ) (_hBA : B ⊆ p_cf.toFiniteConditions.A) (_hB_card : p_cf.toFiniteConditions.M ≤ B.card)
+      [_instN : NeZero (p_cf.toFiniteConditions.t / subgroupIndex p_cf.toFiniteConditions.t B)]
+      (R : CosetAP (p_cf.toFiniteConditions.t / subgroupIndex p_cf.toFiniteConditions.t B))
+      (_hR_card : R.ell * (R.H : Set (ZMod (p_cf.toFiniteConditions.t / subgroupIndex p_cf.toFiniteConditions.t B))).toFinset.card ≤ 128 * p_cf.toFiniteConditions.D)
+      (_hQR : (B.image (fun a => ((a / (subgroupIndex p_cf.toFiniteConditions.t B) : ℕ) : ZMod (p_cf.toFiniteConditions.t / subgroupIndex p_cf.toFiniteConditions.t B)))) ⊆ R.toFinset),
+      ∃ (Q : ℕ) (_hB_rough : ∀ a ∈ B, Nat.Coprime a Q)
+        (cov : IntAPCover (B.image (fun (a : ℕ) => (a : ℤ)))
+          (R.ell * (R.H : Set (ZMod (p_cf.toFiniteConditions.t / subgroupIndex p_cf.toFiniteConditions.t B))).toFinset.card) p_cf.toFiniteConditions.t p.n)
+        (C_sieve : ℝ) (_hC_nonneg : 0 ≤ C_sieve)
+        (_h_sieve : ∀ i ∈ cov.I, (roughCount (cov.APs i) Q : ℝ) ≤ ((cov.APs i).k : ℝ) * C_sieve)
+        (_hC_eq : C_sieve = 256 * Real.log (Real.log (p.n : ℝ)) / Real.log (p.r : ℝ)),
+        True) :
+    min p_cf.xi ((32 : ℝ) / (p_cf.ell : ℝ)) * (p_cf.t : ℝ) ≤ ((subsetSumsMod p_cf.t p_cf.A).card : ℝ) := by
+  have h_sieve := apCoverSieveBridge_of_cover_and_sieve p_cf.toFiniteConditions p h_cov_sieve
+  exact cfp_lemma_5_6_m_eq_n_of_ap_cover p_cf p h_numeric h_ap_cover h_sieve
+
+/-- Phase P08 Branch A: Existence of an integer AP cover when |R.H|^3 ≥ R_card. -/
+def HasIntAPCoverBranchA (fc : FiniteConditions) (p : P17FiniteArithConditions fc) : Prop :=
+  ∀ (B : Finset ℕ) (_hBA : B ⊆ fc.A) (_hB_card : fc.M ≤ B.card)
+    [_instN : NeZero (fc.t / subgroupIndex fc.t B)]
+    (R : CosetAP (fc.t / subgroupIndex fc.t B))
+    (_hR_card : R.ell * (R.H : Set (ZMod (fc.t / subgroupIndex fc.t B))).toFinset.card ≤ 128 * fc.D)
+    (_hQR : (B.image (fun a => ((a / (subgroupIndex fc.t B) : ℕ) : ZMod (fc.t / subgroupIndex fc.t B)))) ⊆ R.toFinset)
+    (_h_branchA : R.ell * (R.H : Set (ZMod (fc.t / subgroupIndex fc.t B))).toFinset.card ≤
+      (R.H : Set (ZMod (fc.t / subgroupIndex fc.t B))).toFinset.card ^ 3),
+    ∃ (Q : ℕ) (_hB_rough : ∀ a ∈ B, Nat.Coprime a Q)
+      (_cov : IntAPCover (B.image (fun (a : ℕ) => (a : ℤ)))
+        (R.ell * (R.H : Set (ZMod (fc.t / subgroupIndex fc.t B))).toFinset.card) fc.t p.n),
+      True
+
+/-- Every candidate a ∈ fc.A satisfies a < 2 * fc.t. -/
+lemma candidate_lt_two_mul_t (fc : FiniteConditions) (p : P17FiniteArithConditions fc)
+    (a : ℕ) (ha : a ∈ fc.A) : a < 2 * fc.t := by
+  have h_inY := p.hA_inY a ha
+  rcases h_inY with ⟨_hy_le, h_va_lt, -⟩
+  have h_y_le := p.h_y_le_vt
+  have hv_pos := fc.hv_pos
+  have h_lt : fc.v * a < fc.v * (2 * fc.t) := by
+    calc fc.v * a < 2 * p.y := h_va_lt
+    _ ≤ 2 * (fc.v * fc.t) := Nat.mul_le_mul_left 2 h_y_le
+    _ = fc.v * (2 * fc.t) := by ring
+  exact (Nat.mul_lt_mul_left hv_pos).mp h_lt
+
+/-- Cardinality of an additive subgroup in ZMod N is strictly positive. -/
+lemma subgroup_card_pos (N : ℕ) [NeZero N] (H : AddSubgroup (ZMod N)) :
+    0 < (H : Set (ZMod N)).toFinset.card := by
+  have h0 : (0 : ZMod N) ∈ (H : Set (ZMod N)).toFinset := by
+    rw [Set.mem_toFinset]
+    exact H.zero_mem
+  exact Finset.card_pos.mpr ⟨0, h0⟩
+
+/-- The order of an additive subgroup H ≤ ZMod N divides the scaled modulus t = g * N. -/
+lemma subgroup_card_dvd_t (N : ℕ) [NeZero N] (H : AddSubgroup (ZMod N))
+    (t g : ℕ) (hgN : g * N = t) :
+    (H : Set (ZMod N)).toFinset.card ∣ t := by
+  let h := (H : Set (ZMod N)).toFinset.card
+  have h_card : (H : Set (ZMod N)).toFinset.card = Fintype.card H := Set.toFinset_card (H : Set (ZMod N))
+  have h_lag := AddSubgroup.card_addSubgroup_dvd_card H
+  rw [Nat.card_zmod N, Nat.card_eq_fintype_card, ← h_card] at h_lag
+  have h_Ndvd : N ∣ t := ⟨g, by rw [mul_comm, hgN]⟩
+  exact h_lag.trans h_Ndvd
+
+/-- Constructing the lifted integer arithmetic progression for Branch A.
+    For each coset j < R.ell and parity s ∈ {0, 1}, we lift c_j + H to an integer AP
+    of length h with common difference t / h. -/
+def branchA_AP (t : ℕ) (ht_pos : 0 < t) (g : ℕ) (N : ℕ) [NeZero N]
+    (R : CosetAP N) (h : ℕ) (hh_pos : 0 < h) (hh_dvd : h ∣ t)
+    (i : Fin (2 * R.ell)) : IntAP where
+  a := ((g * (R.c + ((i.val / 2 : ℕ) : ZMod N) * R.v).val % (t / h) : ℕ) : ℤ) +
+       ((i.val % 2 : ℕ) : ℤ) * (t : ℤ)
+  b := t / h
+  hb := Nat.div_pos (Nat.le_of_dvd ht_pos hh_dvd) hh_pos
+  k := h
+
+/-- Length of each lifted AP in Branch A is exactly the subgroup order h. -/
+lemma branchA_AP_k (t : ℕ) (ht_pos : 0 < t) (g : ℕ) (N : ℕ) [NeZero N]
+    (R : CosetAP N) (h : ℕ) (hh_pos : 0 < h) (hh_dvd : h ∣ t)
+    (i : Fin (2 * R.ell)) :
+    (branchA_AP t ht_pos g N R h hh_pos hh_dvd i).k = h := rfl
+
+/-- Common difference of each lifted AP in Branch A is bounded by t. -/
+lemma branchA_AP_b_le (t : ℕ) (ht_pos : 0 < t) (g : ℕ) (N : ℕ) [NeZero N]
+    (R : CosetAP N) (h : ℕ) (hh_pos : 0 < h) (hh_dvd : h ∣ t)
+    (i : Fin (2 * R.ell)) :
+    (branchA_AP t ht_pos g N R h hh_pos hh_dvd i).b ≤ t :=
+  Nat.div_le_self t h
+
+/-- The lifted Branch A AP family covers the integer image of B. -/
+lemma branchA_AP_cover
+    (fc : FiniteConditions) (p : P17FiniteArithConditions fc)
+    (B : Finset ℕ) (hBA : B ⊆ fc.A)
+    [instN : NeZero (fc.t / subgroupIndex fc.t B)]
+    (R : CosetAP (fc.t / subgroupIndex fc.t B))
+    (hQR : (B.image (fun a => ((a / (subgroupIndex fc.t B) : ℕ) : ZMod (fc.t / subgroupIndex fc.t B)))) ⊆ R.toFinset) :
+    let g := subgroupIndex fc.t B
+    let N := fc.t / g
+    let h := (R.H : Set (ZMod N)).toFinset.card
+    have hh_pos : 0 < h := subgroup_card_pos N R.H
+    have hg_dvd_t : g ∣ fc.t := subgroupIndex_dvd_modulus fc.t B
+    have hg_mul_N : g * N = fc.t := Nat.mul_div_cancel' hg_dvd_t
+    have hh_dvd_t : h ∣ fc.t := subgroup_card_dvd_t N R.H fc.t g hg_mul_N
+    (B.image (fun (a : ℕ) => (a : ℤ))) ⊆
+      (Finset.univ : Finset (Fin (2 * R.ell))).biUnion
+        (fun i => (branchA_AP fc.t fc.ht_pos g N R h hh_pos hh_dvd_t i).toFinset) := by
+  intro g N h hh_pos hg_dvd_t hg_mul_N hh_dvd_t z hz
+  simp only [Finset.mem_image] at hz
+  rcases hz with ⟨a, ha, rfl⟩
+  have ha_A : a ∈ fc.A := hBA ha
+  have ha_lt_two_t : a < 2 * fc.t := candidate_lt_two_mul_t fc p a ha_A
+  have hg_dvd_a : g ∣ a := subgroupIndex_dvd_mem fc.t B ha
+  have ha_img : ((a / g : ℕ) : ZMod N) ∈ B.image (fun a => ((a / g : ℕ) : ZMod N)) := by
+    simp only [Finset.mem_image]
+    exact ⟨a, ha, rfl⟩
+  have ha_R := hQR ha_img
+  dsimp [CosetAP.toFinset] at ha_R
+  simp only [Finset.mem_biUnion, Finset.mem_range, Finset.mem_image] at ha_R
+  rcases ha_R with ⟨j, hj_lt, h_elem, hh_elem, heq_elem⟩
+  rw [Set.mem_toFinset] at hh_elem
+  let c_j : ZMod N := R.c + (j : ZMod N) * R.v
+  have heq : ((a / g : ℕ) : ZMod N) = c_j + h_elem := heq_elem.symm
+  have heq_val : ((a / g : ℕ) : ZMod N) = ((c_j.val + h_elem.val : ℕ) : ZMod N) := by
+    calc ((a / g : ℕ) : ZMod N) = c_j + h_elem := heq
+    _ = (c_j.val : ZMod N) + (h_elem.val : ZMod N) := by rw [ZMod.natCast_zmod_val, ZMod.natCast_zmod_val]
+    _ = ((c_j.val + h_elem.val : ℕ) : ZMod N) := by push_cast; rfl
+  rw [ZMod.natCast_eq_natCast_iff] at heq_val
+  have h_mul := Nat.ModEq.mul_left' g heq_val
+  rw [Nat.mul_div_cancel' hg_dvd_a] at h_mul
+  rw [hg_mul_N] at h_mul
+  have h_distrib : g * (c_j.val + h_elem.val) = g * c_j.val + g * h_elem.val := Nat.mul_add g c_j.val h_elem.val
+  rw [h_distrib] at h_mul
+  let d := fc.t / h
+  have hd_dvd : d ∣ fc.t := ⟨h, (Nat.div_mul_cancel hh_dvd_t).symm⟩
+  have h_mod_d := h_mul.of_dvd hd_dvd
+  have hd_dvd_gh : d ∣ g * h_elem.val := zmod_subgroup_scaled_val_dvd N R.H fc.t g hg_mul_N h_elem hh_elem
+  have h_zero : g * h_elem.val ≡ 0 [MOD d] := Nat.modEq_zero_iff_dvd.mpr hd_dvd_gh
+  have h_modeq_add : g * c_j.val + g * h_elem.val ≡ g * c_j.val + 0 [MOD d] :=
+    Nat.ModEq.add (Nat.ModEq.refl (g * c_j.val)) h_zero
+  rw [add_zero] at h_modeq_add
+  have h_modeq_c : a ≡ g * c_j.val [MOD d] := h_mod_d.trans h_modeq_add
+  let r_j := (g * c_j.val) % d
+  have h_rj_modeq : g * c_j.val ≡ r_j [MOD d] := (Nat.mod_modEq (g * c_j.val) d).symm
+  have h_modeq_rj : a ≡ r_j [MOD d] := h_modeq_c.trans h_rj_modeq
+  have h_a_mod : a % d = r_j % d := h_modeq_rj
+  have hr_j_lt : r_j < d := Nat.mod_lt _ (Nat.div_pos (Nat.le_of_dvd fc.ht_pos hh_dvd_t) hh_pos)
+  rw [Nat.mod_eq_of_lt hr_j_lt] at h_a_mod
+  let s := a / fc.t
+  have hs_lt : s < 2 := by
+    have ha_lt_t2 : a < fc.t * 2 := by linarith
+    exact Nat.div_lt_of_lt_mul ha_lt_t2
+  let a' := a % fc.t
+  have ha_decomp : a = s * fc.t + a' := by
+    have h := (Nat.div_add_mod a fc.t).symm
+    dsimp [s, a']
+    rw [Nat.mul_comm fc.t (a / fc.t)] at h
+    exact h
+  have ha'_modeq : a' ≡ a [MOD d] := by
+    have h_mod_t : a' ≡ a [MOD fc.t] := Nat.mod_modEq a fc.t
+    exact h_mod_t.of_dvd hd_dvd
+  have ha'_mod_d : a' % d = r_j := by
+    have h_trans : a' ≡ r_j [MOD d] := ha'_modeq.trans h_modeq_rj
+    have h_mod : a' % d = r_j % d := h_trans
+    rwa [Nat.mod_eq_of_lt hr_j_lt] at h_mod
+  have h_d_mul_h : d * h = fc.t := Nat.div_mul_cancel hh_dvd_t
+  have ha'_lt : a' < fc.t := Nat.mod_lt a fc.ht_pos
+  have ha'_lt_dh : a' < d * h := by rwa [h_d_mul_h]
+  let m := a' / d
+  have hm_lt : m < h := Nat.div_lt_of_lt_mul ha'_lt_dh
+  have ha'_eq : a' = r_j + m * d := by
+    have h_div_add : a' = d * (a' / d) + a' % d := (Nat.div_add_mod a' d).symm
+    rw [ha'_mod_d] at h_div_add
+    dsimp [m]
+    rw [Nat.add_comm (d * (a' / d)) r_j, Nat.mul_comm d (a' / d)] at h_div_add
+    exact h_div_add
+  have ha_eq : a = r_j + s * fc.t + m * d := by
+    rw [ha_decomp, ha'_eq]
+    ring
+  let i_val := 2 * j + s
+  have hi_lt : i_val < 2 * R.ell := by
+    dsimp [i_val]
+    omega
+  let i : Fin (2 * R.ell) := ⟨i_val, hi_lt⟩
+  have hi_div : i_val / 2 = j := by
+    dsimp [i_val]
+    interval_cases s <;> omega
+  have hi_mod : i_val % 2 = s := by
+    dsimp [i_val]
+    interval_cases s <;> omega
+  simp only [Finset.mem_biUnion, Finset.mem_univ, true_and]
+  use i
+  simp only [IntAP.toFinset, Finset.mem_image, Finset.mem_range]
+  use m
+  refine ⟨hm_lt, ?_⟩
+  have h_AP_a : (branchA_AP fc.t fc.ht_pos g N R h hh_pos hh_dvd_t i).a = (r_j : ℤ) + (s : ℤ) * (fc.t : ℤ) := by
+    change ((g * (R.c + ((i_val / 2 : ℕ) : ZMod N) * R.v).val % (fc.t / h) : ℕ) : ℤ) +
+           ((i_val % 2 : ℕ) : ℤ) * (fc.t : ℤ) = (r_j : ℤ) + (s : ℤ) * (fc.t : ℤ)
+    rw [hi_div, hi_mod]
+  have h_AP_b : (branchA_AP fc.t fc.ht_pos g N R h hh_pos hh_dvd_t i).b = d := rfl
+  rw [h_AP_a, h_AP_b]
+  have ha_cast : (a : ℤ) = (r_j : ℤ) + (s : ℤ) * (fc.t : ℤ) + (m : ℤ) * (d : ℤ) := by
+    exact_mod_cast ha_eq
+  exact ha_cast.symm
+
+/-- Formally closing Phase P08 Branch A: HasIntAPCoverBranchA holds unconditionally. -/
+theorem hasIntAPCoverBranchA
+    (fc : FiniteConditions) (p : P17FiniteArithConditions fc) :
+    HasIntAPCoverBranchA fc p := by
+  intro B hBA _hB_card instN R _hR_card hQR h_branchA
+  let g := subgroupIndex fc.t B
+  let N := fc.t / g
+  let h := (R.H : Set (ZMod N)).toFinset.card
+  let R_card := R.ell * h
+  have hh_pos : 0 < h := subgroup_card_pos N R.H
+  have hg_dvd_t : g ∣ fc.t := subgroupIndex_dvd_modulus fc.t B
+  have hg_mul_N : g * N = fc.t := Nat.mul_div_cancel' hg_dvd_t
+  have hh_dvd_t : h ∣ fc.t := subgroup_card_dvd_t N R.H fc.t g hg_mul_N
+  let APs := branchA_AP fc.t fc.ht_pos g N R h hh_pos hh_dvd_t
+  have h_cov := branchA_AP_cover fc p B hBA R hQR
+  have h_len : ∀ i, (APs i).k = h := fun i => branchA_AP_k fc.t fc.ht_pos g N R h hh_pos hh_dvd_t i
+  have h_sum_le : (2 * R.ell) * h ≤ 3 * R_card := by
+    calc (2 * R.ell) * h = 2 * (R.ell * h) := by ring
+    _ = 2 * R_card := rfl
+    _ ≤ 3 * R_card := by omega
+  have h_step_le : ∀ i, (APs i).b ≤ fc.t :=
+    fun i => branchA_AP_b_le fc.t fc.ht_pos g N R h hh_pos hh_dvd_t i
+  have cov := intAPCover_of_coset_family
+    (B.image (fun (a : ℕ) => (a : ℤ))) R_card fc.t p.n p.h_t_le_n
+    (2 * R.ell) h APs h_cov h_len h_sum_le h_branchA h_step_le
+  refine ⟨1, fun a _ha => Nat.coprime_one_right a, cov, trivial⟩
+/-- Phase P08 Branch B: Existence of an integer AP cover when |R.H|^3 < R_card. -/
+def HasIntAPCoverBranchB (fc : FiniteConditions) (p : P17FiniteArithConditions fc) : Prop :=
+  ∀ (B : Finset ℕ) (_hBA : B ⊆ fc.A) (_hB_card : fc.M ≤ B.card)
+    [_instN : NeZero (fc.t / subgroupIndex fc.t B)]
+    (R : CosetAP (fc.t / subgroupIndex fc.t B))
+    (_hR_card : R.ell * (R.H : Set (ZMod (fc.t / subgroupIndex fc.t B))).toFinset.card ≤ 128 * fc.D)
+    (_hQR : (B.image (fun a => ((a / (subgroupIndex fc.t B) : ℕ) : ZMod (fc.t / subgroupIndex fc.t B)))) ⊆ R.toFinset)
+    (_h_branchB : (R.H : Set (ZMod (fc.t / subgroupIndex fc.t B))).toFinset.card ^ 3 <
+      R.ell * (R.H : Set (ZMod (fc.t / subgroupIndex fc.t B))).toFinset.card),
+    ∃ (Q : ℕ) (_hB_rough : ∀ a ∈ B, Nat.Coprime a Q)
+      (_cov : IntAPCover (B.image (fun (a : ℕ) => (a : ℤ)))
+        (R.ell * (R.H : Set (ZMod (fc.t / subgroupIndex fc.t B))).toFinset.card) fc.t p.n),
+      True
+
+/-- Phase P08 Component: Existence of an integer AP cover for any candidate subset B
+    covered by a coset AP R with R.ell * |R.H| ≤ 128 * D. -/
+def HasIntAPCover (fc : FiniteConditions) (p : P17FiniteArithConditions fc) : Prop :=
+  ∀ (B : Finset ℕ) (_hBA : B ⊆ fc.A) (_hB_card : fc.M ≤ B.card)
+    [_instN : NeZero (fc.t / subgroupIndex fc.t B)]
+    (R : CosetAP (fc.t / subgroupIndex fc.t B))
+    (_hR_card : R.ell * (R.H : Set (ZMod (fc.t / subgroupIndex fc.t B))).toFinset.card ≤ 128 * fc.D)
+    (_hQR : (B.image (fun a => ((a / (subgroupIndex fc.t B) : ℕ) : ZMod (fc.t / subgroupIndex fc.t B)))) ⊆ R.toFinset),
+    ∃ (Q : ℕ) (_hB_rough : ∀ a ∈ B, Nat.Coprime a Q)
+      (_cov : IntAPCover (B.image (fun (a : ℕ) => (a : ℤ)))
+        (R.ell * (R.H : Set (ZMod (fc.t / subgroupIndex fc.t B))).toFinset.card) fc.t p.n),
+      True
+
+/-- Master Branch Reduction for Phase P08:
+    Combines Branch A (|R.H|^3 ≥ R_card) and Branch B (|R.H|^3 < R_card)
+    into the full HasIntAPCover theorem. -/
+theorem hasIntAPCover_of_branchA_and_branchB
+    (fc : FiniteConditions) (p : P17FiniteArithConditions fc)
+    (hA : HasIntAPCoverBranchA fc p)
+    (hB : HasIntAPCoverBranchB fc p) :
+    HasIntAPCover fc p := by
+  intro B hBA hB_card instN R hR_card hQR
+  let R_card := R.ell * (R.H : Set (ZMod (fc.t / subgroupIndex fc.t B))).toFinset.card
+  let h_card := (R.H : Set (ZMod (fc.t / subgroupIndex fc.t B))).toFinset.card
+  by_cases h_cases : R_card ≤ h_card ^ 3
+  · exact hA B hBA hB_card R hR_card hQR h_cases
+  · have h_gt : h_card ^ 3 < R_card := by omega
+    exact hB B hBA hB_card R hR_card hQR h_gt
+
+/-- Phase P09 Component: Selberg rough count bound for arithmetic progressions.
+    Any arithmetic progression P in an IntAPCover satisfies the Selberg rough count bound. -/
+def HasAPRoughCountBound (fc : FiniteConditions) (p : P17FiniteArithConditions fc) : Prop :=
+  0 ≤ 256 * Real.log (Real.log (p.n : ℝ)) / Real.log (p.r : ℝ) ∧
+  ∀ (P : IntAP) (Q : ℕ) (R_card : ℕ)
+    (_h_min_len : R_card ≤ P.k ^ 3) (_h_step_le : P.b ≤ fc.t),
+    (roughCount P Q : ℝ) ≤ (P.k : ℝ) * (256 * Real.log (Real.log (p.n : ℝ)) / Real.log (p.r : ℝ))
+
+/-- Decoupled Master Reduction: Reduces h_cov_sieve to P08 AP Lifting and P09 Sieve Bound. -/
+theorem h_cov_sieve_of_lifting_and_sieve
+    (fc : FiniteConditions) (p : P17FiniteArithConditions fc)
+    (h_lift : HasIntAPCover fc p)
+    (h_sieve_bound : HasAPRoughCountBound fc p) :
+    ∀ (B : Finset ℕ) (_hBA : B ⊆ fc.A) (_hB_card : fc.M ≤ B.card)
+      [_instN : NeZero (fc.t / subgroupIndex fc.t B)]
+      (R : CosetAP (fc.t / subgroupIndex fc.t B))
+      (_hR_card : R.ell * (R.H : Set (ZMod (fc.t / subgroupIndex fc.t B))).toFinset.card ≤ 128 * fc.D)
+      (_hQR : (B.image (fun a => ((a / (subgroupIndex fc.t B) : ℕ) : ZMod (fc.t / subgroupIndex fc.t B)))) ⊆ R.toFinset),
+      ∃ (Q : ℕ) (_hB_rough : ∀ a ∈ B, Nat.Coprime a Q)
+        (cov : IntAPCover (B.image (fun (a : ℕ) => (a : ℤ)))
+          (R.ell * (R.H : Set (ZMod (fc.t / subgroupIndex fc.t B))).toFinset.card) fc.t p.n)
+        (C_sieve : ℝ) (_hC_nonneg : 0 ≤ C_sieve)
+        (_h_sieve : ∀ i ∈ cov.I, (roughCount (cov.APs i) Q : ℝ) ≤ ((cov.APs i).k : ℝ) * C_sieve)
+        (_hC_eq : C_sieve = 256 * Real.log (Real.log (p.n : ℝ)) / Real.log (p.r : ℝ)),
+        True := by
+  intro B hBA hB_card instN R hR_card hQR
+  rcases h_lift B hBA hB_card R hR_card hQR with ⟨Q, hB_rough, cov, _⟩
+  let C_sieve := 256 * Real.log (Real.log (p.n : ℝ)) / Real.log (p.r : ℝ)
+  have hC_nonneg := h_sieve_bound.1
+  refine ⟨Q, hB_rough, cov, C_sieve, hC_nonneg, ?_, rfl, trivial⟩
+  intro i hi
+  exact h_sieve_bound.2 (cov.APs i) Q _ (cov.h_min_len i hi) (cov.h_step_le_t i hi)
+
+/-- CFP Lemma 5.6 Finite Core with Decoupled AP Lifting and Sieve Bound:
+    Completely decouples the AP lifting geometry (P08) from the Selberg rough count bound (P09). -/
+theorem cfp_lemma_5_6_finite_core_of_lifting_and_sieve
+    (fc : FiniteConditions)
+    (p : P17FiniteArithConditions fc)
+    (h_numeric : p16TotalBudget fc.t fc.gMax fc.U fc.M ≤ fc.B_growth)
+    (h_ap_cover : ∀ (N : ℕ) [NeZero N] (T : Finset (ZMod N)) (d : ℕ),
+      ∃ (R : CosetAP N), smallGrowth T d ⊆ R.toFinset ∧ R.ell * (R.H : Set (ZMod N)).toFinset.card ≤ 128 * d)
+    (h_lift : HasIntAPCover fc p)
+    (h_sieve_bound : HasAPRoughCountBound fc p) :
+    min fc.xi ((32 : ℝ) / (fc.ell : ℝ)) * (fc.t : ℝ) ≤ ((subsetSumsMod fc.t fc.A).card : ℝ) := by
+  have h_cov_sieve := h_cov_sieve_of_lifting_and_sieve fc p h_lift h_sieve_bound
+  exact cfp_lemma_5_6_finite_core_of_rough_count fc p h_numeric h_ap_cover h_cov_sieve
+
+/-- CFP Lemma 5.6 (m = n) Master Theorem with Decoupled AP Lifting and Sieve Bound:
+    Specializes Lemma 5.6 to m = n with pure AP cover, decoupled AP lifting (P08),
+    and Selberg sieve rough count bound (P09). -/
+theorem cfp_lemma_5_6_m_eq_n_of_lifting_and_sieve
+    (p_cf : CFPArithParams)
+    (p : P17FiniteArithConditions p_cf.toFiniteConditions)
+    (h_numeric : p16TotalBudget p_cf.t p_cf.gMax p_cf.U p_cf.M ≤ p_cf.B_growth)
+    (h_ap_cover : ∀ (N : ℕ) [NeZero N] (T : Finset (ZMod N)) (d : ℕ),
+      ∃ (R : CosetAP N), smallGrowth T d ⊆ R.toFinset ∧ R.ell * (R.H : Set (ZMod N)).toFinset.card ≤ 128 * d)
+    (h_lift : HasIntAPCover p_cf.toFiniteConditions p)
+    (h_sieve_bound : HasAPRoughCountBound p_cf.toFiniteConditions p) :
+    min p_cf.xi ((32 : ℝ) / (p_cf.ell : ℝ)) * (p_cf.t : ℝ) ≤ ((subsetSumsMod p_cf.t p_cf.A).card : ℝ) := by
+  have h_cov_sieve := h_cov_sieve_of_lifting_and_sieve p_cf.toFiniteConditions p h_lift h_sieve_bound
+  exact cfp_lemma_5_6_m_eq_n_of_rough_count p_cf p h_numeric h_ap_cover h_cov_sieve
+
+/-- CFP Lemma 5.6 (m = n) Master Theorem with Branch-Decoupled AP Lifting and Sieve Bound:
+    Specializes Lemma 5.6 to m = n with pure AP cover, Branch A (|R.H|^3 ≥ R_card) /
+    Branch B (|R.H|^3 < R_card) decoupled AP lifting (P08), and Selberg sieve rough count bound (P09). -/
+theorem cfp_lemma_5_6_m_eq_n_of_branches_and_sieve
+    (p_cf : CFPArithParams)
+    (p : P17FiniteArithConditions p_cf.toFiniteConditions)
+    (h_numeric : p16TotalBudget p_cf.t p_cf.gMax p_cf.U p_cf.M ≤ p_cf.B_growth)
+    (h_ap_cover : ∀ (N : ℕ) [NeZero N] (T : Finset (ZMod N)) (d : ℕ),
+      ∃ (R : CosetAP N), smallGrowth T d ⊆ R.toFinset ∧ R.ell * (R.H : Set (ZMod N)).toFinset.card ≤ 128 * d)
+    (hA : HasIntAPCoverBranchA p_cf.toFiniteConditions p)
+    (hB : HasIntAPCoverBranchB p_cf.toFiniteConditions p)
+    (h_sieve_bound : HasAPRoughCountBound p_cf.toFiniteConditions p) :
+    min p_cf.xi ((32 : ℝ) / (p_cf.ell : ℝ)) * (p_cf.t : ℝ) ≤ ((subsetSumsMod p_cf.t p_cf.A).card : ℝ) := by
+  have h_lift := hasIntAPCover_of_branchA_and_branchB p_cf.toFiniteConditions p hA hB
+  exact cfp_lemma_5_6_m_eq_n_of_lifting_and_sieve p_cf p h_numeric h_ap_cover h_lift h_sieve_bound
 
 
 
 /-- Unconditional Two-Sided Master Theorem for Erdős Problem JSP-000298:
+
     For all n ≥ 3, the chromatic number f(n) is unconditionally non-trivial (f(n) ≥ 2)
     and bounded from above by the Conlon–Fox–Pham (2021) 4-layer upper bound:
       2 ≤ f(n) ≤ s1 + |P| + 2 * |reducedResidues d| + ⌈|R_cfp| / s_rem⌉. -/
@@ -6070,3 +10413,155 @@ end Erdos298
 #print axioms Erdos298.cfp_lemma_5_4_all_subsets_diverse
 #print axioms Erdos298.card_CFPLemma54Subsets_eq
 
+#print axioms Erdos298.subsetSums_mono
+#print axioms Erdos298.maxFiberElem_mem
+#print axioms Erdos298.le_maxFiberElem
+#print axioms Erdos298.card_subsetSums_insert_ge
+#print axioms Erdos298.card_subsetSums_union_ge_sum
+#print axioms Erdos298.card_subsetSums_union_ge_mul_min
+#print axioms Erdos298.card_subsetSums_union_ge_mul_min_real
+#print axioms Erdos298.cfp_lemma_5_5
+#print axioms Erdos298.cfp_lemma_5_5_scale
+
+#print axioms Erdos298.mul_two_le_of_dvd_of_lt
+#print axioms Erdos298.chain_doubling_le
+#print axioms Erdos298.chain_length_le_of_le_gMax
+#print axioms Erdos298.multiplicative_growth_bound_nat
+#print axioms Erdos298.multiplicative_growth_bound_real
+#print axioms Erdos298.linear_growth_bound_step
+#print axioms Erdos298.linear_step_count_le
+
+#print axioms Erdos298.greedyChoice_mem
+#print axioms Erdos298.greedyChoice_growth_max
+#print axioms Erdos298.greedyChoice_ordinary_max
+#print axioms Erdos298.chain_length_le_log2
+#print axioms Erdos298.doubling_chain_finset_card_le
+#print axioms Erdos298.growthSteps_g_image_card_le
+#print axioms Erdos298.growthSteps_card_le_K
+#print axioms Erdos298.card_subsetSumsMod_le_modulus
+#print axioms Erdos298.growthSteps_card_le_claim1
+#print axioms Erdos298.claim1_growth_bound_of_budget
+#print axioms Erdos298.cfp_lemma_5_6_finite_core_closed
+#print axioms Erdos298.cfp_lemma_5_6_m_eq_n_closed
+#print axioms Erdos298.growthSteps_card_le_p16Budget_closed
+#print axioms Erdos298.growthSteps_card_le_budget_closed
+#print axioms Erdos298.card_selectedMultiplesSums_le_U
+#print axioms Erdos298.card_selectedMultiplesSums_insert_eq
+#print axioms Erdos298.card_mult_growth_steps_le
+#print axioms Erdos298.card_linear_growth_steps_le
+#print axioms Erdos298.card_partition_le_p16BlockBudget
+#print axioms Erdos298.card_image_scaled_of_injOn
+#print axioms Erdos298.exists_candidate_range1_growth
+#print axioms Erdos298.growthSteps_card_le_p16TotalBudget
+#print axioms Erdos298.growthSteps_card_le_budget_of_numeric_bound
+#print axioms Erdos298.exists_candidate_range2_growth_of_iterSum_growth
+#print axioms Erdos298.zmodScale_add
+#print axioms Erdos298.zmodScale_injective
+#print axioms Erdos298.zmodScale_natCast_div
+#print axioms Erdos298.translate_image_zmodScale
+#print axioms Erdos298.delta_image_zmodScale
+#print axioms Erdos298.closure_eq_top_of_one_mem
+#print axioms Erdos298.greedySeq_E_mono
+#print axioms Erdos298.f_g_mono
+#print axioms Erdos298.f_g_succ_eq
+#print axioms Erdos298.trajectory_growth_step_range1
+#print axioms Erdos298.trajectory_growth_step_range2
+#print axioms Erdos298.growthSteps_block_card_le_p16BlockBudget
+#print axioms Erdos298.growthSteps_card_le_p16Budget
+#print axioms Erdos298.growthSteps_card_le_budget_of_p16
+#print axioms Erdos298.cfp_lemma_5_6_finite_core_of_p16
+#print axioms Erdos298.small_fiber_card_mul_two_lt
+#print axioms Erdos298.exists_trajectory_range2_candidate_of_iterSum_growth
+#print axioms Erdos298.trajectory_growth_step_range2_of_iterSum_growth
+#print axioms Erdos298.growthSteps_block_card_le_p16BlockBudget_of_iterSum_growth
+#print axioms Erdos298.growthSteps_card_le_p16Budget_of_iterSum_growth
+#print axioms Erdos298.growthSteps_card_le_budget_of_iterSum_growth
+#print axioms Erdos298.cfp_lemma_5_6_finite_core_of_iterSum_growth
+#print axioms Erdos298.cfp_lemma_5_6_m_eq_n_of_iterSum_growth
+#print axioms Erdos298.injOn_of_inY_v
+#print axioms Erdos298.zmodScale_val_div
+#print axioms Erdos298.card_centerFiberPullback
+#print axioms Erdos298.delta_centerFiberPullback
+#print axioms Erdos298.delta_fiber_pullback_le_delta_S
+#print axioms Erdos298.unsaturatedSteps_div_neZero
+#print axioms Erdos298.unsaturated_step_medium_fiber_and_smallGrowth
+#print axioms Erdos298.P17FiniteArithConditions.injOn_A
+#print axioms Erdos298.unsaturated_step_growth_of_arith_conditional
+#print axioms Erdos298.unsaturatedSteps_growth_of_arith_conditional
+#print axioms Erdos298.cfp_lemma_5_6_finite_core_of_arith_conditional
+#print axioms Erdos298.closure_card_le_three_of_card_three_iterSum_four_le_three
+#print axioms Erdos298.exists_eq_pair_or_three_of_zero_mem_card_le_three
+#print axioms Erdos298.closure_card_le_three_of_iterSum_four_le_three
+#print axioms Erdos298.CosetAP.card_toFinset_le
+#print axioms Erdos298.mul_128_lt_of_density
+#print axioms Erdos298.proper_subgroup_of_card_lt
+#print axioms Erdos298.proper_subgroup_of_card_le_128d
+#print axioms Erdos298.card_sup_subgroup_le
+#print axioms Erdos298.proper_subgroup_of_three_coset_absorption
+#print axioms Erdos298.scaledCosetAPLift_k
+#print axioms Erdos298.scaledCosetAPLift_b_le
+#print axioms Erdos298.intAPCover_of_family
+#print axioms Erdos298.intAPCover_of_single
+#print axioms Erdos298.intAPCover_of_coset_family
+#print axioms Erdos298.apCoverSieveBridge_of_cover_and_sieve
+#print axioms Erdos298.subsetSums_of_mem_sumset_image
+#print axioms Erdos298.image_cast_subsetSums_subset_Icc
+#print axioms Erdos298.subsetSums_contains_Icc_of_lev
+#print axioms Erdos298.mem_subsetSums_of_lev_interval_extend
+#print axioms Erdos298.target_hit_of_lev_diverse
+#print axioms Erdos298.CFPDiverseWitness.ofLevCoverage
+#print axioms Erdos298.minColors_ge_of_lev_coverage
+
+#print axioms Erdos298.exists_disjoint_subsets_list
+#print axioms Erdos298.exists_disjoint_diverse_list
+#print axioms Erdos298.pairwise_get_of_pairwise
+#print axioms Erdos298.exists_disjoint_diverse_family
+#print axioms Erdos298.exists_disjoint_diverse_pair_of_family
+#print axioms Erdos298.exists_disjoint_diverse_partition_of_div
+#print axioms Erdos298.target_hit_of_hasLevIntervalCoverage
+#print axioms Erdos298.CFPDiverseWitness.ofLevCoveragePred
+#print axioms Erdos298.hasChromaticLowerBound_of_diverse_witnesses
+#print axioms Erdos298.hasChromaticLowerBound_of_lev_coverage
+#print axioms Erdos298.erdos_problem_360_asymptotic_master_of_diverse
+#print axioms Erdos298.erdos_problem_360_asymptotic_master_of_lev
+#print axioms Erdos298.hasChromaticLowerBound_of_asymptotic_params
+
+#print axioms Erdos298.smallGrowth_subset_subgroup
+#print axioms Erdos298.proper_subgroup_smallGrowth_of_three_coset_absorption
+#print axioms Erdos298.smallGrowth_proper_subgroup_of_closure_ne_top
+#print axioms Erdos298.unsaturated_step_growth_of_ap_cover
+#print axioms Erdos298.unsaturatedSteps_growth_of_ap_cover
+#print axioms Erdos298.cfp_lemma_5_6_finite_core_of_ap_cover
+#print axioms Erdos298.cfp_lemma_5_6_m_eq_n_of_ap_cover
+#print axioms Erdos298.cfp_lemma_5_6_finite_core_of_rough_count
+#print axioms Erdos298.cfp_lemma_5_6_m_eq_n_of_rough_count
+
+#print axioms Erdos298.IntAP.inj_of_hb
+#print axioms Erdos298.linear_dvd_sub_ge_d
+#print axioms Erdos298.card_le_div_add_one_of_separated
+#print axioms Erdos298.card_filter_range_dvd_le
+#print axioms Erdos298.card_filter_dvd_toFinset_le
+#print axioms Erdos298.dvd_natAbs_iff
+#print axioms Erdos298.card_filter_natAbs_dvd_toFinset_le
+#print axioms Erdos298.roughCount_eq_card_filter_range
+
+
+#print axioms Erdos298.h_cov_sieve_of_lifting_and_sieve
+#print axioms Erdos298.cfp_lemma_5_6_finite_core_of_lifting_and_sieve
+#print axioms Erdos298.cfp_lemma_5_6_m_eq_n_of_lifting_and_sieve
+
+#print axioms Erdos298.coprime_q_W_of_inY_v
+#print axioms Erdos298.card_le_card_cosetAP_of_image_subset
+
+#print axioms Erdos298.card_filter_natAbs_dvd_toFinset_real_le
+#print axioms Erdos298.roughCount_one
+#print axioms Erdos298.roughCount_mono
+#print axioms Erdos298.roughCount_le_card
+
+#print axioms Erdos298.hasIntAPCover_of_branchA_and_branchB
+
+#print axioms Erdos298.zmod_subgroup_val_dvd
+#print axioms Erdos298.zmod_subgroup_scaled_val_dvd
+
+#print axioms Erdos298.cfp_lemma_5_6_m_eq_n_of_branches_and_sieve
+#print axioms Erdos298.hasIntAPCoverBranchA

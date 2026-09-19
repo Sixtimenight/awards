@@ -29,6 +29,8 @@ lake build
 | **CFP 4-Layer Upper Bound** | **Unconditionally Proven** | Complete constructive 4-layer coloring (`Erdos298.exists_coloring_conlon_fox_pham`). |
 | **Elementary Lower Bound** ($f(n) \ge 2$) | **Unconditionally Proven** | Machine-checked for all $n \ge 3$ (`Erdos298.minColors_ge_two`, `Erdos298.minColors_ge_two_via_cfp`). |
 | **CFP Lower Bound Reduction Engine** | **Unconditionally Proven** | Monotone lifting, fiber pigeonhole, AP hitting bridge (`Erdos298.minColors_ge_of_cfp_witness`). |
+| **Kneser Addition Theorem & Iterated Growth (Phase U1)** | **Unconditionally Proven** | Complete inductive proof via DeVos (2009) on arbitrary composite modulus (`Erdos298.iterSum_card_ge_of_zero_mem_of_generates`). |
+| **CFP Lemma 5.6 Claim 1 & Finite Core** | **Claim 1 Closed; Finite Core Awaits P17** | Claim 1 bounded unconditionally via U1 (`Erdos298.growthSteps_card_le_p16Budget_closed`); finite core requires P17 and parameter conditions (`Erdos298.cfp_lemma_5_6_finite_core_closed`). |
 | **Asymptotic Growth Equivalence** ($f(n) \asymp F(n)$) | **Conditional Reduction** | Requires external lower/upper witnesses (`Erdos298.conlon_fox_pham_bounds`, `Erdos298.erdos_problem_360_asymptotic_master`). |
 | **Asymptotic Lower Bound Witness** | **Open Formalization Frontier** | Constructing the explicit witness family for $f(n) \ge c F_{cfp}(n)$ requires deep external theorems (Szemerédi–Vu, Brun–Titchmarsh prime concentration, quantitative Mertens) not currently in Mathlib. |
 
@@ -327,7 +329,85 @@ lake build
 - `Erdos298.cfp_lemma_5_4_all_subsets_diverse`: Universal diversity theorem: 100% of size-$s$ subsets are $k'$-diverse under controlled loss.
 - `Erdos298.card_CFPLemma54Subsets_eq`: Combinatorial cardinality $\binom{|A|}{s}$ of diverse subsamples.
 
-### 22. Final Master Theorems (Unified Synthesis)
+### 22. Modulo Density to Integer Subset Sum Growth (Conlon–Fox–Pham 2021, Lemma 2.5 & Lemma 5.5 / Phase 22)
+- `Erdos298.subsetSums_mono`: Subset sums monotonicity: $A \subseteq B \implies \Sigma(A) \subseteq \Sigma(B)$.
+- `Erdos298.maxFiberElem`, `Erdos298.maxFiberElem_mem`, `Erdos298.le_maxFiberElem`: Canonical maximum fiber representative construction.
+- `Erdos298.card_subsetSums_insert_ge`: **Conlon–Fox–Pham (2021) Lemma 2.5** (Single-element subset sum growth from modular density):
+  $$|\Sigma(A)| + |\Sigma_m(A)| \le |\Sigma(A \cup \{m\})| \quad (m \notin A, m > 0).$$
+- `Erdos298.card_subsetSums_union_ge_sum`: Iterated disjoint subset sum growth:
+  $$|\Sigma(S)| + \sum_{b \in B} |\Sigma_b(S)| \le |\Sigma(S \cup B)|.$$
+- `Erdos298.card_subsetSums_union_ge_mul_min` & `card_subsetSums_union_ge_mul_min_real`:
+  $$|B| \cdot L \le |\Sigma(S \cup B)| \quad \text{when } \forall b \in B, L \le |\Sigma_b(S)|.$$
+- `Erdos298.cfp_lemma_5_5`: **CFP Lemma 5.5 Master Theorem**:
+  For diverse subsets $A_1, A_2 \subseteq A$ with $A_1 \cap A_2 = \emptyset$ and $\forall b \in A_2, b \ge y/v$:
+  $$|\Sigma(A)| \ge |A_2| \cdot c \cdot \frac{y}{v}.$$
+- `Erdos298.cfp_lemma_5_5_scale`: Scaled specialization under Lemma 5.4 extraction ($|A_2| \ge s$) and Lemma 5.6 density:
+  $$s \cdot \min\left(\xi, \frac{32}{\ell}\right) \cdot \frac{y}{v} \le |\Sigma(A)|.$$
+
+### 23. Growth Steps Budget Infrastructure (Conlon–Fox–Pham 2021, Lemma 5.6 Claim 1 / Phase P16)
+- `Erdos298.selectedMultiplesSums`: Tracked fiber multiples sums: $T_g(E) = \Sigma_t(E \cap g\mathbb{N})$ with monotonicity and incremental delta formula `card_selectedMultiplesSums_insert_eq`.
+- `Erdos298.card_selectedMultiplesSums_le_U`: Capacity bound $|T_{g_j}(E_j)| \le U$ at growth stage derived from Lemma 5.11 fiber bound.
+- `Erdos298.greedyChoice`: Stage-aware candidate selection: maximizes small fiber growth $\delta(T_{g_j}(E_j), a)$ in growth stages (`Erdos298.growthChoice`) and total subset sum growth $\delta(S, a)$ in ordinary stages (`Erdos298.ordinaryChoice`).
+- `Erdos298.injOn_scaled_of_injOn` & `Erdos298.card_image_scaled_of_injOn`: Invertible scaling into quotient coordinates $\mathbb{Z}/(t/g)\mathbb{Z}$.
+- `Erdos298.exists_candidate_range1_growth`: Unconditional single-step growth in Range 1 ($2|S| < |B|$): $\exists a \in B, 3|S| \le 2(|S| + \delta(S, a))$.
+- `Erdos298.exists_candidate_range2_growth_of_iterSum_growth`: Range 2 single-step growth reduction on general modulus $\mathbb{Z}_N$: under iterated sumset growth $h_{u1}$, contradiction derived via $\lfloor 4s/b \rfloor \cdot \lfloor (b-1)/8 \rfloor \le s/2$ establishing $\exists a \in Q, |Q| \le 8 \delta(S, a)$.
+- `Erdos298.zmodScale`, `zmodScale_add`, `zmodScale_injective`, `zmodScale_natCast_div`: Scaled quotient embedding $x \mapsto (g \cdot x.\text{val} : \mathbb{Z}_t)$ from $\mathbb{Z}_{t/g} \to \mathbb{Z}_t$.
+- `Erdos298.translate_image_zmodScale`, `Erdos298.delta_image_zmodScale`: Exact preservation of translate and delta under scaled quotient embedding: $\delta(S.\text{image}(\text{zmodScale}), \text{zmodScale } x) = \delta(S, x)$.
+- `Erdos298.closure_eq_top_of_one_mem`: Subgroup generated by $1 \in \mathbb{Z}_n$ is $\top$.
+- `Erdos298.greedySeq_E_mono`: Sequence of chosen subsets is monotonic along the greedy iteration: $j_1 \le j_2 \implies E_{j_1} \subseteq E_{j_2}$.
+- `Erdos298.f_g`, `f_g_mono`, `one_le_f_g`, `f_g_le_t`, `f_g_succ_eq`: Real trajectory potential $f_g(j) = |T_g(E_j)|$ with exact single-step formula at growth steps.
+- `Erdos298.trajectory_growth_step_range1`: Unconditional Range 1 single-step growth along the trajectory: $3 f_g(j) \le 2 f_g(j+1)$.
+- `Erdos298.trajectory_growth_step_range2`: Range 2 single-step growth along the trajectory: $8 f_g(j) + M \le 8 f_g(j+1)$.
+- `Erdos298.p16MultBudget`, `Erdos298.p16LinearBudget`, `Erdos298.p16BlockBudget`, `Erdos298.p16TotalBudget`: Logarithmic budget functions:
+  $$\text{p16MultBudget}(t) = 2(\lfloor\log_2 t\rfloor + 1), \quad \text{p16LinearBudget}(U, M) = \lfloor 8U/M \rfloor + 1,$$
+  $$\text{p16BlockBudget}(t, U, M) = \text{p16MultBudget}(t) + \text{p16LinearBudget}(U, M),$$
+  $$\text{p16TotalBudget}(t, gMax, U, M) = (\lfloor\log_2 gMax\rfloor + 1) \cdot \text{p16BlockBudget}(t, U, M).$$
+- `Erdos298.card_mult_growth_steps_le`: Sparse multiplicative step counting bound: any marked subset $J$ with $3 f(j) \le 2 f(j+1)$ along a bounded monotonic sequence has $|J| \le 2(\lfloor\log_2 t\rfloor + 1)$.
+- `Erdos298.card_linear_growth_steps_le`: Sparse linear step counting bound: any marked subset $J$ with $8 f(j) + M \le 8 f(j+1)$ has $|J| \le \lfloor 8U/M \rfloor + 1$.
+- `Erdos298.card_partition_le_p16BlockBudget`: Marked-step partition bound: $|J| \le \text{p16BlockBudget}(t, U, M)$.
+- `Erdos298.growthSteps_block_card_le_p16BlockBudget`: **Per-block budget theorem eliminating $h_{fibers}$**: each subgroup index block has $|J_y| \le \text{p16BlockBudget}(t, U, M)$ via partition into $J_{mult} \cup J_{lin}$ and application of D1 and D2.
+- `Erdos298.greedySeq_g_dvd` & `Erdos298.greedySeq_g_le`: Divisibility and order monotonicity of subgroup index along the greedy trajectory.
+- `Erdos298.greedySeq_g_image_doubling` & `Erdos298.doubling_chain_finset_card_le`: Doubling chain cardinality bound in $\mathrm{Finset}\;\mathbb{N}$: $|Y| \le \lfloor\log_2 gMax\rfloor + 1$.
+- `Erdos298.growthSteps_g_image_card_le`: Distinct subgroup blocks in `growthSteps` bounded by $\lfloor\log_2 gMax\rfloor + 1$.
+- `Erdos298.growthSteps_card_le_p16Budget`: **Conlon–Fox–Pham (2021) Lemma 5.6 Claim 1 Logarithmic Master Theorem without $h_{fibers}$**:
+  $$(\text{growthSteps } fc).\text{card} \le \text{p16TotalBudget}(fc.t, fc.gMax, fc.U, fc.M).$$
+- `Erdos298.growthSteps_card_le_budget_of_p16`: Numerical adaptation of Claim 1 to `fc.B_growth` without $h_{fibers}$.
+- `Erdos298.cfp_lemma_5_6_finite_core_of_p16`: Finite core of Lemma 5.6 with growth budget derived from `p16TotalBudget` without $h_{fibers}$.
+- `Erdos298.subsetSumsMod_image_zmodScale`, `Erdos298.scaledSelectedSums_image_zmodScale`, `Erdos298.card_scaledSelectedSums_eq`, `Erdos298.delta_scaledSelectedSums_eq`: Bridge 1 establishing exact subset sum and delta preservation between quotient ring $\mathbb{Z}/(t/g)\mathbb{Z}$ and full modulus $\mathbb{Z}/t\mathbb{Z}$.
+- `Erdos298.nat_gcd_cast_mem_addSubgroup`, `Erdos298.finset_gcd_cast_mem_addSubgroup`, `Erdos298.closure_natCast_image_eq_top_of_gcd_eq_one`, `Erdos298.closure_scaled_candidate_eq_top`: Bridge 2 establishing unconditional subgroup generation of $\mathbb{Z}/(t/g)\mathbb{Z}$ from $\{a/g \mid a \in B\}$ via Bézout coefficients and scaled coprimality.
+- `Erdos298.small_fiber_card_mul_two_lt`: Bridge 3 establishing the quotient cardinality precondition $2 |S| < t / g$ along the growth trajectory.
+- `Erdos298.exists_trajectory_range2_candidate_of_iterSum_growth`: Bridge 4 deriving the real Range 2 candidate $\exists a \in B_j, |B_j| \le 8 \delta(T_{g_j}(E_j), a)$ strictly from the iterated sumset growth theorem $h_{u1}$.
+- `Erdos298.trajectory_growth_step_range2_of_iterSum_growth`: Real Range 2 trajectory growth step closed under $h_{u1}$.
+- `Erdos298.growthSteps_block_card_le_p16BlockBudget_of_iterSum_growth`: Per-block budget bound derived directly from $h_{u1}$.
+- `Erdos298.growthSteps_card_le_p16Budget_of_iterSum_growth`: Total growth steps bounded by $\text{p16TotalBudget}$ without external $h_{fibers}$ or $h_{range2}$, derived directly from $h_{u1}$.
+- `Erdos298.growthSteps_card_le_budget_of_iterSum_growth`: Growth step budget bound derived strictly from $h_{u1}$.
+- `Erdos298.cfp_lemma_5_6_finite_core_of_iterSum_growth`: Finite core of CFP Lemma 5.6 strictly reduced to iterated sumset growth $h_{u1}$.
+- `Erdos298.cfp_lemma_5_6_m_eq_n_of_iterSum_growth`: CFP Lemma 5.6 ($m = n$) strictly reduced to iterated sumset growth $h_{u1}$.
+- `Erdos298.growthSteps_card_le_p16Budget_closed`: Conlon–Fox–Pham Lemma 5.6 Claim 1 total growth steps bounded by $\text{p16TotalBudget}$ unconditionally without $h_{fibers}$ and without $h_{u1}$.
+- `Erdos298.growthSteps_card_le_budget_closed`: Growth step budget bound $B_{growth}$ closed unconditionally without $h_{fibers}$ and without $h_{u1}$.
+- `Erdos298.cfp_lemma_5_6_finite_core_closed`: Combinatorial Core F1 of CFP Lemma 5.6 ($\min(\xi, 32/\ell) \cdot t \le |\Sigma_t(A)|$) closed with U1 / Claim 1 mathematical dependencies resolved, still requiring P17 (`h_unsaturated_step_growth`) and parameter conditions (`h_inj`, `h_numeric`).
+- `Erdos298.cfp_lemma_5_6_m_eq_n_closed`: Master CFP Lemma 5.6 ($m = n$) closed with U1 / Claim 1 mathematical dependencies resolved, still requiring P17 (`h_unsaturated_step_growth`) and parameter conditions (`h_inj`, `h_numeric`).
+- `Erdos298.aperiodic_sumset_bound` & `Erdos298.iterSum_card_ge_of_zero_mem_of_generates`: DeVos (2009) inductive proof of Kneser's addition theorem and unconditional iterated sumset growth on arbitrary composite modulus:
+  $$(k C).\mathrm{card} = N \lor (k + 1) \cdot C.\mathrm{card} \le 2 \cdot (k C).\mathrm{card}$$
+  for any composite modulus $N = t/g$ ($[NeZero N]$), generators $C$ with $0 \in C$ and $\mathrm{closure}(C) = \top$, and any $k \ge 1$.
+- Strict Axiom Audit: The entire proof chain relies strictly on standard Lean 4 axioms `[propext, Classical.choice, Quot.sound]` with zero `sorry`, zero `admit`, and zero custom axioms.
+
+### 24. Phase P17: Candidate Injectivity, Fiber Pullback, and Unsaturated Step Growth (Integration Layer)
+- `Erdos298.injOn_of_inY_v`: Modulo $t$ injectivity $\mathrm{InjOn}(a \mapsto (a : \mathbb{Z}_t), A)$ derived unconditionally from $A \subseteq Y_v$ and interval bounds $y \le v \cdot t$.
+- `Erdos298.zmodScale_val_div`: Scale retraction theorem: every element in $\ker(\mathrm{zmodProj}\; hd)$ is in the image of `zmodScale t g`.
+- `Erdos298.card_centerFiberPullback` & `Erdos298.delta_centerFiberPullback`: Exact cardinality and translation delta preservation between centered fiber $C \subseteq \mathbb{Z}/t\mathbb{Z}$ and quotient pullback $T \subseteq \mathbb{Z}/(t/g)\mathbb{Z}$.
+- `Erdos298.delta_fiber_pullback_le_delta_S`: Pullback delta bounded by total state delta: $\delta(T, a/g) \le \delta(S, a)$ for all $a \in B$.
+- `Erdos298.unsaturatedSteps_div_neZero`: Machine-checked proof that quotient modulus $N = t/g$ is non-zero at any unsaturated step.
+- `Erdos298.unsaturated_step_medium_fiber_and_smallGrowth`: Complete reduction of any unsaturated step with $\delta_j \le D$ to smallGrowth $T \subseteq \mathbb{Z}/(t/g)\mathbb{Z}$ with $U < |T|$, $|T| < \xi \cdot (t/g)$, $Q \subseteq \mathrm{smallGrowth}(T, D)$, $M \le |Q|$, and $\mathrm{closure}(Q) = \top$.
+- `Erdos298.P17FiniteArithConditions`: Clean arithmetic parameter structure bundling raw parameters $(n, r, y, W)$ and explicit numerical thresholds $(E_1, E_2, E_3)$ without any structural or sieve oracles.
+- `Erdos298.P17FiniteArithConditions.injOn_A`: Automatic elimination of external injectivity hypothesis $h_{inj}$ from $P17FiniteArithConditions$.
+- `Erdos298.SmallGrowthTrichotomy`: Rigorous interface for the 3-branch small growth classification (proper subgroup, small cardinality, or AP cover with Selberg sieve bound).
+- `Erdos298.unsaturated_step_growth_of_arith_conditional`: Master contradiction deriving $D \le \delta_j$ for each unsaturated step under P17 arithmetic conditions and the structural trichotomy.
+- `Erdos298.unsaturatedSteps_growth_of_arith_conditional`: Uniform unsaturated growth bound $\forall j \in \mathrm{unsaturatedSteps}, D \le \delta_j$.
+- `Erdos298.cfp_lemma_5_6_finite_core_of_arith_conditional`: Master finite core theorem with both $h_{inj}$ and $h_{unsaturated\_step\_growth}$ eliminated under $P17FiniteArithConditions$ and the explicit structural trichotomy.
+- Strict Axiom Audit: All new theorems depend strictly on standard Lean 4 axioms `[propext, Classical.choice, Quot.sound]` with zero `sorry` and zero custom axioms.
+
+### 25. Final Master Theorems (Unified Synthesis)
 - `Erdos298.erdos_problem_360_finite_master`:
   For any integer $n \ge 3$, any lower bound witness $w : \mathrm{CFPLowerBoundWitness}(n, k)$, and any valid Conlon–Fox–Pham 4-layer upper configuration $(s_1, P, d, s_{rem})$ with $s_{rem} \le s_1$ and $\forall p \in P, p \nmid n$:
   $$k + 1 \le f(n) \le s_1 + |P| + 2|\mathrm{reducedResidues}(d)| + \left\lceil \frac{|R_{cfp}|}{s_{rem}} \right\rceil.$$
